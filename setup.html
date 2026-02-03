@@ -2,93 +2,81 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HOLDON 出勤系統｜設定</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HOLDON 出勤系統｜身份設定</title>
   <style>
-    body{font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;background:#f6f7f8;margin:0}
-    .wrap{max-width:720px;margin:24px auto;padding:16px}
-    .card{background:#fff;border-radius:14px;padding:18px 18px 10px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
-    h1{margin:0 0 10px;font-size:22px}
-    .muted{color:#6b7280;font-size:13px;line-height:1.6}
-    label{display:block;margin:14px 0 6px;font-weight:700}
-    input{width:100%;padding:12px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:16px}
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-    button{flex:1;padding:12px;border:0;border-radius:10px;font-size:16px;font-weight:800;cursor:pointer}
-    .primary{background:#111827;color:#fff}
-    .secondary{background:#e5e7eb}
-    .ok{color:#047857;font-weight:800}
-    .bad{color:#b91c1c;font-weight:800}
-    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-    .links{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
-    a{color:#2563eb;text-decoration:none}
+    :root{ --bg:#f6f7fb; --card:#fff; --text:#111; --muted:#666; --line:#e7e7ef; --btn:#111; --btn2:#374151; --ok:#0a7f3f; --bad:#c02626; }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial; background:var(--bg); color:var(--text); }
+    .wrap{ max-width:860px; margin:28px auto; padding:0 16px; }
+    .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; box-shadow:0 6px 18px rgba(0,0,0,.06); }
+    h1{ margin:0 0 12px; font-size:26px; letter-spacing:.5px; }
+    .muted{ color:var(--muted); line-height:1.6; }
+    .grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+    @media (max-width:760px){ .grid{ grid-template-columns:1fr; } }
+    label{ display:block; font-size:14px; margin:10px 0 6px; color:#222; }
+    input{ width:100%; padding:12px 12px; border:1px solid var(--line); border-radius:12px; font-size:16px; outline:none; }
+    input:focus{ border-color:#b6b6c9; }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    button{ border:0; border-radius:12px; padding:12px 14px; font-size:15px; cursor:pointer; }
+    .btn{ background:var(--btn); color:#fff; }
+    .btn.secondary{ background:var(--btn2); color:#fff; }
+    .btn.ghost{ background:#fff; border:1px solid var(--line); color:#111; }
+    .status{ margin-top:12px; padding:12px; border-radius:12px; border:1px solid var(--line); background:#fff; }
+    .status.ok{ border-color:#bfe8cc; background:#f0fff5; color:var(--ok); }
+    .status.bad{ border-color:#f2b8b8; background:#fff1f1; color:var(--bad); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .links a{ display:inline-block; margin-right:10px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>出勤系統設定</h1>
+      <h1>身份設定（Setup）</h1>
       <div class="muted">
-        這頁只做一件事：把「員工 / 主管」身分寫進瀏覽器。<br/>
-        設完就去：<span class="mono">/</span>（員工頁）或 <span class="mono">/manager.html</span>（主管頁）
+        這頁做兩件事：<br/>
+        1) 設定員工身份（用於出勤/請假/加班送出）<br/>
+        2) 設定主管身份（用於外出單核准）<br/><br/>
+        ✅ 可「雙重身份」：同一人同時是員工 + 主管，只要兩邊都填即可。
       </div>
 
-      <label>員工編號 employeeId</label>
-      <input id="employeeId" placeholder="例如 U001" />
+      <div class="grid">
+        <div class="card" style="box-shadow:none;">
+          <h2 style="margin:0 0 8px; font-size:18px;">員工身份</h2>
+          <label>employeeId（必填）</label>
+          <input id="employeeId" placeholder='例如：U001 或 LINE_userId' />
+          <label>employeeName（必填）</label>
+          <input id="employeeName" placeholder='例如：米雪' />
+          <div class="row">
+            <button class="btn" id="btnSaveEmployee">儲存員工身份</button>
+          </div>
+        </div>
 
-      <label>員工姓名 employeeName</label>
-      <input id="employeeName" placeholder="例如 米雪" />
-
-      <label>主管編號 managerId（沒有就留空）</label>
-      <input id="managerId" placeholder="例如 MGR001 / MGR002" />
+        <div class="card" style="box-shadow:none;">
+          <h2 style="margin:0 0 8px; font-size:18px;">主管身份</h2>
+          <label>managerId（可留空；有填才算主管）</label>
+          <input id="managerId" placeholder='例如：MGR001（需在 GAS 的 MANAGER_USER_IDS 白名單）' />
+          <div class="row">
+            <button class="btn secondary" id="btnSaveManager">儲存主管身份</button>
+          </div>
+        </div>
+      </div>
 
       <div class="row">
-        <button class="primary" id="btnSave">儲存設定</button>
-        <button class="secondary" id="btnClear">清除設定</button>
+        <button class="btn ghost" id="btnLoad">讀取目前設定</button>
+        <button class="btn ghost" id="btnClear">清除全部設定</button>
       </div>
 
-      <div id="status" class="muted" style="margin-top:10px"></div>
+      <div id="status" class="status" style="margin-top:14px;">
+        <div class="mono">尚未操作</div>
+      </div>
 
-      <div class="links">
-        <a href="./">前往員工頁</a>
-        <a href="./manager.html">前往主管頁</a>
+      <div class="links muted" style="margin-top:12px;">
+        前往：<a href="./" target="_blank">出勤頁</a>
+        <a href="./manager.html" target="_blank">主管頁</a>
       </div>
     </div>
   </div>
 
-<script>
-  const $ = (id)=>document.getElementById(id);
-  function setStatus(msg, ok){
-    $("status").innerHTML = (ok===true?`<span class="ok">✅ ${msg}</span>`:ok===false?`<span class="bad">❌ ${msg}</span>`:msg);
-  }
-  function load(){
-    $("employeeId").value = localStorage.getItem("employeeId") || "";
-    $("employeeName").value = localStorage.getItem("employeeName") || "";
-    $("managerId").value = localStorage.getItem("managerId") || "";
-    setStatus("目前設定已載入。", null);
-  }
-  $("btnSave").addEventListener("click", ()=>{
-    const eid = $("employeeId").value.trim();
-    const enm = $("employeeName").value.trim();
-    const mid = $("managerId").value.trim();
-
-    if(!eid || !enm) return setStatus("員工編號與姓名必填。", false);
-
-    localStorage.setItem("employeeId", eid);
-    localStorage.setItem("employeeName", enm);
-
-    if(mid) localStorage.setItem("managerId", mid);
-    else localStorage.removeItem("managerId");
-
-    setStatus("已儲存。你可以直接去員工頁/主管頁了。", true);
-  });
-
-  $("btnClear").addEventListener("click", ()=>{
-    ["employeeId","employeeName","managerId"].forEach(k=>localStorage.removeItem(k));
-    load();
-    setStatus("已清除。", true);
-  });
-
-  load();
-</script>
+  <script src="./setup.js"></script>
 </body>
 </html>
