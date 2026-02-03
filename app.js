@@ -45,8 +45,8 @@ function bindButton(id, fn){
 // ===== localStorage (正式版入口) =====
 // employeeId / employeeName：員工身份
 function getUser(){
-  const userId = localStorage.getItem("employeeId") || localStorage.getItem("userId") || "demo_user";
-  const displayName = localStorage.getItem("employeeName") || localStorage.getItem("displayName") || "Demo";
+  const userId = localStorage.getItem("employeeId") || "demo_user";
+  const displayName = localStorage.getItem("employeeName") || "Demo";
   return { userId, displayName };
 }
 
