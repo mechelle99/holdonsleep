@@ -1,12 +1,1 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LIFF Ping</title>
-  </head>
-  <body style="font-family: Arial; padding:16px;">
-    <h2>Ping OK ✅</h2>
-    <p>如果你在 LINE 裡看到這段，就代表 Endpoint URL 沒問題。</p>
-  </body>
-</html>
+
