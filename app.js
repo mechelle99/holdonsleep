@@ -1,6 +1,7 @@
 /* app.js (secured + localStorage) */
 const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
 
+
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
 const whoEl = $("who");
