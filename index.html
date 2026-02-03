@@ -91,12 +91,36 @@
   setStatus("寫入中...");
   log("sendLog type=" + type);
 
+  async function sendLog(type){
+  setStatus("寫入中...");
+  log("sendLog type=" + type);
+
   try{
-    const res = await fetch(GAS_WEBAPP_URL, {
+    const body = new URLSearchParams({
+      type,
+      userId,
+      displayName,
+      ts: String(Date.now()),
+      origin: location.origin
+    }).toString();
+
+    await fetch(GAS_WEBAPP_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, userId, displayName })
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body
     });
+
+    // no-cors 拿不到 res.status / res.text，是正常的
+    setStatus("已送出 ✅（請到表單確認是否寫入）");
+    log("sent (no-cors), check sheet");
+  }catch(err){
+    log("errName=" + (err?.name || "unknown"));
+    log("errMsg=" + (err?.message || String(err)));
+    setStatus("寫入失敗：" + (err?.message || err));
+  }
+}
+
 
     log("http status=" + res.status);
 
