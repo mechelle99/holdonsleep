@@ -87,40 +87,30 @@
     }
   }
 
-  async function sendLog(type){
-    if(!ready){
-      setStatus("還在初始化，請稍等");
-      return;
-    }
+ async function sendLog(type){
+  setStatus("寫入中...");
+  log("sendLog type=" + type);
 
-    setButtonsEnabled(false);
-    setStatus("寫入中...");
-    log("sendLog type=" + type);
+  try{
+    const res = await fetch(GAS_WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, userId, displayName })
+    });
 
-    try{
-      const res = await fetch(GAS_WEBAPP_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, userId, displayName })
-      });
+    log("http status=" + res.status);
 
-      log("http status=" + res.status);
+    const text = await res.text();
+    log("raw=" + text.slice(0, 120));
 
-      const text = await res.text();
-      log("raw=" + text.slice(0, 200));
-
-      let data;
-      try { data = JSON.parse(text); } catch(e) { throw new Error("not JSON response"); }
-
-      if(!data.ok) throw new Error((data.message || "unknown") + (data.stack ? (" | " + data.stack) : ""));
-      setStatus(data.message || "寫入成功 ✅");
-      setButtonsEnabled(true);
-    }catch(err){
-      setStatus("寫入失敗：" + (err.message || err));
-      setButtonsEnabled(true);
-      log("failure: " + (err.message || err));
-    }
+    setStatus("回應：" + res.status);
+  }catch(err){
+    log("errName=" + (err && err.name ? err.name : "unknown"));
+    log("errMsg=" + (err && err.message ? err.message : String(err)));
+    setStatus("寫入失敗：" + (err && err.message ? err.message : err));
   }
+}
+
 
   init();
 </script>
