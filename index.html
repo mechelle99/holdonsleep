@@ -1,614 +1,139 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HOLDON 出勤系統</title>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>HOLDON Attendance</title>
   <style>
-    body{font-family:Arial,sans-serif;padding:16px;color:#111;}
-    h2{margin:0 0 8px;}
-    .muted{color:#666;font-size:12px;margin:6px 0 14px;}
-    .tabs{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;}
-    .tab{padding:8px 12px;border:1px solid #ddd;border-radius:999px;background:#fff;cursor:pointer;font-size:13px;}
-    .tab.active{border-color:#111;}
-    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 8px 24px rgba(0,0,0,.05);}
-    .row{display:flex;gap:10px;flex-wrap:wrap;}
-    .btn{padding:10px 12px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer;}
-    .btn.primary{border-color:#111;}
-    .btn:disabled{opacity:.45;cursor:not-allowed;}
-    label{font-size:12px;color:#444;display:block;margin:10px 0 4px;}
-    input,select,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px;}
-    textarea{min-height:70px;resize:vertical;}
-    .status{font-size:13px;margin-top:10px;white-space:pre-wrap;}
-    .ok{color:#0a7a2f;}
-    .err{color:#b00020;}
-    .hidden{display:none;}
-    .item{border-top:1px solid #eee;padding-top:10px;margin-top:10px;}
-    .pill{display:inline-block;font-size:12px;padding:3px 8px;border:1px solid #ddd;border-radius:999px;color:#444;margin-left:6px;}
-    .hint{font-size:12px;color:#666;margin-top:6px;white-space:pre-wrap;}
-    pre{background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;white-space:pre-wrap;word-break:break-word;}
-    hr{border:none;border-top:1px solid #eee;margin:14px 0;}
-    small{color:#666}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial;background:#f6f7f9;color:#111;}
+    .wrap{max-width:760px;margin:18px auto;padding:16px;}
+    .card{background:#fff;border:1px solid #e7e7e7;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.04);}
+    h1{font-size:18px;margin:0 0 10px;}
+    label{display:block;margin:8px 0 6px;font-size:13px;color:#555;}
+    select,input{width:100%;padding:12px;border:1px solid #ddd;border-radius:12px;font-size:15px;box-sizing:border-box;}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;}
+    .btn{flex:1 1 200px;padding:14px 12px;border:0;border-radius:12px;background:#111;color:#fff;font-weight:800;font-size:16px;cursor:pointer;position:relative;z-index:9999;pointer-events:auto;}
+    .btn.secondary{background:#2f3a4a;}
+    .btn:disabled{opacity:.55;cursor:not-allowed;}
+    .kv{font-size:13px;color:#555;line-height:1.6;margin-top:8px;word-break:break-word;}
+    .status{margin-top:12px;font-size:13px;line-height:1.6;padding:10px 12px;border-radius:12px;border:1px solid #eee;background:#fafafa;}
+    .ok{color:#0a7;} .bad{color:#c22;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;}
+    hr{border:none;border-top:1px solid #eee;margin:12px 0;}
   </style>
 </head>
 <body>
-  <h2>HOLDON 出勤系統</h2>
-  <div class="muted">上/下班立即生效；打卡需在公司 100 公尺內；加班與請假需主管核准。</div>
+  <div class="wrap">
+    <div class="card">
+      <h1>出勤 / 申請</h1>
 
-  <div class="card">
-    <div id="user">載入中...</div>
-    <div id="gpsHint" class="hint">定位：未取得</div>
-    <div id="status" class="status muted"></div>
-    <pre id="errbox" class="hidden"></pre>
+      <label>選擇類型</label>
+      <select id="actionType">
+        <option value="clock">一般上下班打卡（需定位）</option>
+        <option value="outing">外出（先申請→核准→打卡）</option>
+        <option value="leave">請假申請</option>
+        <option value="overtime">加班申請</option>
+      </select>
 
-    <div class="row" style="margin-top:10px;">
-      <button id="btnIn"  class="btn primary" disabled>🟢 上班打卡</button>
-      <button id="btnOut" class="btn primary" disabled>🔴 下班打卡</button>
-      <button id="btnGPS" class="btn">📍 重新定位</button>
-    </div>
-
-    <div class="tabs">
-      <button class="tab active" id="tabApply">申請</button>
-      <button class="tab" id="tabMine">我的申請</button>
-      <button class="tab hidden" id="tabMgr">主管核准</button>
-    </div>
-  </div>
-
-  <div id="panelApply" class="card">
-    <h3 style="margin:0 0 8px;">🕒 加班申請（需核准）</h3>
-    <label>加班日期</label><input id="otDate" type="date"/>
-    <div class="row">
-      <div style="flex:1;min-width:140px;">
-        <label>開始時間</label><input id="otStart" type="time"/>
+      <div class="kv">
+        <div>使用者：<span id="who" class="mono">loading…</span></div>
+        <div>定位：<span id="loc" class="mono">依類型決定…</span></div>
       </div>
-      <div style="flex:1;min-width:140px;">
-        <label>結束時間</label><input id="otEnd" type="time"/>
-      </div>
-    </div>
-    <label>加班時數（小時，自動計算）</label>
-    <input id="otHours" type="number" min="0.5" step="0.5" placeholder="會自動計算" readonly />
 
-    <label>原因說明</label><textarea id="otReason" placeholder="簡述加班原因"></textarea>
-
-    <label>附件連結（可選，先上傳到 Drive 後貼連結）</label>
-    <input id="otAttachLink" type="url" placeholder="https://drive.google.com/..." />
-    <div class="row" style="margin-top:8px;">
-      <button id="btnOpenDrive" class="btn" type="button">📂 開啟附件資料夾</button>
-    </div>
-
-    <div class="row" style="margin-top:10px;">
-      <button id="btnOTApply" class="btn" disabled>送出加班申請</button>
-    </div>
-
-    <hr/>
-
-    <h3 style="margin:0 0 8px;">📝 請假申請（需核准）</h3>
-    <label>假別</label>
-    <select id="leaveType">
-      <option value="事假">事假</option>
-      <option value="病假">病假</option>
-      <option value="特休">特休</option>
-      <option value="生日假">生日假</option>
-    </select>
-
-    <label>請假日期</label><input id="leaveDate" type="date"/>
-    <div class="row">
-      <div style="flex:1;min-width:140px;">
-        <label>開始時間</label><input id="leaveStart" type="time"/>
-      </div>
-      <div style="flex:1;min-width:140px;">
-        <label>結束時間</label><input id="leaveEnd" type="time"/>
-      </div>
-    </div>
-
-    <label>請假時數（小時，自動計算）</label>
-    <input id="leaveHours" type="number" min="0.5" step="0.5" placeholder="會自動計算" readonly />
-
-    <label>原因說明</label><textarea id="leaveReason" placeholder="簡述請假原因"></textarea>
-
-    <label>看病證明/附件連結（病假建議；沒附也可）</label>
-    <input id="leaveAttachLink" type="url" placeholder="https://drive.google.com/..." />
-
-    <div class="row" style="margin-top:10px;">
-      <button id="btnLeaveApply" class="btn" disabled>送出請假申請</button>
-    </div>
-
-    <div class="hint"><small>⚠️ GitHub + JSONP 架構無法穩定直接上傳檔案，附件請貼 Drive 連結。</small></div>
-  </div>
-
-  <div id="panelMine" class="card hidden">
-    <h3 style="margin:0 0 8px;">📄 我的申請</h3>
-    <div class="row">
-      <button class="btn" id="btnReloadMine">重新整理</button>
-    </div>
-    <div id="mineList" class="muted" style="margin-top:10px;">尚無資料</div>
-  </div>
-
-  <div id="panelMgr" class="card hidden">
-    <h3 style="margin:0 0 8px;">📥 待核准清單</h3>
-    <div class="row">
-      <button class="btn" id="btnReloadPending">重新整理</button>
-    </div>
-    <div id="pendingList" class="muted" style="margin-top:10px;">尚無資料</div>
-  </div>
-
-<script>
-/* ================== 設定 ================== */
-const LIFF_ID = "2009036245-XmZMSuuS";
-
-// ✅ 這裡一定要換成你 GAS 部署的 /exec
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwPDqm4YawpB5vgOOG9qqPA51-u_vCb-bbfr-91k6EtjkN6ZDrjTlK9-xBpwxtmuVAQkA/exec";
-
-// ✅ 公司座標：你截圖兩點（已轉十進位）
-const ALLOW_DISTANCE = 100;
-const COMPANY_POINTS = [
-  { name:"公司點A", lat:25.0175556, lng:121.5302500 },
-  { name:"公司點B", lat:25.0255556, lng:121.5235556 },
-];
-
-// ✅ 你指定的附件資料夾
-const DRIVE_FOLDER_URL = "https://drive.google.com/drive/u/0/folders/1Ys3V05qm7RDYGnVSFWjjzL3Pl1xiBM5w";
-
-/* ================== 狀態 ================== */
-let userId="", displayName="", ready=false, isManager=false;
-let lastGPS=null;
-
-const $ = id => document.getElementById(id);
-
-function setStatus(msg,type="muted"){
-  $("status").className="status "+(type==="ok"?"ok":type==="err"?"err":"muted");
-  $("status").innerText=msg||"";
-}
-function showErr(e, title="Error"){
-  const box = $("errbox");
-  box.classList.remove("hidden");
-  box.textContent = `${title}\n\n${e?.stack || e?.message || String(e)}`;
-}
-window.addEventListener("error", (ev)=>{ setStatus("程式錯誤（請看下方錯誤）","err"); showErr(ev.error || ev.message, "window.onerror"); });
-window.addEventListener("unhandledrejection",(ev)=>{ setStatus("程式錯誤（請看下方錯誤）","err"); showErr(ev.reason, "unhandledrejection"); });
-
-function escapeHtml_(s){
-  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-function traceId_(){ return "liff-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
-
-/* ================== 距離計算 ================== */
-function calcDistance(lat1,lng1,lat2,lng2){
-  const R = 6371000;
-  const toRad = d=>d*Math.PI/180;
-  const dLat = toRad(lat2-lat1);
-  const dLng = toRad(lng2-lng1);
-  const a = Math.sin(dLat/2)**2 +
-    Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-function minDistanceToCompany(lat,lng){
-  let best = { distance: Infinity, name:"" };
-  for(const p of COMPANY_POINTS){
-    const d = calcDistance(lat,lng,p.lat,p.lng);
-    if(d < best.distance) best = { distance:d, name:p.name };
-  }
-  return best;
-}
-
-/* ================== JSONP（修正版）================== */
-function jsonp_(paramsObj){
-  return new Promise((resolve,reject)=>{
-    const cb = "cb_" + Date.now() + "_" + Math.random().toString(16).slice(2);
-    paramsObj.callback = cb;
-
-    const url = GAS_URL + "?" + new URLSearchParams(paramsObj).toString();
-    const script = document.createElement("script");
-
-    window[cb] = (data)=>{
-      try{ resolve(data); }
-      finally{
-        try{ delete window[cb]; }catch(_){}
-        script.remove();
-      }
-    };
-
-    script.src = url;
-    script.onerror = ()=>{
-      try{ delete window[cb]; }catch(_){}
-      script.remove();
-      reject(new Error("jsonp_failed"));
-    };
-
-    document.body.appendChild(script);
-
-    setTimeout(()=>{
-      if(window[cb]){
-        try{ delete window[cb]; }catch(_){}
-        script.remove();
-        reject(new Error("jsonp_timeout"));
-      }
-    }, 12000);
-  });
-}
-
-async function jsonpWrite_(paramsObj, okMsg){
-  try{
-    setStatus("送出中...");
-    const data = await jsonp_(paramsObj);
-    if(data?.ok){
-      setStatus(okMsg,"ok");
-      return data;
-    }
-    setStatus(data?.message || "送出失敗","err");
-    return null;
-  }catch(e){
-    console.error(e);
-    setStatus("送出失敗（連線/逾時）","err");
-    showErr(e, "JSONP failed");
-    return null;
-  }
-}
-
-/* ================== GPS（不卡住版）================== */
-async function getGPS_(){
-  $("gpsHint").innerText = "定位：取得中…";
-  return new Promise((resolve,reject)=>{
-    if(!navigator.geolocation){
-      $("gpsHint").innerText = "定位：此裝置不支援定位";
-      return reject(new Error("此裝置不支援定位"));
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      pos=>{
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        const best = minDistanceToCompany(lat,lng);
-        const d = best.distance;
-
-        lastGPS = { lat, lng, distance:d, companyName:best.name };
-        $("gpsHint").innerText = `定位：距離 ${best.name} ${Math.round(d)} 公尺（允許 ≤ ${ALLOW_DISTANCE}m）`;
-
-        if(d > ALLOW_DISTANCE){
-          return reject(new Error(`不在打卡範圍內（${Math.round(d)}m）`));
-        }
-        resolve(lastGPS);
-      },
-      err=>{
-        const msg = (err && err.code === 1)
-          ? "GPS 權限被拒絕（請在 LINE/手機設定允許定位）"
-          : "GPS 取得失敗（請開啟定位/到戶外重試）";
-        $("gpsHint").innerText = "定位：" + msg;
-        reject(new Error(msg));
-      },
-      { enableHighAccuracy:true, timeout:12000, maximumAge:0 }
-    );
-  });
-}
-
-/* ================== 時數自動計算 ================== */
-function diffHours_(start, end){
-  // "HH:MM"
-  if(!start || !end) return "";
-  const [sh, sm] = start.split(":").map(Number);
-  const [eh, em] = end.split(":").map(Number);
-  if([sh,sm,eh,em].some(n => Number.isNaN(n))) return "";
-
-  let s = sh*60 + sm;
-  let e = eh*60 + em;
-
-  // 跨午夜：例如 23:00 -> 01:00
-  if(e < s) e += 24*60;
-
-  const mins = e - s;
-  const hours = mins / 60;
-
-  // 以 0.5 小時為單位四捨五入（可改）
-  const rounded = Math.round(hours * 2) / 2;
-  return rounded > 0 ? String(rounded) : "";
-}
-
-function refreshAutoHours(){
-  $("otHours").value = diffHours_($("otStart").value, $("otEnd").value);
-  $("leaveHours").value = diffHours_($("leaveStart").value, $("leaveEnd").value);
-  refreshButtons();
-}
-
-/* ================== UI / Tabs ================== */
-function showTab(which){
-  ["tabApply","tabMine","tabMgr"].forEach(id=>$(id).classList.remove("active"));
-  $("tab"+which).classList.add("active");
-  $("panelApply").classList.toggle("hidden", which!=="Apply");
-  $("panelMine").classList.toggle("hidden", which!=="Mine");
-  $("panelMgr").classList.toggle("hidden", which!=="Mgr");
-}
-
-/* ================== Buttons enable/disable ================== */
-function refreshButtons(){
-  // 只要 ready 才能打卡/送單；但 GPS 測試永遠可按
-  $("btnIn").disabled  = !ready;
-  $("btnOut").disabled = !ready;
-
-  const otOk =
-    $("otDate").value && $("otStart").value && $("otEnd").value && $("otHours").value;
-
-  const leaveOk =
-    $("leaveDate").value && $("leaveStart").value && $("leaveEnd").value && $("leaveHours").value;
-
-  $("btnOTApply").disabled = !(ready && otOk);
-  $("btnLeaveApply").disabled = !(ready && leaveOk);
-
-  $("btnReloadMine").disabled = !ready;
-  $("btnReloadPending").disabled = !(ready && isManager);
-}
-
-/* ================== 核心綁定 ================== */
-function bindCoreButtons(){
-  $("tabApply").onclick = ()=>showTab("Apply");
-  $("tabMine").onclick  = ()=>{ showTab("Mine"); loadMine(); };
-  $("tabMgr").onclick   = ()=>{ showTab("Mgr");  loadPending(); };
-
-  $("btnGPS").onclick = async ()=>{
-    try{
-      await getGPS_();
-      setStatus("定位完成 ✅","ok");
-    }catch(e){
-      setStatus(e.message,"err");
-    }
-  };
-
-  $("btnOpenDrive").onclick = ()=>{
-    window.open(DRIVE_FOLDER_URL, "_blank");
-  };
-
-  $("btnIn").onclick  = ()=> punch_("IN");
-  $("btnOut").onclick = ()=> punch_("OUT");
-
-  $("btnOTApply").onclick    = ()=> submitOT();
-  $("btnLeaveApply").onclick = ()=> submitLeave();
-
-  $("btnReloadMine").onclick    = ()=> loadMine();
-  $("btnReloadPending").onclick = ()=> loadPending();
-
-  // 自動計算時數
-  ["change","input"].forEach(ev=>{
-    ["otStart","otEnd","leaveStart","leaveEnd"].forEach(id=>{
-      $(id).addEventListener(ev, refreshAutoHours);
-    });
-  });
-
-  // 一般欄位變動
-  ["change","input","keyup"].forEach(ev=>{
-    ["otDate","otReason","otAttachLink","leaveType","leaveDate","leaveReason","leaveAttachLink"].forEach(id=>{
-      $(id).addEventListener(ev, refreshButtons);
-    });
-  });
-
-  refreshButtons();
-}
-
-/* ================== 打卡 ================== */
-async function punch_(type){
-  if(!ready) return;
-
-  // 防止連點
-  $("btnIn").disabled = true;
-  $("btnOut").disabled = true;
-
-  try{
-    const gps = await getGPS_(); // 每次打卡重新定位
-
-    const r = await jsonpWrite_({
-      action:"punch",
-      type,
-      userId,
-      displayName,
-      lat:gps.lat,
-      lng:gps.lng,
-      distance: Math.round(gps.distance),
-      companyName: gps.companyName,
-      ts: Date.now(),
-      traceId: traceId_()
-    }, type==="IN" ? "上班打卡成功 ✅" : "下班打卡成功 ✅");
-
-    if(!r) return;
-  }catch(e){
-    setStatus(e.message || "打卡失敗","err");
-  }finally{
-    refreshButtons();
-  }
-}
-
-/* ================== 申請送出 ================== */
-async function submitOT(){
-  if(!ready) return;
-  const payload = {
-    action:"apply",
-    kind:"OT",
-    userId,
-    displayName,
-    date: $("otDate").value,
-    startTime: $("otStart").value,
-    endTime: $("otEnd").value,
-    hours: $("otHours").value,
-    reason: $("otReason").value || "",
-    attachLink: $("otAttachLink").value || "",
-    ts: Date.now(),
-    traceId: traceId_()
-  };
-  const r = await jsonpWrite_(payload, "加班申請已送出 ✅");
-  if(r?.ok){
-    $("otReason").value = "";
-    $("otAttachLink").value = "";
-    refreshButtons();
-  }
-}
-
-async function submitLeave(){
-  if(!ready) return;
-  const payload = {
-    action:"apply",
-    kind:"LEAVE",
-    leaveType: $("leaveType").value,
-    userId,
-    displayName,
-    date: $("leaveDate").value,
-    startTime: $("leaveStart").value,
-    endTime: $("leaveEnd").value,
-    hours: $("leaveHours").value,
-    reason: $("leaveReason").value || "",
-    attachLink: $("leaveAttachLink").value || "",
-    ts: Date.now(),
-    traceId: traceId_()
-  };
-  const r = await jsonpWrite_(payload, "請假申請已送出 ✅");
-  if(r?.ok){
-    $("leaveReason").value = "";
-    $("leaveAttachLink").value = "";
-    refreshButtons();
-  }
-}
-
-/* ================== 我的申請 ================== */
-async function loadMine(){
-  $("mineList").innerText = "載入中…";
-  try{
-    const data = await jsonp_({ action:"mine", userId, ts:Date.now(), traceId: traceId_() });
-    if(!data?.ok){ $("mineList").innerText = data?.message || "讀取失敗"; return; }
-
-    const items = Array.isArray(data.items) ? data.items : [];
-    if(items.length===0){ $("mineList").innerText = "尚無資料"; return; }
-
-    $("mineList").innerHTML = items.map(it=>{
-      const k = escapeHtml_(it.kind||"");
-      const s = escapeHtml_(it.status||"");
-      const d = escapeHtml_(it.date||"");
-      const st = escapeHtml_(it.startTime||"");
-      const et = escapeHtml_(it.endTime||"");
-      const lt = escapeHtml_(it.leaveType||"");
-      const h = escapeHtml_(String(it.hours||""));
-      const r = escapeHtml_(it.reason||"");
-      const link = escapeHtml_(it.attachLink||"");
-      return `<div class="item">
-        <div><b>${k}</b> <span class="pill">${s}</span></div>
-        <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
-        ${r ? `<div class="muted">原因：${r}</div>` : ""}
-        ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
-      </div>`;
-    }).join("");
-
-  }catch(e){
-    $("mineList").innerText = "載入失敗（連線/逾時）";
-    showErr(e, "loadMine failed");
-  }
-}
-
-/* ================== 待核准 ================== */
-async function loadPending(){
-  $("pendingList").innerText = "載入中…";
-  try{
-    const data = await jsonp_({ action:"pending", userId, ts:Date.now(), traceId: traceId_() });
-    if(!data?.ok){ $("pendingList").innerText = data?.message || "讀取失敗"; return; }
-
-    const items = Array.isArray(data.items) ? data.items : [];
-    if(items.length===0){ $("pendingList").innerText = "尚無資料"; return; }
-
-    $("pendingList").innerHTML = items.map(it=>{
-      const id = escapeHtml_(it.id||"");
-      const name = escapeHtml_(it.displayName||"");
-      const k = escapeHtml_(it.kind||"");
-      const s = escapeHtml_(it.status||"");
-      const d = escapeHtml_(it.date||"");
-      const st = escapeHtml_(it.startTime||"");
-      const et = escapeHtml_(it.endTime||"");
-      const lt = escapeHtml_(it.leaveType||"");
-      const h = escapeHtml_(String(it.hours||""));
-      const r = escapeHtml_(it.reason||"");
-      const link = escapeHtml_(it.attachLink||"");
-      return `<div class="item">
-        <div><b>${name}</b> <span class="pill">${k}</span> <span class="pill">${s}</span></div>
-        <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
-        ${r ? `<div class="muted">原因：${r}</div>` : ""}
-        ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
-        <div class="row" style="margin-top:8px;">
-          <button class="btn" onclick="approve_('${id}','APPROVE')">✅ 核准</button>
-          <button class="btn" onclick="approve_('${id}','REJECT')">⛔️ 駁回</button>
+      <!-- 一般打卡 -->
+      <div id="panelClock" style="margin-top:12px;">
+        <div class="row">
+          <button id="btnClockIn" class="btn" type="button">上班打卡</button>
+          <button id="btnClockOut" class="btn secondary" type="button">下班打卡</button>
         </div>
-      </div>`;
-    }).join("");
+      </div>
 
-  }catch(e){
-    $("pendingList").innerText = "載入失敗（連線/逾時）";
-    showErr(e, "loadPending failed");
-  }
-}
+      <!-- 外出 -->
+      <div id="panelOuting" style="margin-top:12px; display:none;">
+        <h3 style="margin:6px 0 6px;font-size:14px;">外出申請單</h3>
 
-async function approve_(id, decision){
-  const r = await jsonpWrite_({
-    action:"approve",
-    id,
-    decision,
-    userId,
-    ts: Date.now(),
-    traceId: traceId_()
-  }, decision==="APPROVE" ? "已核准 ✅" : "已駁回 ✅");
-  if(r?.ok) loadPending();
-}
+        <label>外出日期</label>
+        <input id="outDate" type="date" />
 
-/* ================== LIFF 初始化 ================== */
-async function initApp(){
-  setStatus("初始化中…");
-  try{
-    if(!window.liff) throw new Error("LIFF SDK 未載入（網路/阻擋）");
+        <label>開始時間</label>
+        <input id="outStart" type="time" />
 
-    await liff.init({ liffId: LIFF_ID });
+        <label>結束時間</label>
+        <input id="outEnd" type="time" />
 
-    if(!liff.isInClient()){
-      $("user").innerHTML = "⚠️ 請用 LINE 開啟此頁（LIFF）";
-      setStatus("非 LINE 內開啟：先可測定位，但不能送單/打卡","err");
-      ready = false;
-      refreshButtons();
-      return;
-    }
+        <label>目的地（必填）</label>
+        <input id="outDest" placeholder="例如：客戶A / 倉庫 / 銀行…" />
 
-    if(!liff.isLoggedIn()){
-      setStatus("導向登入中…");
-      liff.login();
-      return;
-    }
+        <label>外出原因（必填）</label>
+        <input id="outReason" placeholder="例如：送貨 / 拜訪 / 取貨…" />
 
-    const profile = await liff.getProfile();
-    userId = profile.userId;
-    displayName = profile.displayName || "未命名";
-    ready = true;
+        <div class="row">
+          <button id="btnOutApply" class="btn" type="button">送出外出申請</button>
+        </div>
 
-    $("user").innerHTML = `👤 ${escapeHtml_(displayName)} <span class="pill">已登入</span>`;
+        <hr />
 
-    // 問後端我是不是主管（可選：你沒設 manager 也不影響）
-    try{
-      const who = await jsonp_({ action:"whoami", userId, ts:Date.now(), traceId: traceId_() });
-      isManager = !!who?.isManager;
-      $("tabMgr").classList.toggle("hidden", !isManager);
-    }catch(_){
-      isManager = false;
-      $("tabMgr").classList.add("hidden");
-    }
+        <h3 style="margin:6px 0 6px;font-size:14px;">外出打卡（需選已核准外出單）</h3>
 
-    setStatus("系統就緒 ✅","ok");
-    refreshAutoHours(); // 順便算一下
-    refreshButtons();
+        <label>已核准外出單</label>
+        <select id="approvedOutingSelect"></select>
 
-  }catch(e){
-    console.error(e);
-    $("user").innerHTML = "⚠️ 初始化失敗";
-    setStatus("初始化失敗（請看錯誤面板）","err");
-    showErr(e, "initApp failed");
-    ready = false;
-    refreshButtons();
-  }
-}
+        <div class="row">
+          <button id="btnOutIn" class="btn" type="button">外出上班打卡</button>
+          <button id="btnOutOut" class="btn secondary" type="button">外出下班打卡</button>
+        </div>
+      </div>
 
-window.onload = ()=>{
-  bindCoreButtons();
-  initApp();
-};
-</script>
+      <!-- 請假 -->
+      <div id="panelLeave" style="margin-top:12px; display:none;">
+        <label>假別</label>
+        <select id="leaveKind">
+          <option value="sick">病假</option>
+          <option value="personal">事假</option>
+          <option value="annual">特休</option>
+          <option value="birthday">生日假</option>
+          <option value="other">其他</option>
+        </select>
+
+        <label>開始時間</label>
+        <input id="leaveStart" type="datetime-local" />
+
+        <label>結束時間</label>
+        <input id="leaveEnd" type="datetime-local" />
+
+        <label>原因/備註（必填）</label>
+        <input id="leaveReason" placeholder="簡述原因…" />
+
+        <div class="row">
+          <button id="btnLeaveSubmit" class="btn" type="button">送出請假申請</button>
+        </div>
+      </div>
+
+      <!-- 加班 -->
+      <div id="panelOvertime" style="margin-top:12px; display:none;">
+        <label>加班日期</label>
+        <input id="otDate" type="date" />
+
+        <label>加班時數</label>
+        <input id="otHours" type="number" min="0" step="0.5" placeholder="例如：2 或 1.5" />
+
+        <label>加班事由（必填）</label>
+        <input id="otReason" placeholder="例如：盤點、出貨、活動頁上線…" />
+
+        <div class="row">
+          <button id="btnOtSubmit" class="btn" type="button">送出加班申請</button>
+        </div>
+      </div>
+
+      <div id="status" class="status">準備中…</div>
+
+      <div class="kv" style="margin-top:10px;">
+        主管核准頁：<span class="mono">/manager.html</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js?v=20"></script>
 </body>
 </html>
