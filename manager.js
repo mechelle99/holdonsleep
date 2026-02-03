@@ -1,189 +1,165 @@
 /* manager.js */
-// ✅ 同時相容兩種 config.js 寫法：
-// 1) window.GAS_ENDPOINT = "https://.../exec";
-// 2) window.CONFIG = { GAS_ENDPOINT: "https://.../exec" };
-const ENDPOINT =
-  (typeof window !== "undefined" && window.CONFIG && window.CONFIG.GAS_ENDPOINT) ||
-  (typeof window !== "undefined" && window.GAS_ENDPOINT) ||
-  "";
 
+// ✅ 統一：只用 window.GAS_ENDPOINT
+if (!window.GAS_ENDPOINT) {
+  throw new Error("❌ GAS_ENDPOINT not loaded. Did you include config.js first?");
+}
+
+const ENDPOINT = window.GAS_ENDPOINT;
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
 const listEl = $("list");
 const midEl = $("mid");
 
-function setStatus(msg, ok) {
-  if (!statusEl) return;
+function setStatus(msg, ok){
   statusEl.innerHTML = msg;
-  statusEl.classList.remove("ok", "bad");
-  if (ok === true) statusEl.classList.add("ok");
-  if (ok === false) statusEl.classList.add("bad");
-}
-function safeText(s) {
-  return String(s || "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
+  statusEl.classList.remove("ok","bad");
+  if(ok===true) statusEl.classList.add("ok");
+  if(ok===false) statusEl.classList.add("bad");
 }
 
-function jsonp(url, params, timeoutMs = 12000) {
-  return new Promise((resolve) => {
-    const cb = "cb_" + Math.random().toString(16).slice(2);
-    let done = false;
+function safeText(s){
+  return String(s||'').replace(/[<>&]/g,c=>({
+    '<':'&lt;',
+    '>':'&gt;',
+    '&':'&amp;'
+  }[c]));
+}
 
-    function finish(d) {
-      if (done) return;
-      done = true;
+// ===== JSONP =====
+function jsonp(url, params, timeoutMs=12000){
+  return new Promise((resolve)=>{
+    const cb="cb_"+Math.random().toString(16).slice(2);
+    let done=false;
+
+    function finish(d){
+      if(done) return;
+      done=true;
       resolve(d);
       cleanup();
     }
 
-    window[cb] = (d) => finish(d);
+    window[cb]=(d)=>finish(d);
 
-    const qs = new URLSearchParams({ ...params, callback: cb });
-    const sc = document.createElement("script");
-    sc.src = url + (url.includes("?") ? "&" : "?") + qs.toString();
-    sc.async = true;
-    sc.onerror = () => finish({ ok: false, error: "jsonp_network_error" });
+    const qs=new URLSearchParams({ ...params, callback: cb });
+    const sc=document.createElement("script");
+    sc.src=url+(url.includes("?")?"&":"?")+qs.toString();
+    sc.async=true;
+    sc.onerror=()=>finish({ok:false,error:"jsonp_network_error"});
 
-    const t = setTimeout(() => finish({ ok: false, error: "jsonp_timeout" }), timeoutMs);
+    const t=setTimeout(()=>finish({ok:false,error:"jsonp_timeout"}), timeoutMs);
 
-    function cleanup() {
+    function cleanup(){
       clearTimeout(t);
-      try {
-        delete window[cb];
-      } catch (_) {
-        window[cb] = undefined;
-      }
-      if (sc.parentNode) sc.parentNode.removeChild(sc);
+      try{ delete window[cb]; }catch(_){ window[cb]=undefined; }
+      if(sc.parentNode) sc.parentNode.removeChild(sc);
     }
 
     document.body.appendChild(sc);
   });
 }
 
-// 主管 userId：先用 localStorage demo，之後換 LIFF 帶入
-function getManagerId() {
-  return localStorage.getItem("managerId") || localStorage.getItem("userId") || "demo_manager";
+// ===== Manager 身分（暫用 localStorage）=====
+function getManagerId(){
+  return localStorage.getItem("managerId")
+      || localStorage.getItem("userId")
+      || "demo_manager";
 }
 
-async function loadPending() {
-  if (!ENDPOINT) {
-    setStatus("❌ 缺少 GAS_ENDPOINT（config.js）", false);
-    if (midEl) midEl.textContent = "N/A";
-    if (listEl) listEl.innerHTML = "";
-    return;
-  }
-
+// ===== 載入待核准 =====
+async function loadPending(){
   const managerId = getManagerId();
-  if (midEl) midEl.textContent = managerId;
+  midEl.textContent = managerId;
 
   setStatus("載入待核准清單中…", true);
 
-  const res = await jsonp(ENDPOINT, { action: "list_outing_pending", managerId });
+  const res = await jsonp(ENDPOINT, {
+    action:"list_outing_pending",
+    managerId
+  });
 
-  if (!res?.ok) {
+  if(!res?.ok){
     setStatus(
-      `❌ 無法載入：<span class="mono">${safeText(res?.error || "unknown")}</span><br/>（通常是 not_manager：請把此 managerId 加入 MANAGER_USER_IDS）`,
+      `❌ 載入失敗：<span class="mono">${safeText(res?.error || "unknown")}</span><br>
+       （若顯示 not_manager，請確認 GAS 裡 MANAGER_USER_IDS）`,
       false
     );
-    if (listEl) listEl.innerHTML = "";
+    listEl.innerHTML="";
     return;
   }
 
   const items = res.items || [];
-  if (items.length === 0) {
+  if(items.length===0){
     setStatus("✅ 目前沒有待核准外出單", true);
-    if (listEl) listEl.innerHTML = "";
+    listEl.innerHTML="";
     return;
   }
 
-  setStatus(`✅ 待核准：${items.length} 筆`, true);
+  setStatus(`✅ 待核准 ${items.length} 筆`, true);
   renderList(items, managerId);
 }
 
-function renderList(items, managerId) {
-  if (!listEl) return;
+// ===== 畫面 =====
+function renderList(items, managerId){
+  listEl.innerHTML="";
 
-  listEl.innerHTML = "";
-
-  items.forEach((it) => {
-    const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
+  items.forEach(it=>{
+    const div=document.createElement("div");
+    div.className="item";
+    div.innerHTML=`
       <div class="title">${safeText(it.displayName)}（${safeText(it.userId)}）</div>
       <div class="meta">
-        單號：<span class="mono">${safeText(it.requestId)}</span><br/>
-        時段：${safeText(it.date)} ${safeText(it.start)} - ${safeText(it.end)}<br/>
-        目的地：${safeText(it.destination)}<br/>
+        單號：<span class="mono">${safeText(it.requestId)}</span><br>
+        時段：${safeText(it.date)} ${safeText(it.start)} - ${safeText(it.end)}<br>
+        目的地：${safeText(it.destination)}<br>
         原因：${safeText(it.reason)}
       </div>
+
       <textarea placeholder="主管備註（可留空）" data-note="${safeText(it.requestId)}"></textarea>
+
       <div class="row">
-        <button class="btn" data-act="APPROVED" data-id="${safeText(it.requestId)}">核准</button>
-        <button class="btn secondary" data-act="REJECTED" data-id="${safeText(it.requestId)}">駁回</button>
+        <button data-act="APPROVED" data-id="${safeText(it.requestId)}">核准</button>
+        <button class="secondary" data-act="REJECTED" data-id="${safeText(it.requestId)}">駁回</button>
       </div>
     `;
     listEl.appendChild(div);
   });
 
-  // bind click
-  listEl.querySelectorAll("button[data-id]").forEach((btn) => {
-    btn.addEventListener(
-      "click",
-      async (ev) => {
-        ev.preventDefault();
+  listEl.querySelectorAll("button[data-id]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const requestId = btn.dataset.id;
+      const decision = btn.dataset.act;
+      const ta = listEl.querySelector(`textarea[data-note="${CSS.escape(requestId)}"]`);
+      const managerNote = ta ? ta.value.trim() : "";
 
-        const requestId = btn.getAttribute("data-id");
-        const decision = btn.getAttribute("data-act");
+      btn.disabled=true;
+      setStatus(`送出 ${decision} 中…`, true);
 
-        // ✅ requestId 可能含特殊字元，用 CSS.escape 更安全
-        let ta = null;
-        try {
-          ta = listEl.querySelector(`textarea[data-note="${CSS.escape(requestId)}"]`);
-        } catch (_) {
-          // fallback：不用 selector，改用手動找
-          ta = Array.from(listEl.querySelectorAll("textarea[data-note]")).find(
-            (x) => x.getAttribute("data-note") === requestId
-          );
-        }
-        const managerNote = ta ? ta.value.trim() : "";
+      const res = await jsonp(ENDPOINT,{
+        action:"approve_outing",
+        managerId,
+        requestId,
+        decision,
+        managerNote
+      });
 
-        btn.disabled = true;
-        setStatus(`送出 ${safeText(decision)}：${safeText(requestId)}…`, true);
+      if(!res?.ok){
+        setStatus(`❌ 操作失敗：${safeText(res?.error||"unknown")}`, false);
+        btn.disabled=false;
+        return;
+      }
 
-        const res = await jsonp(ENDPOINT, {
-          action: "approve_outing",
-          managerId,
-          requestId,
-          decision,
-          managerNote,
-        });
-
-        if (!res?.ok) {
-          setStatus(`❌ 操作失敗：<span class="mono">${safeText(res?.error || "unknown")}</span>`, false);
-          btn.disabled = false;
-          return;
-        }
-
-        setStatus(
-          `✅ 已${decision === "APPROVED" ? "核准" : "駁回"}：<span class="mono">${safeText(requestId)}</span>`,
-          true
-        );
-        await loadPending();
-      },
-      { passive: false }
-    );
+      setStatus(`✅ 已${decision==="APPROVED"?"核准":"駁回"}`, true);
+      loadPending();
+    });
   });
 }
 
-const btnRefresh = $("btnRefresh");
-if (btnRefresh) {
-  btnRefresh.addEventListener(
-    "click",
-    (e) => {
-      e.preventDefault();
-      loadPending();
-    },
-    { passive: false }
-  );
-}
+// ===== 事件 =====
+$("btnRefresh")?.addEventListener("click",(e)=>{
+  e.preventDefault();
+  loadPending();
+});
 
+// ===== 啟動 =====
 loadPending();
