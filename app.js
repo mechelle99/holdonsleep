@@ -150,25 +150,33 @@ async function loadApprovedOutings() {
 
 
 // --- 修改：自動計算請假時數 (增加防呆) ---
-window.calcLeaveHours = function() {
-  const startVal = $("leaveStart").value;
-  const endVal = $("leaveEnd").value;
+// --- 新增：自動計算外出時數 (含防呆) ---
+window.calcOutingHours = function() {
+  const dateVal = $("outDate").value;
+  const startVal = $("outStart").value;
+  const endVal = $("outEnd").value;
+  
   if (!startVal || !endVal) return;
-
-  const start = new Date(startVal);
-  const end = new Date(endVal);
-
+  
+  // 如果還沒選日期，先用今天代替來算時數差，但送出時會檢查日期
+  const baseDate = dateVal || new Date().toISOString().split('T')[0];
+  
+  const start = new Date(`${baseDate}T${startVal}`);
+  const end = new Date(`${baseDate}T${endVal}`);
+  
   // 防呆：結束時間早於開始時間
   if (end <= start) {
-    alert("❌ 結束時間不能早於或等於開始時間！");
-    $("leaveEnd").value = ""; // 清空結束時間
-    $("leaveTotalHours").textContent = "0.0";
+    alert("❌ 結束時間不能早於開始時間！");
+    $("outEnd").value = ""; // 清空錯誤的時間
+    $("outTotalHours").textContent = "0.0";
     return;
   }
-
+  
   const diffMs = end - start;
   let hours = diffMs / (1000 * 60 * 60);
-  $("leaveTotalHours").textContent = hours.toFixed(1);
+  
+  // 外出通常算到小數點第一位即可
+  $("outTotalHours").textContent = hours.toFixed(1);
 }
 
 // --- 修改：自動計算加班時數 (增加防呆) ---
