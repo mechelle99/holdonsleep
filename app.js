@@ -149,7 +149,7 @@ async function loadApprovedOutings() {
 }
 
 
- // --- 新增：自動計算請假時數 ---
+// --- 修改：自動計算請假時數 (增加防呆) ---
 window.calcLeaveHours = function() {
   const startVal = $("leaveStart").value;
   const endVal = $("leaveEnd").value;
@@ -157,44 +157,107 @@ window.calcLeaveHours = function() {
 
   const start = new Date(startVal);
   const end = new Date(endVal);
+
+  // 防呆：結束時間早於開始時間
+  if (end <= start) {
+    alert("❌ 結束時間不能早於或等於開始時間！");
+    $("leaveEnd").value = ""; // 清空結束時間
+    $("leaveTotalHours").textContent = "0.0";
+    return;
+  }
+
   const diffMs = end - start;
-  
-  // 計算小時 (保留一位小數)
   let hours = diffMs / (1000 * 60 * 60);
-  if (hours < 0) hours = 0;
-  
   $("leaveTotalHours").textContent = hours.toFixed(1);
 }
 
-// --- 新增：自動計算加班時數 ---
+// --- 修改：自動計算加班時數 (增加防呆) ---
 window.calcOtHours = function() {
+  const dateVal = $("otDate").value;
   const startVal = $("otStart").value;
   const endVal = $("otEnd").value;
-  if (!startVal || !endVal) return;
-
-  // 因為 input type="time" 只有時間沒有日期，我們假設是同一天計算
-  // 或是需要結合 otDate，這裡先做簡易時間差計算
-  const d = new Date().toDateString(); // 用今天當基準
-  const start = new Date(d + ' ' + startVal);
-  const end = new Date(d + ' ' + endVal);
   
-  let diffMs = end - start;
-  // 處理跨日問題 (例如 23:00 到 01:00)
-  if (diffMs < 0) {
-    diffMs += 24 * 60 * 60 * 1000;
+  if (!startVal || !endVal) return;
+  if (!dateVal) {
+    // 如果還沒選日期，暫時不報錯，但無法完整計算
+    return;
   }
 
+  // 組合出完整的時間物件來比較
+  const start = new Date(`${dateVal}T${startVal}`);
+  const end = new Date(`${dateVal}T${endVal}`);
+  
+  // 處理跨日加班 (例如 23:00 到 01:00) 
+  // 如果結束時間比開始時間小，通常代表跨日，但如果你不允許跨日加班，可以用下面的邏輯擋住：
+  if (end <= start) {
+    alert("❌ 加班結束時間不能早於開始時間 (若跨日請分兩張單填寫)");
+    $("otEnd").value = "";
+    $("otTotalHours").textContent = "0.0";
+    return;
+  }
+  
+  let diffMs = end - start;
   let hours = diffMs / (1000 * 60 * 60);
-  // 加班通常以 0.5 或 1 小時為單位，這裡先無條件捨去取整數（依照你的需求6：一小時為單位）
-  hours = Math.floor(hours); 
+  // 加班以 0.5 小時為單位 (無條件捨去到小數點第一位)
+  // 例如 1.8 -> 1.5, 1.2 -> 1.0
+  hours = Math.floor(hours * 2) / 2; 
 
   $("otTotalHours").textContent = hours.toFixed(1);
 }
 
-// --- 修改：bindEvents 裡的加班與請假送出邏輯 ---
+// --- 修改：送出邏輯 (整理資料格式) ---
 function bindEvents() {
   $("actionType").addEventListener("change", (e) => showPanel(e.target.value));
 
+  // 1. 上下班打卡
+  const handleClock = (action) => {
+    submitRecord({ action, requireGps: true, dataObj: {} }).then(() => {
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2,'0') + ":" + now.getMinutes().toString().padStart(2,'0');
+        alert(`打卡成功！時間：${timeStr}`);
+    });
+  };
+  $("btnClockIn").onclick = () => handleClock("clock_in");
+  $("btnClockOut").onclick = () => handleClock("clock_out");
+
+  // ... (外出部分維持不變) ...
+
+  // 4. 請假送出
+  $("btnLeaveSubmit").onclick = () => {
+    if($("leaveTotalHours").textContent === "0.0") return alert("請確認時間與時數");
+    
+    submitRecord({
+      action: "create_leave", requireGps: false,
+      dataObj: {
+        type: $("leaveKind").value, // 假別
+        start: $("leaveStart").value.replace("T", " "), // 轉成好讀格式
+        end: $("leaveEnd").value.replace("T", " "),
+        hours: $("leaveTotalHours").textContent,
+        reason: $("leaveReason").value
+      }
+    });
+  };
+
+  // 5. 加班送出
+  $("btnOtSubmit").onclick = () => {
+    if($("otTotalHours").textContent === "0.0") return alert("請確認時間與時數");
+
+    const date = $("otDate").value;
+    const start = $("otStart").value;
+    const end = $("otEnd").value;
+
+    submitRecord({
+      action: "create_ot", requireGps: false,
+      dataObj: {
+        // 組合完整的字串給後端，這樣 Sheet 才會整齊
+        start_full: `${date} ${start}`, 
+        end_full: `${date} ${end}`,
+        hours: $("otTotalHours").textContent,
+        reason: $("otReason").value
+      }
+    });
+  };
+}
   // 1. 上下班打卡 (增加顯示時間)
   const handleClock = (action) => {
     submitRecord({ action, requireGps: true, dataObj: {} }).then(() => {
