@@ -84,22 +84,30 @@
         </div>
       </div>
 
-      <!-- 請假 -->
-      <div id="panelLeave" style="margin-top:12px; display:none;">
+     <div id="panelLeave" style="margin-top:12px; display:none;">
         <label>假別</label>
         <select id="leaveKind">
-          <option value="sick">病假</option>
-          <option value="personal">事假</option>
-          <option value="annual">特休</option>
-          <option value="birthday">生日假</option>
-          <option value="other">其他</option>
+          <option value="sick">病假 (Sick Leave)</option>
+          <option value="personal">事假 (Personal Leave)</option>
+          <option value="annual">特休 (Annual Leave)</option>
+          <option value="birthday">生日假 (Birthday Leave)</option>
+          <option value="menstrual">生理假 (Menstrual Leave)</option>
+          <option value="family">家庭照顧假 (Family Care Leave)</option>
+          <option value="funeral">喪假 (Funeral Leave)</option>
+          <option value="wedding">婚假 (Marriage Leave)</option>
+          <option value="official">公假 (Official Leave)</option>
+          <option value="maternity">產假/陪產假 (Maternity/Paternity)</option>
         </select>
 
         <label>開始時間</label>
-        <input id="leaveStart" type="datetime-local" />
+        <input id="leaveStart" type="datetime-local" onchange="calcLeaveHours()" />
 
         <label>結束時間</label>
-        <input id="leaveEnd" type="datetime-local" />
+        <input id="leaveEnd" type="datetime-local" onchange="calcLeaveHours()" />
+
+        <div class="kv" style="margin-top:5px; color:#0a7f3f; font-weight:bold;">
+           預計請假時數：<span id="leaveTotalHours">0.0</span> 小時
+        </div>
 
         <label>原因/備註（必填）</label>
         <input id="leaveReason" placeholder="簡述原因…" />
@@ -109,6 +117,31 @@
         </div>
       </div>
 
+      <div id="panelOvertime" style="margin-top:12px; display:none;">
+        <div class="kv" style="margin-bottom:10px; color:#c22;">
+          ℹ️ 加班將自動換算為「補休時數」(1:1)
+        </div>
+        
+        <label>加班日期</label>
+        <input id="otDate" type="date" />
+
+        <label>開始時間</label>
+        <input id="otStart" type="time" onchange="calcOtHours()" />
+
+        <label>結束時間</label>
+        <input id="otEnd" type="time" onchange="calcOtHours()" />
+
+        <div class="kv" style="margin-top:5px; color:#0a7f3f; font-weight:bold;">
+           預計加班時數：<span id="otTotalHours">0.0</span> 小時
+        </div>
+
+        <label>加班事由（必填）</label>
+        <input id="otReason" placeholder="例如：盤點、出貨、活動頁上線…" />
+
+        <div class="row">
+          <button id="btnOtSubmit" class="btn" type="button">送出加班申請</button>
+        </div>
+      </div>
       <!-- 加班 -->
       <div id="panelOvertime" style="margin-top:12px; display:none;">
         <label>加班日期</label>
