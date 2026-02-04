@@ -3,111 +3,131 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>HOLDON Attendance</title>
+  <title>HOLDON 出勤系統</title>
   <style>
-    body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;color:#111;}
-    .wrap{max-width:760px;margin:18px auto;padding:16px;}
-    .card{background:#fff;border:1px solid #e7e7e7;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.04);}
-    h1{font-size:18px;margin:0 0 10px;}
-    label{display:block;margin:8px 0 6px;font-size:13px;color:#555;}
-    select,input{width:100%;padding:12px;border:1px solid #ddd;border-radius:12px;font-size:15px;box-sizing:border-box;}
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;}
-    .btn{flex:1 1 200px;padding:14px 12px;border:0;border-radius:12px;background:#111;color:#fff;font-weight:800;font-size:16px;cursor:pointer;}
-    .btn.secondary{background:#2f3a4a;}
-    .btn:disabled{opacity:.55;}
-    .kv{font-size:13px;color:#555;line-height:1.6;margin-top:8px;}
-    .status{margin-top:12px;font-size:13px;padding:10px;border-radius:12px;background:#fafafa;border:1px solid #eee;}
-    .ok{color:#0a7f3f;} .bad{color:#c22;}
-    .mono{font-family:monospace;}
+    body{font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;margin:0;padding:20px;color:#111;padding-bottom:80px;}
+    .container{max-width:480px;margin:0 auto;}
+    h2{font-size:20px;margin:0 0 15px;}
+    
+    /* 儀表板樣式 (新) */
+    .dashboard {display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;}
+    .stat-card {background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); text-align: center;}
+    .stat-title {font-size: 13px; color: #666; margin-bottom: 5px;}
+    .stat-val {font-size: 24px; font-weight: bold; color: #111;}
+    .stat-sub {font-size: 12px; color: #888; margin-top: 4px;}
+    .stat-card.blue { border-bottom: 4px solid #007aff; }
+    .stat-card.orange { border-bottom: 4px solid #ff9500; }
+
+    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.06);margin-bottom:20px;}
+    .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+    label{font-size:14px;font-weight:600;color:#666;display:block;margin-bottom:6px;}
+    select,input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;background:#f9f9f9;outline:none;}
+    select:focus,input:focus,textarea:focus{border-color:#111;background:#fff;}
+    button{width:100%;padding:14px;border:0;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;transition:0.2s;}
+    button:active{transform:scale(0.98);}
+    .btn-main{background:#111;color:#fff;}
+    .btn-outline{background:transparent;border:2px solid #ddd;color:#111;}
+    .status{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 20px;border-radius:30px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.2);display:none;white-space:nowrap;z-index:99;}
+    .status.ok{background:#28a745;} .status.bad{background:#dc3545;}
+    #who{font-size:14px;color:#555;margin-bottom:10px;text-align:right;}
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="container">
+    <div id="who">載入中...</div>
+
+    <div class="dashboard">
+      <div class="stat-card blue">
+        <div class="stat-title">特休剩餘</div>
+        <div class="stat-val" id="dispAnnualLeft">-</div>
+        <div class="stat-sub">總額: <span id="dispAnnualTotal">-</span> / 已用: <span id="dispAnnualUsed">-</span></div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-title">補休餘額</div>
+        <div class="stat-val" id="dispCompLeft">-</div>
+        <div class="stat-sub">累積: <span id="dispCompTotal">-</span> / 已換: <span id="dispCompUsed">-</span></div>
+      </div>
+    </div>
+
     <div class="card">
-      <h1>出勤 / 申請</h1>
+      <div class="row">
+        <h2>出勤 / 申請</h2>
+        <div id="loc" style="font-size:12px;color:#999;">偵測中...</div>
+      </div>
+      
       <label>選擇類型</label>
       <select id="actionType">
-        <option value="clock">一般上下班打卡 (需定位)</option>
-        <option value="outing">外出 (先申請→核准→打卡)</option>
-        <option value="leave">請假申請</option>
-        <option value="overtime">加班申請</option>
+        <option value="clock">📍 上下班打卡</option>
+        <option value="outing">🚀 外出 (公務)</option>
+        <option value="leave">📝 請假申請</option>
+        <option value="overtime">🌙 加班申請 (換補休)</option>
       </select>
-
-      <div class="kv">
-        <div>使用者：<span id="who" class="mono">loading…</span></div>
-        <div>定位：<span id="loc" class="mono">依類型決定…</span></div>
-      </div>
-
-      <div id="panelClock" style="margin-top:12px;">
-        <div class="row">
-          <button id="btnClockIn" class="btn" type="button">上班打卡</button>
-          <button id="btnClockOut" class="btn secondary" type="button">下班打卡</button>
-        </div>
-      </div>
-
-      <div id="panelOuting" style="margin-top:12px; display:none;">
-        <h3 style="font-size:14px; margin:6px 0;">外出申請單</h3>
-        <label>外出日期</label> <input id="outDate" type="date" />
-        <label>開始時間</label> <input id="outStart" type="time" onchange="calcOutingHours()" />
-        <label>結束時間</label> <input id="outEnd" type="time" onchange="calcOutingHours()" />
-        
-        <div class="kv" style="color:#0a7f3f; font-weight:bold;">
-           預計外出時數：<span id="outTotalHours">0.0</span> 小時
-        </div>
-
-        <label>目的地</label> <input id="outDest" placeholder="客戶名 / 銀行..." />
-        <label>原因</label>   <input id="outReason" placeholder="送貨 / 拜訪..." />
-        <div class="row"><button id="btnOutApply" class="btn" type="button">送出外出申請</button></div>
-        
-        <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-        <h3 style="font-size:14px; margin:6px 0;">外出打卡 (需選單號)</h3>
-        <select id="approvedOutingSelect"></select>
-        <div class="row">
-          <button id="btnOutIn" class="btn" type="button">外出上班</button>
-          <button id="btnOutOut" class="btn secondary" type="button">外出下班</button>
-        </div>
-        </div>
-
-      <div id="panelLeave" style="margin-top:12px; display:none;">
-        <label>假別</label>
-        <select id="leaveKind">
-          <option value="personal">事假</option>
-          <option value="sick">病假</option>
-          <option value="annual">特休</option>
-          <option value="official">公假</option>
-          <option value="marriage">婚假</option>
-          <option value="funeral">喪假</option>
-          <option value="menstrual">生理假</option>
-          <option value="birthday">生日假</option> 
-        </select>
-        <label>開始</label> <input id="leaveStart" type="datetime-local" onchange="calcLeaveHours()" />
-        <label>結束</label> <input id="leaveEnd" type="datetime-local" onchange="calcLeaveHours()" />
-        
-        <div class="kv" style="color:#0a7f3f; font-weight:bold;">
-           預計請假時數：<span id="leaveTotalHours">0.0</span> 小時
-        </div>
-        
-        <label>原因</label> <input id="leaveReason" placeholder="必填..." />
-        <div class="row"><button id="btnLeaveSubmit" class="btn" type="button">送出請假申請</button></div>
-      </div>
-
-      <div id="panelOvertime" style="margin-top:12px; display:none;">
-        <label>加班日期</label> <input id="otDate" type="date" />
-        <label>開始</label> <input id="otStart" type="time" onchange="calcOtHours()" />
-        <label>結束</label> <input id="otEnd" type="time" onchange="calcOtHours()" />
-        
-        <div class="kv" style="color:#0a7f3f; font-weight:bold;">
-           預計加班時數：<span id="otTotalHours">0.0</span> 小時
-        </div>
-        
-        <label>事由</label> <input id="otReason" placeholder="必填..." />
-        <div class="row"><button id="btnOtSubmit" class="btn" type="button">送出加班申請</button></div>
-      </div>
-
-      <div id="status" class="status">準備中…</div>
-      <div class="kv" style="margin-top:10px;">主管核准頁：<span class="mono">/manager.html</span></div>
     </div>
+
+    <div id="panelClock" class="card">
+      <button id="btnClockIn" class="btn-main" style="margin-bottom:10px;">上班打卡</button>
+      <button id="btnClockOut" class="btn-outline">下班打卡</button>
+    </div>
+
+    <div id="panelOuting" class="card" style="display:none;">
+      <label>外出打卡 (需選單號)</label>
+      <select id="approvedOutingSelect" style="margin-bottom:15px;"></select>
+      <div style="display:flex;gap:10px;margin-bottom:20px;">
+        <button id="btnOutIn" class="btn-main">外出上班</button>
+        <button id="btnOutOut" class="btn-outline">外出下班</button>
+      </div>
+      <hr style="border:0;border-top:1px solid #eee;margin:20px 0;">
+      <label>申請外出 (免定位)</label>
+      <input type="date" id="outDate" />
+      <div style="display:flex;gap:10px;">
+        <input type="time" id="outStart" onchange="calcOutingHours()" />
+        <span style="padding-top:12px;">~</span>
+        <input type="time" id="outEnd" onchange="calcOutingHours()" />
+      </div>
+      <div style="margin:10px 0;font-size:13px;color:#666;">預計時數：<span id="outTotalHours" style="font-weight:bold;color:#111;">0.0</span> 小時</div>
+      <input type="text" id="outDest" placeholder="地點" />
+      <input type="text" id="outReason" placeholder="事由 (公務內容)" />
+      <button id="btnOutApply" class="btn-main" style="margin-top:10px;">送出申請</button>
+    </div>
+
+    <div id="panelLeave" class="card" style="display:none;">
+      <label>假別</label>
+      <select id="leaveKind">
+        <option value="personal">事假</option>
+        <option value="sick">病假</option>
+        <option value="annual">特休</option>
+        <option value="comp">補休 (使用加班時數)</option> <option value="official">公假</option>
+        <option value="marriage">婚假</option>
+        <option value="funeral">喪假</option>
+        <option value="menstrual">生理假</option>
+        <option value="birthday">生日假</option>
+      </select>
+      <label>開始</label>
+      <input type="datetime-local" id="leaveStart" onchange="calcLeaveHours()" />
+      <label>結束</label>
+      <input type="datetime-local" id="leaveEnd" onchange="calcLeaveHours()" />
+      <div style="margin:10px 0;font-size:13px;color:#666;">預計請假時數：<span id="leaveTotalHours" style="font-weight:bold;color:#111;">0.0</span> 小時</div>
+      <textarea id="leaveReason" rows="2" placeholder="請假事由"></textarea>
+      <button id="btnLeaveSubmit" class="btn-main" style="margin-top:10px;">送出請假申請</button>
+    </div>
+
+    <div id="panelOvertime" class="card" style="display:none;">
+      <label>日期</label>
+      <input type="date" id="otDate" />
+      <label>時間</label>
+      <div style="display:flex;gap:10px;">
+        <input type="time" id="otStart" onchange="calcOtHours()" />
+        <span style="padding-top:12px;">~</span>
+        <input type="time" id="otEnd" onchange="calcOtHours()" />
+      </div>
+      <div style="margin:10px 0;font-size:13px;color:#666;">預計加班時數：<span id="otTotalHours" style="font-weight:bold;color:#111;">0.0</span> 小時</div>
+      <textarea id="otReason" rows="2" placeholder="加班事由"></textarea>
+      <button id="btnOtSubmit" class="btn-main" style="margin-top:10px;">送出加班申請</button>
+    </div>
+
+    <div id="status" class="status"></div>
   </div>
+
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
