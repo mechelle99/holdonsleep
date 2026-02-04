@@ -1,285 +1,227 @@
-/* app.js (secured + localStorage) */
+/* app.js (Updated: Fetch API version) */
 const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
-
 
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
 const whoEl = $("who");
 const locEl = $("loc");
 
+// --- 核心通訊函式 (取代原本的 jsonp) ---
+async function callApi(payload) {
+  if (!ENDPOINT) throw new Error("缺少 GAS_ENDPOINT");
+  
+  // 使用 fetch POST，這是跨網域最標準的做法
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    // 必須用 text/plain 以避免 Google 的 CORS 預檢 (preflight) 失敗
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+  });
+  
+  const txt = await res.text();
+  try {
+    return JSON.parse(txt);
+  } catch (e) {
+    throw new Error("伺服器回傳格式錯誤: " + txt);
+  }
+}
+
 function setStatus(msg, ok) {
   statusEl.innerHTML = msg;
-  statusEl.classList.remove("ok", "bad");
-  if (ok === true) statusEl.classList.add("ok");
-  if (ok === false) statusEl.classList.add("bad");
-}
-function safeText(s){
-  return String(s||'').replace(/[<>&]/g,c=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
+  statusEl.className = "status " + (ok ? "ok" : "bad");
 }
 
-function jsonp(url, params, timeoutMs=12000){
-  return new Promise((resolve)=>{
-    const cb="cb_"+Math.random().toString(16).slice(2);
-    let done=false;
-    function finish(d){ if(done) return; done=true; resolve(d); cleanup(); }
-    window[cb]=(d)=>finish(d);
-    const qs=new URLSearchParams({ ...params, callback: cb });
-    const sc=document.createElement("script");
-    sc.src=url+(url.includes("?")?"&":"?")+qs.toString();
-    sc.async=true;
-    sc.onerror=()=>finish({ok:false,error:"jsonp_network_error"});
-    const t=setTimeout(()=>finish({ok:false,error:"jsonp_timeout"}), timeoutMs);
-    function cleanup(){
-      clearTimeout(t);
-      try{ delete window[cb]; }catch(_){ window[cb]=undefined; }
-      if(sc.parentNode) sc.parentNode.removeChild(sc);
-    }
-    document.body.appendChild(sc);
-  });
-}
-
-function bindButton(id, fn){
-  const el=$(id); if(!el) return;
-  el.addEventListener("click",(ev)=>{ ev.preventDefault(); ev.stopPropagation(); fn(); }, {passive:false});
-}
-
-// ===== localStorage (正式版入口) =====
-// employeeId / employeeName：員工身份
-function getUser(){
-  const userId = localStorage.getItem("employeeId") || "demo_user";
-  const displayName = localStorage.getItem("employeeName") || "Demo";
+// --- 使用者與定位 ---
+function getUser() {
+  const userId = localStorage.getItem("employeeId");
+  const displayName = localStorage.getItem("employeeName");
   return { userId, displayName };
 }
 
-function getLocation(force){
-  return new Promise((resolve,reject)=>{
-    if(!navigator.geolocation){
-      if(force) return reject(new Error("no_geolocation"));
-      return resolve({lat:"",lng:""});
+function getLocation(force) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      if (force) return reject(new Error("瀏覽器不支援定位"));
+      return resolve({ lat: "", lng: "" });
     }
     navigator.geolocation.getCurrentPosition(
-      (pos)=>resolve({lat:String(pos.coords.latitude), lng:String(pos.coords.longitude)}),
-      (err)=> force ? reject(err) : resolve({lat:"",lng:""}),
-      { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => (force ? reject(err) : resolve({ lat: "", lng: "" })),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   });
 }
 
-function showPanel(type){
-  $("panelClock").style.display = (type==="clock") ? "" : "none";
-  $("panelOuting").style.display = (type==="outing") ? "" : "none";
-  $("panelLeave").style.display = (type==="leave") ? "" : "none";
-  $("panelOvertime").style.display = (type==="overtime") ? "" : "none";
+// --- UI 切換 ---
+function showPanel(type) {
+  ["panelClock", "panelOuting", "panelLeave", "panelOvertime"].forEach(id => {
+    $(id).style.display = "none";
+  });
 
-  if(type==="clock") locEl.textContent="需定位（送出時抓）";
-  if(type==="outing") locEl.textContent="外出打卡免定位（但需核准外出單）";
-  if(type==="leave") locEl.textContent="不需定位";
-  if(type==="overtime") locEl.textContent="不需定位";
-}
-
-// ===== security: challenge token =====
-async function getChallengeToken(payloadStr){
-  const res = await jsonp(ENDPOINT, { action:"challenge", payload: payloadStr });
-  if(!res?.ok || !res.token) throw new Error(res?.error || "no_token");
-  return res.token;
-}
-
-// 後端以 jsonp submit 為主（避免 CORS）
-async function submitViaJsonp(payloadStr, token){
-  return await jsonp(ENDPOINT, { action:"submit", payloadStr, token });
-}
-
-async function submitRecord({ type, requireGps, note, dataObj }){
-  const btnIds=["btnClockIn","btnClockOut","btnOutApply","btnOutIn","btnOutOut","btnLeaveSubmit","btnOtSubmit"];
-  const btns=btnIds.map(id=>$(id)).filter(Boolean);
-  btns.forEach(b=>b.disabled=true);
-
-  if(!ENDPOINT){
-    setStatus("❌ 缺少 GAS_ENDPOINT（config.js）", false);
-    btns.forEach(b=>b.disabled=false);
-    return;
+  if (type === "clock") {
+    $("panelClock").style.display = "block";
+    locEl.textContent = "需定位 (送出時抓取)";
+  } else if (type === "outing") {
+    $("panelOuting").style.display = "block";
+    locEl.textContent = "外出申請免定位 / 外出打卡需定位";
+  } else {
+    // leave, overtime
+    const map = { leave: "panelLeave", overtime: "panelOvertime" };
+    $(map[type]).style.display = "block";
+    locEl.textContent = "不需定位";
   }
+}
 
-  setStatus("送出中…", true);
+// --- 統一送出函式 ---
+async function submitRecord({ action, dataObj, requireGps }) {
   const { userId, displayName } = getUser();
-
-  let lat="",lng="";
-  try{
-    const loc = await getLocation(!!requireGps);
-    lat=loc.lat; lng=loc.lng;
-  }catch(e){
-    setStatus("❌ 需要定位才能打卡，請開啟定位權限後再試一次", false);
-    btns.forEach(b=>b.disabled=false);
+  if (!userId) {
+    setStatus("❌ 請先至 <a href='setup.html'>setup.html</a> 設定員工身份", false);
     return;
   }
 
-  whoEl.textContent = `${displayName} (${userId})`;
-  locEl.textContent = (lat && lng) ? `${lat}, ${lng}` : (requireGps ? "定位失敗" : "免定位/未取得");
+  // 鎖定按鈕避免重複按
+  const buttons = document.querySelectorAll("button");
+  buttons.forEach(b => b.disabled = true);
+  setStatus("送出中...", true);
 
-  const payloadStr = JSON.stringify({
-    type, userId, displayName,
-    lat, lng,
-    note: note || "",
-    data: JSON.stringify(dataObj || {})
-  });
+  try {
+    let gps = { lat: "", lng: "" };
+    if (requireGps) {
+      try {
+        gps = await getLocation(true);
+      } catch (e) {
+        throw new Error("無法取得定位，請確認已授權 GPS。");
+      }
+    }
 
-  let token="";
-  try{
-    token = await getChallengeToken(payloadStr);
-  }catch(e){
-    setStatus(`❌ 無法取得安全token：<span class="mono">${safeText(e.message)}</span>`, false);
-    btns.forEach(b=>b.disabled=false);
-    return;
+    whoEl.textContent = `${displayName} (${userId})`;
+    if (requireGps) locEl.textContent = `${gps.lat}, ${gps.lng}`;
+
+    // 呼叫後端
+    const payload = {
+      action: action, // 告訴後端要做什麼
+      userId,
+      displayName,
+      lat: gps.lat,
+      lng: gps.lng,
+      data: dataObj
+    };
+
+    const res = await callApi(payload);
+
+    if (res.ok) {
+      setStatus(`✅ 成功：${res.message || "已送出"}`, true);
+      // 如果是外出申請成功，重新整理清單
+      if (action === "create_outing") await loadApprovedOutings();
+    } else {
+      setStatus(`❌ 失敗：${res.message || "未知錯誤"}`, false);
+    }
+
+  } catch (err) {
+    setStatus(`❌ 錯誤：${err.message}`, false);
+  } finally {
+    buttons.forEach(b => b.disabled = false);
   }
-
-  const res = await submitViaJsonp(payloadStr, token);
-  if(!res?.ok){
-    setStatus(`❌ 送出失敗：<span class="mono">${safeText(res?.error || "unknown")}</span>`, false);
-  }else{
-    const extra = res.requestId ? `（單號：<span class="mono">${safeText(res.requestId)}</span>）` : "";
-    setStatus(`✅ 已送出：<b>${safeText(type)}</b>${extra}`, true);
-  }
-
-  btns.forEach(b=>b.disabled=false);
 }
 
-async function loadApprovedOutings(){
+// --- 功能綁定 ---
+async function loadApprovedOutings() {
   const { userId } = getUser();
-  const res = await jsonp(ENDPOINT, { action:"list_outing_my", userId, status:"APPROVED" });
+  if(!userId) return;
+  
+  try {
+    const res = await callApi({ action: "get_my_outings", userId });
+    const sel = $("approvedOutingSelect");
+    sel.innerHTML = "";
+    
+    if (res.ok && res.list && res.list.length > 0) {
+      res.list.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.requestId;
+        opt.textContent = `${item.date} ${item.destination} (${item.status})`;
+        sel.appendChild(opt);
+      });
+    } else {
+      sel.innerHTML = "<option>無已核准的外出單</option>";
+    }
+  } catch(e) { console.error(e); }
+}
 
-  const sel = $("approvedOutingSelect");
-  sel.innerHTML="";
+function bindEvents() {
+  $("actionType").addEventListener("change", (e) => showPanel(e.target.value));
 
-  if(!res?.ok){
-    const opt=document.createElement("option");
-    opt.value=""; opt.textContent="讀取失敗";
-    sel.appendChild(opt);
-    return;
+  // 1. 上下班打卡
+  $("btnClockIn").onclick = () => submitRecord({ 
+    action: "clock_in", requireGps: true, dataObj: {} 
+  });
+  $("btnClockOut").onclick = () => submitRecord({ 
+    action: "clock_out", requireGps: true, dataObj: {} 
+  });
+
+  // 2. 外出申請
+  $("btnOutApply").onclick = () => {
+    submitRecord({
+      action: "create_outing", requireGps: false,
+      dataObj: {
+        date: $("outDate").value,
+        start: $("outStart").value,
+        end: $("outEnd").value,
+        destination: $("outDest").value,
+        reason: $("outReason").value
+      }
+    });
+  };
+
+  // 3. 外出打卡
+  const getOutReq = () => ({ requestId: $("approvedOutingSelect").value });
+  $("btnOutIn").onclick = () => submitRecord({ 
+    action: "clock_in", requireGps: true, dataObj: { ...getOutReq(), isOuting: true } 
+  });
+  $("btnOutOut").onclick = () => submitRecord({ 
+    action: "clock_out", requireGps: true, dataObj: { ...getOutReq(), isOuting: true } 
+  });
+
+  // 4. 請假
+  $("btnLeaveSubmit").onclick = () => {
+    submitRecord({
+      action: "create_leave", requireGps: false,
+      dataObj: {
+        type: $("leaveKind").value,
+        start: $("leaveStart").value,
+        end: $("leaveEnd").value,
+        reason: $("leaveReason").value
+      }
+    });
+  };
+
+  // 5. 加班
+  $("btnOtSubmit").onclick = () => {
+    submitRecord({
+      action: "create_ot", requireGps: false,
+      dataObj: {
+        date: $("otDate").value,
+        hours: $("otHours").value,
+        reason: $("otReason").value
+      }
+    });
+  };
+}
+
+// 初始化
+function init() {
+  if (!ENDPOINT) return setStatus("❌ 未設定 GAS_ENDPOINT", false);
+  const user = getUser();
+  if (!user.userId) {
+    setStatus("⚠️ 請先執行 <a href='setup.html'>setup.html</a> 設定身份", false);
+  } else {
+    whoEl.textContent = `${user.displayName} (${user.userId})`;
+    setStatus("✅ 系統就緒", true);
   }
-  const items=res.items || [];
-  if(items.length===0){
-    const opt=document.createElement("option");
-    opt.value=""; opt.textContent="目前沒有已核准外出單";
-    sel.appendChild(opt);
-    return;
-  }
-  items.forEach(it=>{
-    const opt=document.createElement("option");
-    opt.value=it.requestId;
-    opt.textContent=`${it.date} ${it.start}-${it.end}｜${it.destination}`;
-    sel.appendChild(opt);
-  });
-}
-
-// ===== 一般上下班（需 GPS）=====
-async function onClockIn(){
-  await submitRecord({ type:"clockin", requireGps:true, note:"", dataObj:{category:"clock"} });
-}
-async function onClockOut(){
-  await submitRecord({ type:"clockout", requireGps:true, note:"", dataObj:{category:"clock"} });
-}
-
-// ===== 外出申請（不需 GPS）=====
-async function onOutApply(){
-  const date=$("outDate").value;
-  const start=$("outStart").value;
-  const end=$("outEnd").value;
-  const destination=($("outDest").value||"").trim();
-  const reason=($("outReason").value||"").trim();
-
-  if(!date || !start || !end) return setStatus("❌ 外出申請需填日期/開始/結束時間", false);
-  if(!destination) return setStatus("❌ 目的地必填", false);
-  if(!reason) return setStatus("❌ 外出原因必填", false);
-
-  await submitRecord({
-    type:"outing_apply",
-    requireGps:false,
-    note:"",
-    dataObj:{ category:"outing_apply", date, start, end, destination, reason }
-  });
-
-  await loadApprovedOutings();
-}
-
-// ===== 外出打卡（免 GPS，但必須帶核准單 requestId）=====
-async function onOutIn(){
-  const requestId = $("approvedOutingSelect").value;
-  if(!requestId) return setStatus("❌ 請先選一張已核准外出單", false);
-
-  await submitRecord({
-    type:"out_clockin",
-    requireGps:false,
-    note:"",
-    dataObj:{ category:"outing_clock", requestId }
-  });
-}
-async function onOutOut(){
-  const requestId = $("approvedOutingSelect").value;
-  if(!requestId) return setStatus("❌ 請先選一張已核准外出單", false);
-
-  await submitRecord({
-    type:"out_clockout",
-    requireGps:false,
-    note:"",
-    dataObj:{ category:"outing_clock", requestId }
-  });
-}
-
-// ===== 請假/加班（不需 GPS）=====
-async function onLeaveSubmit(){
-  const kind=$("leaveKind").value;
-  const start=$("leaveStart").value;
-  const end=$("leaveEnd").value;
-  const reason=($("leaveReason").value||"").trim();
-
-  if(!start || !end) return setStatus("❌ 請假需填開始與結束時間", false);
-  if(!reason) return setStatus("❌ 請假原因/備註必填", false);
-  if(new Date(end).getTime() <= new Date(start).getTime()) return setStatus("❌ 結束時間必須晚於開始時間", false);
-
-  await submitRecord({ type:"leave_apply", requireGps:false, note:reason, dataObj:{ category:"leave", kind, start, end, reason } });
-}
-
-async function onOtSubmit(){
-  const date=$("otDate").value;
-  const hours=Number($("otHours").value||0);
-  const reason=($("otReason").value||"").trim();
-
-  if(!date) return setStatus("❌ 加班日期必填", false);
-  if(!hours || hours<=0) return setStatus("❌ 加班時數需大於 0", false);
-  if(!reason) return setStatus("❌ 加班事由必填", false);
-
-  await submitRecord({ type:"overtime_apply", requireGps:false, note:reason, dataObj:{ category:"overtime", date, hours, reason } });
-}
-
-function init(){
-  if(!ENDPOINT){
-    setStatus("❌ 缺少 GAS_ENDPOINT：請確認 config.js 有載入且在 app.js 前", false);
-    return;
-  }
-
-  const { userId, displayName }=getUser();
-  whoEl.textContent=`${displayName} (${userId})`;
-
-  const actionType=$("actionType");
-  showPanel(actionType.value);
-  actionType.addEventListener("change", async ()=>{ 
-    showPanel(actionType.value);
-    if(actionType.value==="outing") await loadApprovedOutings();
-  });
-
-  jsonp(ENDPOINT,{action:"ping"}).then(r=>{
-    if(r?.ok) setStatus("✅ 系統就緒", true);
-    else setStatus(`⚠️ ping 失敗：<span class="mono">${safeText(r?.error || "unknown")}</span>`, false);
-  });
-
-  bindButton("btnClockIn", onClockIn);
-  bindButton("btnClockOut", onClockOut);
-  bindButton("btnOutApply", onOutApply);
-  bindButton("btnOutIn", onOutIn);
-  bindButton("btnOutOut", onOutOut);
-  bindButton("btnLeaveSubmit", onLeaveSubmit);
-  bindButton("btnOtSubmit", onOtSubmit);
-
+  
+  showPanel($("actionType").value);
+  bindEvents();
   loadApprovedOutings();
 }
+
 init();
