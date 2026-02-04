@@ -21,10 +21,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create config.js from secret
-        run: |
-          cp config.example.js config.js
-          sed -i "s|__GAS_ENDPOINT__|${{ secrets.GAS_ENDPOINT }}|g" config.js
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
