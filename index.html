@@ -100,20 +100,23 @@
         </select>
 
         <label>開始時間</label>
-        <input id="leaveStart" type="datetime-local" onchange="calcLeaveHours()" />
+        <input id="outStart" type="time" onchange="calcOutingHours()" />
 
         <label>結束時間</label>
-        <input id="leaveEnd" type="datetime-local" onchange="calcLeaveHours()" />
+        <input id="outEnd" type="time" onchange="calcOutingHours()" />
 
         <div class="kv" style="margin-top:5px; color:#0a7f3f; font-weight:bold;">
-           預計請假時數：<span id="leaveTotalHours">0.0</span> 小時
+           預計外出時數：<span id="outTotalHours">0.0</span> 小時
         </div>
 
-        <label>原因/備註（必填）</label>
-        <input id="leaveReason" placeholder="簡述原因…" />
+        <label>目的地（必填）</label>
+        <input id="outDest" placeholder="例如：客戶A / 倉庫 / 銀行…" />
+
+        <label>外出原因（必填）</label>
+        <input id="outReason" placeholder="例如：送貨 / 拜訪 / 取貨…" />
 
         <div class="row">
-          <button id="btnLeaveSubmit" class="btn" type="button">送出請假申請</button>
+          <button id="btnOutApply" class="btn" type="button">送出外出申請</button>
         </div>
       </div>
 
