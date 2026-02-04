@@ -148,7 +148,7 @@ async function loadApprovedOutings() {
   } catch(e) { console.error(e); }
 }
 
-function bindEvents() {
+
  // --- 新增：自動計算請假時數 ---
 window.calcLeaveHours = function() {
   const startVal = $("leaveStart").value;
