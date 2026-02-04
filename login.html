@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>登入系統</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;color:#111;display:flex;align-items:center;justify-content:center;height:100vh;}
+    .card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.08);width:100%;max-width:320px;text-align:center;}
+    h1{font-size:22px;margin:0 0 20px;}
+    input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;margin-bottom:12px;outline:none;}
+    input:focus{border-color:#111;}
+    button{width:100%;padding:14px;border:0;border-radius:10px;background:#111;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;}
+    button:disabled{opacity:0.5;}
+    .error{color:#c22;font-size:14px;margin-top:12px;display:none;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>HOLDON 登入</h1>
+    <input id="uid" type="text" placeholder="帳號 / 員工編號" />
+    <input id="upass" type="password" placeholder="密碼" />
+    <button id="btnLogin">登入</button>
+    <div id="msg" class="error"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
+    
+    // 檢查是否已登入，若已登入直接跳轉首頁
+    if(localStorage.getItem("employeeId")) {
+      location.href = "index.html";
+    }
+
+    document.getElementById("btnLogin").onclick = async function() {
+      const btn = this;
+      const uid = document.getElementById("uid").value.trim();
+      const upass = document.getElementById("upass").value.trim();
+      const msg = document.getElementById("msg");
+
+      if(!uid || !upass) return alert("請輸入帳號與密碼");
+      if(!ENDPOINT) return alert("尚未設定 config.js");
+
+      btn.disabled = true;
+      btn.textContent = "驗證中...";
+      msg.style.display = "none";
+
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "login", data: { id: uid, pass: upass } })
+        });
+        const json = await res.json();
+
+        if (json.ok) {
+          // 登入成功：存入 LocalStorage
+          localStorage.setItem("employeeId", json.user.id);
+          localStorage.setItem("employeeName", json.user.name);
+          location.href = "index.html"; // 跳轉到首頁
+        } else {
+          msg.textContent = "❌ " + json.message;
+          msg.style.display = "block";
+        }
+      } catch (e) {
+        msg.textContent = "❌ 連線錯誤";
+        msg.style.display = "block";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "登入";
+      }
+    };
+  </script>
+</body>
+</html>
