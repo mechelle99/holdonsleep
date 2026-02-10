@@ -1,196 +1,145 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>主管管理後台</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>主管審核後台</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; color: #111; padding: 20px; }
-    .container { max-width: 900px; margin: 0 auto; }
-    .section { background: #fff; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 24px; }
-    h2 { margin-top: 0; font-size: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; }
-    th { color: #666; font-weight: 600; background: #fafafa; }
-    .btn-action { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; margin-right: 5px; }
-    .btn-approve { background: #d4edda; color: #155724; }
-    .btn-reject { background: #f8d7da; color: #721c24; }
-    .btn-back { display: inline-block; padding: 8px 16px; background: #333; color: #fff; text-decoration: none; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
-    .tag { padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-    .tag-leave { background: #e3f2fd; color: #0d47a1; }
-    .tag-ot { background: #fff3cd; color: #856404; }
-    .tag-out { background: #d1e7dd; color: #0f5132; }
-    .empty-msg { text-align: center; color: #999; padding: 20px; }
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;margin:0;padding:20px;color:#333;}
+    .container{max-width:800px;margin:0 auto;}
+    .btn-back{display:inline-block;padding:8px 16px;background:#333;color:#fff;text-decoration:none;border-radius:6px;margin-bottom:20px;}
+    .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:20px;}
+    h3{margin-top:0;border-bottom:1px solid #eee;padding-bottom:10px;}
+    
+    .req-item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:center;}
+    .req-info{font-size:14px;}
+    .req-actions button{margin-left:8px;padding:6px 12px;border:none;border-radius:4px;cursor:pointer;}
+    .btn-approve{background:#28a745;color:#fff;}
+    .btn-reject{background:#dc3545;color:#fff;}
+    
+    table{width:100%;border-collapse:collapse;font-size:14px;}
+    th,td{padding:10px;text-align:left;border-bottom:1px solid #eee;}
+    th{background:#fafafa;}
+    
+    #loading{text-align:center;padding:20px;color:#666;}
   </style>
 </head>
 <body>
-  <div class="container">
-    <a href="app.html" class="btn-back">← 回到打卡首頁</a>
-    <a href="schedule.html" class="btn-back" style="background:#007aff; margin-left:10px;">📅 進入排班表</a>
 
-    <div class="section">
-      <h2>⚡️ 待審核申請 (Pending)</h2>
-      <div id="loading-pending">載入中...</div>
-      <table id="pendingTable" style="display:none;">
-        <thead>
-          <tr>
-            <th>員工</th>
-            <th>類型</th>
-            <th>內容/時數</th>
-            <th>事由</th>
-            <th width="140">操作</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-pending"></tbody>
-      </table>
-    </div>
+<div class="container">
+  <a href="app.html" class="btn-back">← 回到打卡首頁</a>
 
-    <div class="section">
-      <h2>📊 員工假勤餘額總覽</h2>
-      <div id="loading-stats">載入中...</div>
-      <table id="statsTable" style="display:none;">
-        <thead>
-          <tr>
-            <th>員工</th>
-            <th>特休剩餘 (天)</th>
-            <th>補休剩餘 (時)</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-stats"></tbody>
-      </table>
+  <div class="card">
+    <h3>⚡ 待審核申請 (Pending)</h3>
+    <div id="pendingList">
+      <div id="loading">載入中...</div>
     </div>
   </div>
 
-  <script src="config.js"></script>
-  <script>
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
-    const userId = localStorage.getItem("employeeId");
-    const userName = localStorage.getItem("employeeName") || "";
-
-    function jsonpCall(payload){
-      return new Promise((resolve, reject)=>{
-        if(!ENDPOINT) return reject(new Error("未設定 GAS"));
-        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
-        window[cbName] = (resp)=>{ cleanup(); resolve(resp); };
-
-        const qs = new URLSearchParams();
-        qs.set("callback", cbName);
-        qs.set("payload", JSON.stringify(payload));
-
-        const script = document.createElement("script");
-        script.src = ENDPOINT + "?" + qs.toString();
-        script.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗（JSONP）")); };
-        document.body.appendChild(script);
-
-        const timer = setTimeout(()=>{ cleanup(); reject(new Error("逾時（JSONP）")); }, 20000);
-        function cleanup(){
-          try{ delete window[cbName]; }catch(e){ window[cbName]=undefined; }
-          if(script && script.parentNode) script.parentNode.removeChild(script);
-          clearTimeout(timer);
-        }
-      });
-    }
-
-    async function init() {
-      if (!ENDPOINT) return alert("Config 未設定");
-      if (!userId) { alert("請先登入"); location.href = "login.html"; return; }
-
-      // 後端會檢查你是不是主管，不是就會回錯誤
-      loadPending();
-      loadStats();
-    }
-
-    async function loadPending() {
-      try {
-        const json = await jsonpCall({ action: "get_pending", userId, displayName: userName });
-        document.getElementById("loading-pending").style.display = "none";
-        if (json.ok) renderPending(json.list || []);
-        else document.getElementById("loading-pending").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
-      } catch (e) {
-        document.getElementById("loading-pending").innerHTML = `<span style="color:red">❌ ${e.message}</span>`;
-      }
-    }
-
-    async function loadStats() {
-      try {
-        const json = await jsonpCall({ action: "get_team_stats", userId, displayName: userName });
-        document.getElementById("loading-stats").style.display = "none";
-        if (json.ok) renderStats(json.list || []);
-        else document.getElementById("loading-stats").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
-      } catch (e) {
-        document.getElementById("loading-stats").innerHTML = `<span style="color:red">❌ ${e.message}</span>`;
-      }
-    }
-
-    function renderPending(list) {
-      const tbody = document.getElementById("tbody-pending");
-      const table = document.getElementById("pendingTable");
-
-      if (list.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='5' class='empty-msg'>目前沒有待審核的單據 🎉</td></tr>";
-        table.style.display = "table";
-        return;
-      }
-
-      let html = "";
-      list.forEach(item => {
-        let tagClass = "tag-leave";
-        if (item.type === "加班") tagClass = "tag-ot";
-        if (item.type === "外出") tagClass = "tag-out";
-
-        html += `
+  <div class="card">
+    <h3>📊 員工假勤餘額總覽</h3>
+    <div style="overflow-x:auto;">
+      <table id="statsTable">
+        <thead>
           <tr>
-            <td>${item.empName}</td>
-            <td><span class="tag ${tagClass}">${item.type}</span> <br><small>${item.detail}</small></td>
-            <td>${item.hours} 小時<br><small style="color:#888">${item.date}</small></td>
-            <td style="color:#555;font-size:13px;">${item.reason}</td>
-            <td>
-              <button class="btn-action btn-approve" onclick="review('${item.reqId}', 'APPROVED')">核准</button>
-              <button class="btn-action btn-reject" onclick="review('${item.reqId}', 'REJECTED')">駁回</button>
-            </td>
+            <th>員工</th>
+            <th>特休剩餘</th>
+            <th>補休剩餘</th>
           </tr>
-        `;
-      });
-      tbody.innerHTML = html;
-      table.style.display = "table";
-    }
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
-    function renderStats(list) {
-      const tbody = document.getElementById("tbody-stats");
-      let html = "";
-      list.forEach(item => {
-        html += `
-          <tr>
-            <td><b>${item.name}</b> <span style="font-size:12px;color:#888">(${item.id})</span></td>
-            <td style="color:${parseFloat(item.annual.left)<=0?'#c22':'#28a745'}">
-              <b>${item.annual.left}</b> <small style="color:#999">/ ${item.annual.total}</small>
-            </td>
-            <td style="color:${parseFloat(item.comp.left)>0?'#28a745':'#111'}">
-              <b>${item.comp.left}</b> <small style="color:#999">/ 累積 ${item.comp.total}</small>
-            </td>
-          </tr>
-        `;
-      });
-      tbody.innerHTML = html;
-      document.getElementById("statsTable").style.display = "table";
-    }
+<script src="config.js"></script>
+<script>
+  const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+  const userId = localStorage.getItem("employeeId");
 
-    async function review(reqId, decision) {
-      if(!confirm(`確定要 ${decision === "APPROVED" ? "核准" : "駁回"} 這張單據嗎？`)) return;
-      const btns = document.querySelectorAll("button");
-      btns.forEach(b => b.disabled = true);
+  if(!userId) location.href="index.html";
 
-      try{
-        const json = await jsonpCall({ action: "review_request", userId, displayName:userName, data:{ reqId, decision } });
-        alert(json.message || "完成");
-        location.reload();
-      }catch(e){
-        alert("❌ " + e.message);
-        btns.forEach(b => b.disabled = false);
+  function api(act, data={}){
+    return new Promise((resolve, reject)=>{
+      const cb = "cb"+Date.now();
+      const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
+      const s = document.createElement("script");
+      s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+      window[cb] = (res) => { resolve(res); document.body.removeChild(s); };
+      s.onerror = () => reject("連線失敗");
+      document.body.appendChild(s);
+    });
+  }
+
+  async function loadData(){
+    try {
+      // 1. 載入待審核
+      const pRes = await api("get_pending");
+      const pDiv = document.getElementById("pendingList");
+      pDiv.innerHTML = "";
+      
+      if(pRes.ok && pRes.list && pRes.list.length > 0) {
+        pRes.list.forEach(r => {
+          const div = document.createElement("div");
+          div.className = "req-item";
+          // 轉換假別顯示
+          const typeMap = {
+            'LEAVE': '請假', 'OT': '加班', 'OUTING': '外出',
+            'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假'
+          };
+          const cat = typeMap[r.category] || r.category;
+          const type = typeMap[r.leaveType] || r.leaveType;
+          
+          div.innerHTML = `
+            <div class="req-info">
+              <strong>${r.empName}</strong> - ${cat} ${type ? '('+type+')' : ''}<br>
+              <span style="color:#666;font-size:12px">
+                ${r.start.substring(0,16).replace('T',' ')} ~ ${r.end.substring(0,16).replace('T',' ')}<br>
+                時數: ${r.hours}h / 事由: ${r.reason}
+              </span>
+            </div>
+            <div class="req-actions">
+              <button class="btn-approve" onclick="decide('${r.reqId}', 'APPROVED')">准</button>
+              <button class="btn-reject" onclick="decide('${r.reqId}', 'REJECTED')">駁</button>
+            </div>
+          `;
+          pDiv.appendChild(div);
+        });
+      } else {
+        pDiv.innerHTML = '<div style="padding:10px;color:#999">目前沒有待審核項目</div>';
       }
-    }
 
-    init();
-  </script>
+      // 2. 載入團隊報表
+      const sRes = await api("get_team_stats");
+      const tbody = document.querySelector("#statsTable tbody");
+      tbody.innerHTML = "";
+      
+      if(sRes.ok && sRes.list) {
+        sRes.list.forEach(e => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${e.name} (${e.id})</td>
+            <td>${e.annual.left} 天</td>
+            <td>${e.comp.left} 時</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+    } catch(e) {
+      alert("載入失敗: " + e);
+    }
+  }
+
+  async function decide(reqId, decision) {
+    if(!confirm(decision==='APPROVED'?"確定核准？":"確定駁回？")) return;
+    const res = await api("review_request", { data: { reqId, decision } });
+    alert(res.message);
+    loadData(); // 重新載入
+  }
+
+  loadData();
+</script>
 </body>
 </html>
