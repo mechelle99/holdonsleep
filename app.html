@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>HOLDON 出勤系統</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial;background:#f4f6f8;margin:0;padding:16px;}
+    .top{display:flex;justify-content:space-between;align-items:center;margin:8px 0 14px;}
+    .card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 6px 20px rgba(0,0,0,.06);margin-bottom:12px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .big{font-size:34px;font-weight:800;margin:0}
+    .muted{color:#666;font-size:12px;margin:6px 0 0}
+    button{width:100%;padding:12px;border:none;border-radius:12px;font-weight:800;cursor:pointer}
+    .btn{background:#111;color:#fff}
+    .btn2{background:#fff;border:1px solid #ddd}
+    select,input,textarea{width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:15px}
+    label{display:block;margin:10px 0 6px;color:#666;font-size:13px}
+  </style>
+</head>
+<body>
+
+  <div class="top">
+    <div>
+      <div style="font-weight:800" id="who">...</div>
+      <div class="muted" id="role"></div>
+    </div>
+    <button class="btn2" onclick="logout()">登出</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="muted">特休剩餘</div>
+      <div class="big" id="annualRemain">-</div>
+      <div class="muted">（以核准後入帳為準）</div>
+    </div>
+    <div class="card">
+      <div class="muted">補休剩餘</div>
+      <div class="big" id="compRemain">-</div>
+      <div class="muted">（以核准後入帳為準）</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="muted">生日假（當月）</div>
+    <div class="big"><span id="birthdayRemain">-</span> 小時</div>
+    <div class="muted" id="birthdayHint"></div>
+  </div>
+
+  <div class="card" id="scheduleCard" style="display:none">
+    <button class="btn2" onclick="goSchedule()">查看 / 填寫排班</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">提出申請</h3>
+
+    <label>類型</label>
+    <select id="category" onchange="onCategoryChange()">
+      <option value="LEAVE">請假</option>
+      <option value="OT">加班（可轉補休）</option>
+      <option value="OUTING">外出</option>
+    </select>
+
+    <div id="leaveArea">
+      <label>假別</label>
+      <select id="leaveType">
+        <option value="annual">特休</option>
+        <option value="sick">病假</option>
+        <option value="birthday">生日假</option>
+        <option value="comp">補休</option>
+      </select>
+    </div>
+
+    <label>開始時間</label>
+    <input id="start" type="datetime-local"/>
+
+    <label>結束時間</label>
+    <input id="end" type="datetime-local"/>
+
+    <label>原因</label>
+    <textarea id="reason" rows="3" placeholder="請輸入原因"></textarea>
+
+    <div style="height:10px"></div>
+    <button class="btn" onclick="submit()">送出申請</button>
+  </div>
+
+  <div class="card">
+    <button class="btn2" onclick="openMyRequests()">查看我的申請紀錄</button>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
+
+    const userId = localStorage.getItem("employeeId");
+    const userName = localStorage.getItem("employeeName") || "Unknown";
+    const canSchedule = localStorage.getItem("canSchedule") === "Y";
+
+    if(!userId) location.href="index.html";
+
+    document.getElementById("who").textContent = `${userName} (${userId})`;
+    document.getElementById("role").textContent = canSchedule ? "可排班" : "";
+
+    if (canSchedule) document.getElementById("scheduleCard").style.display = "block";
+
+    function jsonpCall(action, dataObj = {}, timeoutMs = 12000){
+      return new Promise((resolve, reject)=>{
+        const cbName="__cb_"+Math.random().toString(36).slice(2);
+        const payload={webhookKey:WEBHOOK_KEY, userId, ...dataObj};
+        const qs=new URLSearchParams();
+        qs.set("action", action);
+        qs.set("payload", JSON.stringify(payload));
+        const url = ENDPOINT + "?" + qs.toString() + "&callback=" + cbName;
+
+        const script=document.createElement("script");
+        let done=false;
+
+        const timer=setTimeout(()=>{
+          if(done) return;
+          done=true; cleanup();
+          reject(new Error("timeout"));
+        }, timeoutMs);
+
+        function cleanup(){
+          clearTimeout(timer);
+          try{ delete window[cbName]; }catch(e){}
+          if(script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[cbName]=(res)=>{
+          if(done) return;
+          done=true; cleanup();
+          resolve(res);
+        };
+        script.onerror=()=>{
+          if(done) return;
+          done=true; cleanup();
+          reject(new Error("network error"));
+        };
+
+        document.head.appendChild(script);
+        script.src=url;
+      });
+    }
+
+    async function refresh(){
+      const res = await jsonpCall("get_balances", {});
+      if(!res.ok) throw new Error(res.message||"fail");
+
+      document.getElementById("annualRemain").textContent = `${res.annualRemainHours||0} 小時`;
+      document.getElementById("compRemain").textContent = `${res.compRemainHours||0} 小時`;
+      document.getElementById("birthdayRemain").textContent = res.birthdayRemainHours||0;
+      document.getElementById("birthdayHint").textContent = res.birthdayEligible ? "本月可用（最多 8 小時）" : "非生日月，無法使用";
+    }
+
+    refresh().catch(e=>alert(e.message));
+
+    function onCategoryChange(){
+      const c = document.getElementById("category").value;
+      document.getElementById("leaveArea").style.display = (c==="LEAVE") ? "block":"none";
+    }
+    onCategoryChange();
+
+    async function submit(){
+      const category = document.getElementById("category").value;
+      const leaveType = document.getElementById("leaveType").value;
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const reason = document.getElementById("reason").value;
+
+      const payload = { category, start, end, reason };
+      if(category==="LEAVE") payload.leaveType = leaveType;
+
+      try{
+        const res = await jsonpCall("submit_request", payload);
+        if(!res.ok) throw new Error(res.message||"fail");
+        alert(res.message || "已送出");
+        await refresh();
+      }catch(e){
+        alert("送出失敗：" + e.message);
+      }
+    }
+
+    function openMyRequests(){
+      location.href="requests.html";
+    }
+    function goSchedule(){
+      location.href="schedule.html";
+    }
+    function logout(){
+      localStorage.clear();
+      location.href="index.html";
+    }
+  </script>
+</body>
+</html>
