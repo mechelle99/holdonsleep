@@ -6,139 +6,152 @@
   <title>HOLDON 出勤系統</title>
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;margin:0;padding:16px;color:#333;}
-    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-    .card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:16px;}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:16px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .big-num{font-size:32px;font-weight:800;color:#111;}
+    .label{font-size:13px;color:#666;margin-bottom:4px;}
+    .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
     .btn-in{background:#007aff;}
     .btn-out{background:#ff9500;}
-    .btn-mgr{background:#666;margin-bottom:10px;}
-    .btn-sub{background:#333;margin-top:10px;}
-    input,select{width:100%;padding:10px;margin-top:5px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;}
-    .big-num{font-size:28px;font-weight:800;}
+    .btn-sub{background:#111;margin-top:12px;}
+    .btn-mgr{background:#6f42c1;margin-bottom:12px;}
+    input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
+    #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
   </style>
 </head>
 <body>
 
-<div id="loading" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99;justify-content:center;align-items:center;">處理中...</div>
+  <div id="loading">資料傳輸中...</div>
 
-<div class="header">
-  <div style="font-weight:bold" id="who">...</div>
-  <a href="javascript:logout()" style="color:#c22;text-decoration:none;">登出</a>
-</div>
-
-<button id="btnMgr" class="btn btn-mgr hidden" onclick="location.href='manager.html'">👑 進入主管審核後台</button>
-
-<div class="grid">
-  <div class="card">
-    <div style="font-size:12px;color:#666">特休剩餘</div>
-    <div class="big-num" id="valAnnual">-</div>
+  <div class="header">
+    <div style="font-weight:bold;font-size:18px;" id="who">...</div>
+    <a href="javascript:logout()" style="color:#c22;text-decoration:none;">登出</a>
   </div>
-  <div class="card">
-    <div style="font-size:12px;color:#666">補休剩餘</div>
-    <div class="big-num" id="valComp">-</div>
-  </div>
-</div>
 
-<div class="card">
-  <h3 style="margin:0 0 10px">📍 上下班打卡</h3>
+  <button id="btnMgr" class="btn btn-mgr hidden" onclick="location.href='manager.html'">👑 進入主管審核後台</button>
+
   <div class="grid">
-    <button class="btn btn-in" onclick="clock('clock_in')">上班</button>
-    <button class="btn btn-out" onclick="clock('clock_out')">下班</button>
+    <div class="card">
+      <div class="label">特休剩餘</div>
+      <div class="big-num"><span id="valAnnual">-</span><span style="font-size:14px"> 天</span></div>
+    </div>
+    <div class="card">
+      <div class="label">補休剩餘</div>
+      <div class="big-num"><span id="valComp">-</span><span style="font-size:14px"> 時</span></div>
+    </div>
   </div>
-  <div id="msg" style="margin-top:10px;color:blue;font-size:13px;"></div>
-</div>
 
-<div class="card">
-  <h3 style="margin:0 0 10px">📝 申請單</h3>
-  <label>類型</label>
-  <select id="cat" onchange="toggle()">
-    <option value="LEAVE">請假</option>
-    <option value="OT">加班</option>
-    <option value="OUTING">外出</option>
-  </select>
-  
-  <div id="areaLeave">
-    <label>假別</label>
-    <select id="lType">
-      <option value="annual">特休</option>
-      <option value="comp">補休</option>
-      <option value="sick">病假</option>
-      <option value="birthday">生日假</option>
+  <div class="card">
+    <h3 style="margin:0 0 12px">📍 上下班打卡</h3>
+    <div class="grid">
+      <button class="btn btn-in" onclick="clock('clock_in')">上班打卡</button>
+      <button class="btn btn-out" onclick="clock('clock_out')">下班打卡</button>
+    </div>
+    <div id="msg" style="margin-top:10px;color:#007aff;font-size:13px;text-align:center;"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 12px">📝 提出申請</h3>
+    <label class="label">類型</label>
+    <select id="cat" onchange="toggle()">
+      <option value="LEAVE">請假</option>
+      <option value="OT">加班 (轉補休)</option>
+      <option value="OUTING">外出</option>
     </select>
+    
+    <div id="areaLeave">
+      <label class="label" style="margin-top:10px">假別</label>
+      <select id="lType">
+        <option value="annual">特休</option>
+        <option value="comp">補休</option>
+        <option value="sick">病假</option>
+        <option value="birthday">生日假</option>
+      </select>
+    </div>
+
+    <label class="label" style="margin-top:10px">開始時間</label>
+    <input type="datetime-local" id="start">
+    <label class="label" style="margin-top:10px">結束時間</label>
+    <input type="datetime-local" id="end">
+    
+    <label class="label" style="margin-top:10px">事由</label>
+    <input id="reason" placeholder="請輸入原因">
+
+    <button class="btn btn-sub" onclick="submit()">送出申請</button>
   </div>
 
-  <label>開始</label>
-  <input type="datetime-local" id="start">
-  <label>結束</label>
-  <input type="datetime-local" id="end">
-  <label>事由</label>
-  <input id="reason" placeholder="請輸入原因">
+  <script src="config.js"></script>
+  <script>
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    const userId = localStorage.getItem("employeeId");
+    
+    if(!userId) location.href="index.html";
+    document.getElementById("who").textContent = `${localStorage.getItem("employeeName")} (${userId})`;
+    
+    if(localStorage.getItem("isManager")==="Y") document.getElementById("btnMgr").classList.remove("hidden");
 
-  <button class="btn btn-sub" onclick="submit()">送出申請</button>
-</div>
-
-<script src="config.js"></script>
-<script>
-  const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
-  const userId = localStorage.getItem("employeeId");
-  
-  if(!userId) location.href="index.html";
-  document.getElementById("who").textContent = `${localStorage.getItem("employeeName")} (${userId})`;
-  
-  // 顯示主管按鈕
-  if(localStorage.getItem("isManager")==="Y") document.getElementById("btnMgr").classList.remove("hidden");
-
-  function api(act, data={}){
-    document.getElementById("loading").style.display="flex";
-    return new Promise((res, rej)=>{
-      const cb = "cb"+Date.now();
-      const p = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
-      const s = document.createElement("script");
-      s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(p)}&callback=${cb}`;
-      window[cb] = (r) => { res(r); document.body.removeChild(s); document.getElementById("loading").style.display="none"; };
-      document.body.appendChild(s);
-    });
-  }
-
-  async function init(){
-    const r = await api("get_balances");
-    if(r.ok){
-      document.getElementById("valAnnual").textContent = r.annual.left + " 天";
-      document.getElementById("valComp").textContent = r.comp.left + " 時";
+    function api(act, data={}){
+      document.getElementById("loading").style.display="flex";
+      return new Promise((resolve, reject)=>{
+        const cb = "cb"+Date.now();
+        const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
+        const s = document.createElement("script");
+        s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+        
+        window[cb] = (res) => {
+           resolve(res);
+           document.body.removeChild(s);
+           document.getElementById("loading").style.display="none";
+        };
+        s.onerror = () => {
+           alert("連線失敗");
+           document.getElementById("loading").style.display="none";
+        };
+        document.body.appendChild(s);
+      });
     }
-  }
-  init();
 
-  async function clock(type){
-    if(!confirm("確定打卡？")) return;
-    navigator.geolocation.getCurrentPosition(async pos => {
-       const r = await api(type, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
-       alert(r.message);
-       document.getElementById("msg").textContent = `${r.message} @ ${r.time}`;
-    }, () => alert("無法定位"));
-  }
+    async function init(){
+      try {
+        const r = await api("get_balances");
+        if(r.ok){
+          document.getElementById("valAnnual").textContent = r.annual.left;
+          document.getElementById("valComp").textContent = r.comp.left;
+        }
+      } catch(e) { console.error(e); }
+    }
+    init();
 
-  async function submit(){
-    const cat = document.getElementById("cat").value;
-    const r = await api("submit_request", {
-      category: cat,
-      leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
-      start: document.getElementById("start").value,
-      end: document.getElementById("end").value,
-      reason: document.getElementById("reason").value
-    });
-    alert(r.message);
-    if(r.ok) location.reload();
-  }
+    async function clock(type){
+      if(!confirm("確定打卡？")) return;
+      navigator.geolocation.getCurrentPosition(async pos => {
+         const r = await api(type, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+         alert(r.message);
+         document.getElementById("msg").textContent = `${r.message} @ ${r.time}`;
+      }, () => alert("無法定位，請允許瀏覽器存取位置"));
+    }
 
-  function toggle(){
-    const v = document.getElementById("cat").value;
-    document.getElementById("areaLeave").style.display = v==="LEAVE"?"block":"none";
-  }
+    async function submit(){
+      const cat = document.getElementById("cat").value;
+      const r = await api("submit_request", {
+        category: cat,
+        leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
+        start: document.getElementById("start").value,
+        end: document.getElementById("end").value,
+        reason: document.getElementById("reason").value
+      });
+      alert(r.message);
+      if(r.ok) location.reload();
+    }
 
-  function logout(){ localStorage.clear(); location.href="index.html"; }
-</script>
+    function toggle(){
+      const v = document.getElementById("cat").value;
+      document.getElementById("areaLeave").style.display = v==="LEAVE"?"block":"none";
+    }
+
+    function logout(){ localStorage.clear(); location.href="index.html"; }
+  </script>
 </body>
 </html>
