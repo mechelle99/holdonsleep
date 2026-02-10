@@ -32,7 +32,9 @@
   <div id="loadingOverlay">資料讀取中...</div>
 
   <div class="container">
-    <a href="app.html" class="btn-back">← 回打卡首頁</a> <div class="quota-box">
+    <a href="app.html" class="btn-back">← 回打卡首頁</a>
+
+    <div class="quota-box">
       <span id="currentMonthStr" style="font-weight:bold; font-size:18px;">...</span><br>
       應休天數：<span id="monthlyQuota" style="font-size:24px; font-weight:bold; color:#c22;">-</span> 天
       <div id="quotaDetail" style="font-size:13px; color:#555; margin-top:5px;"></div>
@@ -67,6 +69,7 @@
   <script>
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
     const userId = localStorage.getItem("employeeId");
+    // 預設從 localStorage 讀取，稍後 loadEmployees 會更新
     let isManager = (localStorage.getItem("isManager") === "Y");
     let calendar, currentEventObj, currentYear, currentMonth;
 
@@ -108,8 +111,16 @@
       sel.innerHTML = "";
       try {
         const res = await api("get_all_employees");
-        if (res.isManager) { isManager = true; localStorage.setItem("isManager", "Y"); }
-        if (isManager) document.getElementById("btnApproveAll").style.display = "inline-block";
+        
+        // ★ 更新主管狀態
+        if (res.isManager) {
+           isManager = true;
+           localStorage.setItem("isManager", "Y");
+           document.getElementById("btnApproveAll").style.display = "inline-block";
+        } else {
+           isManager = false;
+           localStorage.setItem("isManager", "N");
+        }
 
         (res.list || []).forEach(emp => {
           const opt = document.createElement("option");
@@ -118,10 +129,13 @@
           sel.appendChild(opt);
         });
 
+        // 預設選自己
         sel.value = userId;
-        // ★ 關鍵修正：主管可選任何人，員工只能選自己
+        
+        // ★ 關鍵：若非主管，才鎖住選單
         sel.disabled = !isManager; 
-      } catch (e) { alert("載入失敗: " + e); }
+        
+      } catch (e) { alert("載入員工失敗: " + e); }
     }
 
     async function fetchEvents(info, success, fail) {
@@ -163,7 +177,7 @@
         const props = event.extendedProps;
         empSel.value = props.empId;
         shiftSel.value = props.shift;
-        empSel.disabled = true; // 編輯時不給換人
+        empSel.disabled = true; // 編輯舊班表時鎖定人名
         
         document.getElementById("statusInfo").textContent = `狀態：${props.reqStatus}`;
         
@@ -175,8 +189,12 @@
         }
       } else {
         // 新增模式
-        empSel.disabled = !isManager; // ★ 主管可選人
+        // ★ 再次確認：主管可選，非主管鎖定
+        empSel.disabled = !isManager; 
+        
+        // 若非主管，強制選回自己；若是主管，保留上次選擇或預設
         if(!isManager) empSel.value = userId;
+        
         shiftSel.value = "早班";
         document.getElementById("statusInfo").textContent = "";
       }
@@ -189,8 +207,17 @@
       const shift = document.getElementById("shiftSelect").value;
       const targetId = document.getElementById("empSelect").value;
       
+      // 取得選中員工的名字 (傳給後端備用)
+      const sel = document.getElementById("empSelect");
+      const targetName = sel.options[sel.selectedIndex].text.split(' (')[0];
+
       const action = currentEventObj ? "update_schedule" : "add_schedule";
-      const payload = { date, shift, empId: targetId, scheduleId: currentEventObj?.extendedProps?.scheduleId };
+      const payload = { 
+        date, shift, 
+        empId: targetId, 
+        empName: targetName,
+        scheduleId: currentEventObj?.extendedProps?.scheduleId 
+      };
       
       const res = await api(action, payload);
       alert(res.message);
