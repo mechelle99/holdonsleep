@@ -16,8 +16,8 @@
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
     .btn-in{background:#007aff;}
     .btn-out{background:#ff9500;}
-    .btn-outing-start{background:#34c759; margin-top:8px;} /* 外出綠色 */
-    .btn-outing-end{background:#5856d6;}   /* 返回紫色 */
+    .btn-outing-start{background:#34c759;} 
+    .btn-outing-end{background:#5856d6;}   
     
     .btn-sub{background:#111;margin-top:12px;}
     .btn-mgr{background:#6f42c1;margin-bottom:12px;}
@@ -25,11 +25,12 @@
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
+    .calc-hint { font-size:13px; color:#c22; margin-top:5px; font-weight:bold; }
   </style>
 </head>
 <body>
 
-  <div id="loading">資料傳輸中...</div>
+  <div id="loading">處理中...</div>
 
   <div class="header">
     <div style="font-weight:bold;font-size:18px;" id="who">...</div>
@@ -72,7 +73,7 @@
     <select id="cat" onchange="toggle()">
       <option value="LEAVE">請假</option>
       <option value="OT">加班 (轉補休)</option>
-      <option value="OUTING">外出申請單 (事先申請)</option>
+      <option value="OUTING">外出申請 (事先)</option>
     </select>
     
     <div id="areaLeave">
@@ -80,8 +81,8 @@
       <select id="lType">
         <option value="annual">特休</option>
         <option value="comp">補休</option>
-        <option value="personal">事假</option>
         <option value="sick">病假</option>
+        <option value="personal">事假</option>
         <option value="menstrual">生理假</option>
         <option value="family">家庭照顧假</option>
         <option value="wedding">婚假</option>
@@ -92,10 +93,13 @@
     </div>
 
     <label class="label" style="margin-top:10px">開始時間</label>
-    <input type="datetime-local" id="start">
-    <label class="label" style="margin-top:10px">結束時間</label>
-    <input type="datetime-local" id="end">
+    <input type="datetime-local" id="start" onchange="calcHours()">
     
+    <label class="label" style="margin-top:10px">結束時間</label>
+    <input type="datetime-local" id="end" onchange="calcHours()">
+    
+    <div id="calcResult" class="calc-hint">共 0 小時</div>
+
     <label class="label" style="margin-top:10px">事由</label>
     <input id="reason" placeholder="請輸入原因">
 
@@ -144,11 +148,26 @@
     }
     init();
 
+    // 自動計算時數
+    function calcHours() {
+      const s = document.getElementById("start").value;
+      const e = document.getElementById("end").value;
+      if(s && e) {
+        const diff = new Date(e) - new Date(s);
+        if(diff > 0) {
+          const hours = (diff / 3600000).toFixed(1);
+          document.getElementById("calcResult").textContent = `共 ${hours} 小時`;
+        } else {
+          document.getElementById("calcResult").textContent = "結束時間需晚於開始時間";
+        }
+      }
+    }
+
     async function clock(type){
-      if(!confirm("確定要打卡嗎？")) return;
+      if(!confirm("確定要執行此操作嗎？")) return;
       
       if (!navigator.geolocation) {
-        alert("您的裝置不支援定位功能");
+        alert("您的瀏覽器不支援定位功能");
         return;
       }
 
@@ -162,20 +181,19 @@
              accuracy: pos.coords.accuracy 
            });
            
-           // 顯示後端回傳的訊息 (含距離檢核結果)
            alert(r.message);
            document.getElementById("clockMsg").innerText = `${r.message}\n時間：${r.time}`;
          } catch(e) {
-           alert("打卡失敗：" + e);
+           alert("打卡錯誤：" + e);
          }
          document.getElementById("loading").style.display="none";
       }, (err) => {
-         // 定位失敗的處理
+         // 定位失敗明確提示
          document.getElementById("loading").style.display="none";
          let msg = "無法取得定位";
          if (err.code === 1) msg = "請允許瀏覽器存取位置權限 (Permission Denied)";
-         else if (err.code === 2) msg = "定位訊號不良 (Position Unavailable)";
-         else if (err.code === 3) msg = "定位逾時 (Timeout)";
+         else if (err.code === 2) msg = "定位訊號不良";
+         else if (err.code === 3) msg = "定位逾時";
          alert("打卡失敗：" + msg);
       }, {
          enableHighAccuracy: true,
@@ -186,11 +204,22 @@
 
     async function submit(){
       const cat = document.getElementById("cat").value;
+      const s = document.getElementById("start").value;
+      const e = document.getElementById("end").value;
+      
+      // 計算時數
+      let hours = 0;
+      if(s && e) {
+         hours = (new Date(e) - new Date(s)) / 3600000;
+         hours = Math.round(hours * 10) / 10;
+      }
+
       const r = await api("submit_request", {
         category: cat,
         leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
-        start: document.getElementById("start").value,
-        end: document.getElementById("end").value,
+        start: s,
+        end: e,
+        hours: hours, // 傳送前端算好的時數
         reason: document.getElementById("reason").value
       });
       alert(r.message);
