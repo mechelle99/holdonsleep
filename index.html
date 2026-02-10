@@ -5,88 +5,129 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>HOLDON 出勤系統 - 登入</title>
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial;background:#f4f6f8;margin:0;padding:24px;}
-    .card{max-width:420px;margin:48px auto;background:#fff;border-radius:14px;padding:20px;box-shadow:0 6px 20px rgba(0,0,0,.08)}
-    h2{margin:0 0 12px}
-    input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;margin:8px 0;font-size:16px;box-sizing:border-box}
-    button{width:100%;padding:12px;border:none;border-radius:12px;background:#111;color:#fff;font-weight:700;font-size:16px;cursor:pointer}
-    .muted{color:#666;font-size:13px;margin-top:10px}
+    /* ... 保留原本樣式 ... */
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;padding:24px;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
+    .card{width:100%;max-width:360px;background:#fff;padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+    input{width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:8px;box-sizing:border-box}
+    button{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:10px}
+    .link{text-align:center;margin-top:16px;font-size:13px}
+    .link a{color:#666;text-decoration:none;border-bottom:1px dotted #999}
+    .hidden{display:none}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>HOLDON 出勤系統</h2>
+  <div class="card" id="loginCard">
+    <h2 style="margin-top:0">HOLDON 登入</h2>
     <input id="empId" placeholder="員工編號 (例如 M001)" />
     <input id="pass" type="password" placeholder="密碼" />
     <button onclick="login()">登入</button>
-    <div class="muted" id="msg"></div>
+    
+    <div class="link">
+      <a href="javascript:showForgot()">忘記密碼？</a>
+    </div>
+    <div id="msg" style="color:red;font-size:12px;margin-top:10px"></div>
+  </div>
+
+  <div class="card hidden" id="forgotCard">
+    <h2 style="margin-top:0">重設密碼</h2>
+    <p style="font-size:13px;color:#666">請輸入員工編號，我們將寄送驗證碼到您的 Email。</p>
+    <input id="f_empId" placeholder="員工編號" />
+    <button onclick="sendForgot()">寄送驗證碼</button>
+    <div class="link"><a href="javascript:showLogin()">回登入</a></div>
+  </div>
+
+  <div class="card hidden" id="resetCard">
+    <h2 style="margin-top:0">設定新密碼</h2>
+    <input id="r_token" placeholder="請輸入 Email 收到的驗證碼" />
+    <input id="r_p1" type="password" placeholder="新密碼" />
+    <button onclick="doReset()">確認重設</button>
+    <div class="link"><a href="javascript:showLogin()">取消</a></div>
   </div>
 
   <script src="config.js"></script>
   <script>
+    // 你的 Config
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
-    const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
+    
+    function showLogin(){ 
+        document.getElementById("loginCard").style.display="block";
+        document.getElementById("forgotCard").style.display="none";
+        document.getElementById("resetCard").style.display="none";
+    }
+    function showForgot(){
+        document.getElementById("loginCard").style.display="none";
+        document.getElementById("forgotCard").style.display="block";
+    }
+    function showReset(){
+        document.getElementById("forgotCard").style.display="none";
+        document.getElementById("resetCard").style.display="block";
+    }
 
-    function jsonpCall(action, dataObj = {}, timeoutMs = 12000){
+    // 共用的 JSONP 呼叫函式
+    function jsonpCall(action, data){
       return new Promise((resolve, reject)=>{
-        const cbName="__cb_"+Math.random().toString(36).slice(2);
-        const payload={webhookKey:WEBHOOK_KEY, ...dataObj};
-        const qs=new URLSearchParams();
-        qs.set("action", action);
-        qs.set("payload", JSON.stringify(payload));
-        const url = ENDPOINT + "?" + qs.toString() + "&callback=" + cbName;
-
-        const script=document.createElement("script");
-        let done=false;
-
-        const timer=setTimeout(()=>{
-          if(done) return;
-          done=true; cleanup();
-          reject(new Error("timeout"));
-        }, timeoutMs);
-
-        function cleanup(){
-          clearTimeout(timer);
-          try{ delete window[cbName]; }catch(e){}
-          if(script.parentNode) script.parentNode.removeChild(script);
-        }
-
-        window[cbName]=(res)=>{
-          if(done) return;
-          done=true; cleanup();
-          resolve(res);
+        const cbName = "cb" + Date.now();
+        const script = document.createElement("script");
+        const payload = JSON.stringify({ ...data, webhookKey: window.CONFIG?.WEBHOOK_KEY });
+        const url = `${ENDPOINT}?action=${action}&payload=${encodeURIComponent(payload)}&callback=${cbName}`;
+        
+        window[cbName] = (res) => {
+           resolve(res);
+           delete window[cbName];
+           script.remove();
         };
-        script.onerror=()=>{
-          if(done) return;
-          done=true; cleanup();
-          reject(new Error("network error"));
-        };
-
-        document.head.appendChild(script);
-        script.src=url;
+        script.onerror = () => reject("網路錯誤");
+        script.src = url;
+        document.body.appendChild(script);
       });
     }
 
     async function login(){
-      const empId=document.getElementById("empId").value.trim();
-      const pass=document.getElementById("pass").value.trim();
-      const msg=document.getElementById("msg");
-      msg.textContent="";
+       const empId = document.getElementById("empId").value;
+       const pass = document.getElementById("pass").value;
+       try {
+         const res = await jsonpCall("login", { empId, pass });
+         if(res.ok){
+             localStorage.setItem("employeeId", res.empId);
+             localStorage.setItem("employeeName", res.name);
+             localStorage.setItem("isManager", res.isManager ? "Y":"N");
+             localStorage.setItem("canSchedule", res.canSchedule ? "Y":"N");
+             location.href = res.isManager ? "manager.html" : "app.html";
+         } else {
+             alert(res.message);
+         }
+       } catch(e){ alert(e); }
+    }
 
-      try{
-        const res = await jsonpCall("login", { empId, pass });
-        if(!res.ok) throw new Error(res.message || "login failed");
+    async function sendForgot(){
+        const empId = document.getElementById("f_empId").value;
+        if(!empId) return alert("請輸入編號");
+        try {
+            const res = await jsonpCall("forgot_password", { empId });
+            if(res.ok) {
+                alert(res.message);
+                showReset(); // 跳轉到輸入驗證碼
+            } else {
+                alert(res.message);
+            }
+        } catch(e) { alert(e); }
+    }
 
-        localStorage.setItem("employeeId", res.empId);
-        localStorage.setItem("employeeName", res.name);
-        localStorage.setItem("isManager", res.isManager ? "Y":"N");
-        localStorage.setItem("canSchedule", res.canSchedule ? "Y":"N");
-
-        if(res.isManager) location.href="manager.html";
-        else location.href="app.html";
-      }catch(e){
-        msg.textContent = "登入失敗：" + e.message;
-      }
+    async function doReset(){
+        const empId = document.getElementById("f_empId").value;
+        const token = document.getElementById("r_token").value;
+        const newPass = document.getElementById("r_p1").value;
+        if(!token || !newPass) return alert("請填寫完整");
+        
+        try {
+            const res = await jsonpCall("reset_password", { empId, token, newPass });
+            if(res.ok){
+                alert("修改成功，請登入");
+                showLogin();
+            } else {
+                alert(res.message);
+            }
+        } catch(e) { alert(e); }
     }
   </script>
 </body>
