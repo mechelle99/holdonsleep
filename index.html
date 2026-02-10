@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>HOLDON 出勤系統 - 登入</title>
   <style>
-    /* ... 保留原本樣式 ... */
     body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;padding:24px;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
     .card{width:100%;max-width:360px;background:#fff;padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
     input{width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:8px;box-sizing:border-box}
@@ -46,7 +45,6 @@
 
   <script src="config.js"></script>
   <script>
-    // 你的 Config
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
     
     function showLogin(){ 
@@ -63,7 +61,6 @@
         document.getElementById("resetCard").style.display="block";
     }
 
-    // 共用的 JSONP 呼叫函式
     function jsonpCall(action, data){
       return new Promise((resolve, reject)=>{
         const cbName = "cb" + Date.now();
