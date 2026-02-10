@@ -1,196 +1,93 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>HOLDON 出勤系統</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HOLDON 出勤系統 - 登入</title>
   <style>
-    /* 基礎設定 */
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f2f4f7; margin: 0; padding: 16px; color: #333; padding-bottom: 100px; }
-    .container { max-width: 500px; margin: 0 auto; }
-    
-    /* 頂部資訊列 */
-    #header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    #who { font-size: 14px; color: #666; }
-    #logoutBtn { font-size: 13px; color: #c22; text-decoration: none; font-weight: bold; margin-left: 8px; }
-
-    /* 👑 主管按鈕 */
-    #managerBtn { display: none; margin-bottom: 12px; text-align: right; }
-    .btn-manager { background: #007aff; color: #fff; padding: 6px 14px; border-radius: 20px; text-decoration: none; font-size: 13px; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,122,255,0.3); }
-
-    /* 📊 儀表板 (左右兩塊數據) */
-    .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-    .stat-card { background: #fff; padding: 16px; border-radius: 16px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-    .stat-title { font-size: 13px; color: #888; margin-bottom: 4px; }
-    .stat-val { font-size: 26px; font-weight: 800; color: #111; line-height: 1.2; }
-    .stat-unit { font-size: 12px; color: #666; font-weight: normal; margin-left: 2px; }
-    .stat-sub { font-size: 11px; color: #999; margin-top: 6px; }
-    .border-blue { border-bottom: 4px solid #007aff; }
-    .border-orange { border-bottom: 4px solid #ff9500; }
-
-    /* 📝 下方操作卡片 (大區塊) */
-    .card { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 20px; }
-    
-    /* 標題與定位狀態 */
-    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    h2 { margin: 0; font-size: 18px; font-weight: 700; color: #111; }
-    #loc { font-size: 12px; color: #aaa; background: #f5f5f5; padding: 4px 8px; border-radius: 6px; }
-
-    /* 輸入元件優化 (好寫好點) */
-    label { font-size: 14px; font-weight: 600; color: #555; display: block; margin-bottom: 8px; margin-top: 16px; }
-    label:first-child { margin-top: 0; }
-    
-    select, input, textarea { 
-      width: 100%; padding: 14px; 
-      border: 1px solid #e0e0e0; border-radius: 12px; 
-      font-size: 16px; /* 防止 iOS 自動縮放 */
-      background: #f9f9f9; box-sizing: border-box; 
-      outline: none; transition: 0.2s;
-      -webkit-appearance: none; /* 移除 iOS 預設樣式 */
-    }
-    select:focus, input:focus, textarea:focus { border-color: #333; background: #fff; }
-    textarea { resize: none; min-height: 80px; } /* 加高輸入框 */
-
-    /* 按鈕樣式 */
-    button { width: 100%; padding: 16px; border: 0; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; transition: transform 0.1s; }
-    button:active { transform: scale(0.98); }
-    .btn-main { background: #111; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-    .btn-outline { background: #fff; border: 2px solid #eee; color: #333; margin-top: 12px; }
-    .btn-row { display: flex; gap: 10px; margin-top: 20px; }
-    .btn-row button { margin-top: 0; }
-
-    /* 狀態提示 */
-    .status { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: bold; display: none; white-space: nowrap; z-index: 100; box-shadow: 0 5px 20px rgba(0,0,0,0.3); backdrop-filter: blur(4px); }
-    .status.ok { background: #28a745; }
-    .status.bad { background: #dc3545; }
-    
-    /* 日期時間並排 */
-    .row-inputs { display: flex; gap: 10px; }
-    .row-inputs > div { flex: 1; }
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial;background:#f4f6f8;margin:0;padding:24px;}
+    .card{max-width:420px;margin:48px auto;background:#fff;border-radius:14px;padding:20px;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+    h2{margin:0 0 12px}
+    input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;margin:8px 0;font-size:16px;box-sizing:border-box}
+    button{width:100%;padding:12px;border:none;border-radius:12px;background:#111;color:#fff;font-weight:700;font-size:16px;cursor:pointer}
+    .muted{color:#666;font-size:13px;margin-top:10px}
   </style>
 </head>
 <body>
-  <div class="container">
-    
-    <div id="header-row">
-      <div id="who">載入中...</div>
-    </div>
-
-    <div id="managerBtn">
-      <a href="manager.html" class="btn-manager">👑 進入主管審核頁</a>
-    </div>
-
-    <div class="dashboard">
-      <div class="stat-card border-blue">
-        <div class="stat-title">特休剩餘</div>
-        <div class="stat-val" id="dispAnnualLeft">-<span class="stat-unit">天</span></div>
-        <div class="stat-sub">總額 <span id="dispAnnualTotal">-</span> / 已用 <span id="dispAnnualUsed">-</span></div>
-      </div>
-      <div class="stat-card border-orange">
-        <div class="stat-title">補休餘額</div>
-        <div class="stat-val" id="dispCompLeft">-<span class="stat-unit">時</span></div>
-        <div class="stat-sub">累積 <span id="dispCompTotal">-</span> / 已用 <span id="dispCompUsed">-</span></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header">
-        <h2>出勤 / 申請</h2>
-        <div id="loc">定位中...</div>
-      </div>
-      
-      <label>選擇類型</label>
-      <select id="actionType">
-        <option value="clock">📍 上下班打卡</option>
-        <option value="outing">🚀 外出 (公務)</option>
-        <option value="leave">📝 請假申請</option>
-        <option value="overtime">🌙 加班申請 (換補休)</option>
-      </select>
-    </div>
-
-    <div id="panelClock" class="card">
-      <button id="btnClockIn" class="btn-main">上班打卡</button>
-      <button id="btnClockOut" class="btn-outline">下班打卡</button>
-    </div>
-
-    <div id="panelOuting" class="card" style="display:none;">
-      <label>外出打卡 (選擇已核准單號)</label>
-      <select id="approvedOutingSelect"></select>
-      <div class="btn-row">
-        <button id="btnOutIn" class="btn-main">外出上班</button>
-        <button id="btnOutOut" class="btn-outline">外出下班</button>
-      </div>
-      
-      <div style="border-top:1px dashed #eee; margin:24px 0;"></div>
-      
-      <h2>申請外出</h2>
-      <label>日期</label>
-      <input type="date" id="outDate" />
-      <label>時間</label>
-      <div class="row-inputs">
-        <div><input type="time" id="outStart" onchange="calcOutingHours()" /></div>
-        <div style="padding-top:14px; color:#999;">~</div>
-        <div><input type="time" id="outEnd" onchange="calcOutingHours()" /></div>
-      </div>
-      <div style="text-align:right; margin-top:8px; font-size:13px; color:#666;">預計時數：<b id="outTotalHours" style="color:#007aff;">0.0</b> 小時</div>
-      
-      <label>地點</label>
-      <input type="text" id="outDest" placeholder="例如：台電大樓" />
-      <label>事由</label>
-      <textarea id="outReason" rows="3" placeholder="請填寫公務內容..."></textarea>
-      
-      <button id="btnOutApply" class="btn-main">送出外出申請</button>
-    </div>
-
-    <div id="panelLeave" class="card" style="display:none;">
-      <label>假別</label>
-      <select id="leaveKind">
-        <option value="annual">特休 (Annual)</option>
-        <option value="comp">補休 (Comp Time)</option>
-        <option value="birthday">生日假 (Birthday)</option>
-        <option value="sick">病假</option>
-        <option value="personal">事假</option>
-        <option value="official">公假</option>
-        <option value="marriage">婚假</option>
-        <option value="funeral">喪假</option>
-        <option value="menstrual">生理假</option>
-      </select>
-
-      <label>開始時間</label>
-      <input type="datetime-local" id="leaveStart" onchange="calcLeaveHours()" />
-      
-      <label>結束時間</label>
-      <input type="datetime-local" id="leaveEnd" onchange="calcLeaveHours()" />
-      
-      <div style="text-align:right; margin-top:8px; font-size:13px; color:#666;">預計請假：<b id="leaveTotalHours" style="color:#c22;">0.0</b> 小時</div>
-      
-      <label>請假事由</label>
-      <textarea id="leaveReason" rows="3" placeholder="請填寫原因..."></textarea>
-      
-      <button id="btnLeaveSubmit" class="btn-main">送出請假申請</button>
-    </div>
-
-    <div id="panelOvertime" class="card" style="display:none;">
-      <label>日期</label>
-      <input type="date" id="otDate" />
-      
-      <label>時間</label>
-      <div class="row-inputs">
-        <div><input type="time" id="otStart" onchange="calcOtHours()" /></div>
-        <div style="padding-top:14px; color:#999;">~</div>
-        <div><input type="time" id="otEnd" onchange="calcOtHours()" /></div>
-      </div>
-      <div style="text-align:right; margin-top:8px; font-size:13px; color:#666;">預計加班：<b id="otTotalHours" style="color:#007aff;">0.0</b> 小時</div>
-      
-      <label>加班事由</label>
-      <textarea id="otReason" rows="3" placeholder="請填寫工作內容..."></textarea>
-      
-      <button id="btnOtSubmit" class="btn-main">送出加班申請</button>
-    </div>
-
-    <div id="status" class="status"></div>
+  <div class="card">
+    <h2>HOLDON 出勤系統</h2>
+    <input id="empId" placeholder="員工編號 (例如 M001)" />
+    <input id="pass" type="password" placeholder="密碼" />
+    <button onclick="login()">登入</button>
+    <div class="muted" id="msg"></div>
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script>
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
+
+    function jsonpCall(action, dataObj = {}, timeoutMs = 12000){
+      return new Promise((resolve, reject)=>{
+        const cbName="__cb_"+Math.random().toString(36).slice(2);
+        const payload={webhookKey:WEBHOOK_KEY, ...dataObj};
+        const qs=new URLSearchParams();
+        qs.set("action", action);
+        qs.set("payload", JSON.stringify(payload));
+        const url = ENDPOINT + "?" + qs.toString() + "&callback=" + cbName;
+
+        const script=document.createElement("script");
+        let done=false;
+
+        const timer=setTimeout(()=>{
+          if(done) return;
+          done=true; cleanup();
+          reject(new Error("timeout"));
+        }, timeoutMs);
+
+        function cleanup(){
+          clearTimeout(timer);
+          try{ delete window[cbName]; }catch(e){}
+          if(script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[cbName]=(res)=>{
+          if(done) return;
+          done=true; cleanup();
+          resolve(res);
+        };
+        script.onerror=()=>{
+          if(done) return;
+          done=true; cleanup();
+          reject(new Error("network error"));
+        };
+
+        document.head.appendChild(script);
+        script.src=url;
+      });
+    }
+
+    async function login(){
+      const empId=document.getElementById("empId").value.trim();
+      const pass=document.getElementById("pass").value.trim();
+      const msg=document.getElementById("msg");
+      msg.textContent="";
+
+      try{
+        const res = await jsonpCall("login", { empId, pass });
+        if(!res.ok) throw new Error(res.message || "login failed");
+
+        localStorage.setItem("employeeId", res.empId);
+        localStorage.setItem("employeeName", res.name);
+        localStorage.setItem("isManager", res.isManager ? "Y":"N");
+        localStorage.setItem("canSchedule", res.canSchedule ? "Y":"N");
+
+        if(res.isManager) location.href="manager.html";
+        else location.href="app.html";
+      }catch(e){
+        msg.textContent = "登入失敗：" + e.message;
+      }
+    }
+  </script>
 </body>
 </html>
