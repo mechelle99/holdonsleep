@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>門市排班管理</title>
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; padding: 20px; background: #f4f6f8; }
+    .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h2 { text-align: center; margin-bottom: 20px; }
+    
+    #calendar { max-width: 100%; margin: 0 auto; }
+    .btn-back { display: inline-block; padding: 8px 16px; background: #333; color: #fff; text-decoration: none; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
+    
+    /* 彈窗樣式 */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
+    .modal-content { background: #fff; padding: 24px; border-radius: 12px; width: 300px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .modal h3 { margin-top: 0; }
+    label { display: block; margin: 12px 0 6px; font-size: 14px; color: #666; }
+    select, input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+    button { flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .btn-save { background: #007aff; color: #fff; }
+    .btn-del { background: #dc3545; color: #fff; display: none; }
+    .btn-close { background: #eee; color: #333; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <a href="manager.html" class="btn-back">← 回主管頁</a>
+    <h2>📅 門市人員排班表</h2>
+    <div style="text-align:center; font-size:12px; color:#666; margin-bottom:10px;">
+      <span style="color:#28a745">● 已出席</span> &nbsp;
+      <span style="color:#007aff">● 預定班表</span> &nbsp;
+      <span style="color:#dc3545">● 曠職 (未打卡)</span>
+    </div>
+    <div id='calendar'></div>
+  </div>
+
+  <div id="eventModal" class="modal">
+    <div class="modal-content">
+      <h3 id="modalTitle">新增排班</h3>
+      <input type="hidden" id="selectedDate">
+      
+      <label>選擇員工</label>
+      <select id="empSelect">
+        <option>載入中...</option>
+      </select>
+
+      <label>班別</label>
+      <select id="shiftSelect">
+        <option value="早班">☀️ 早班 (10:00-18:00)</option>
+        <option value="晚班">🌙 晚班 (14:00-22:00)</option>
+        <option value="全班">🔥 全班 (10:00-22:00)</option>
+      </select>
+
+      <div class="btn-group">
+        <button class="btn-del" id="btnDelete" onclick="deleteEvent()">刪除排班</button>
+        <button class="btn-save" id="btnSave" onclick="saveEvent()">儲存</button>
+        <button class="btn-close" onclick="closeModal()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
+    const userId = localStorage.getItem("employeeId");
+    let calendar;
+    let employeeList = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!userId) { alert("請先登入"); location.href = "login.html"; return; }
+
+      const calendarEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'zh-tw',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,listWeek'
+        },
+        height: 'auto',
+        events: fetchEvents, // 自動去後端抓資料
+        dateClick: function(info) {
+          openModal(info.dateStr, null); // 點擊空白處 -> 新增
+        },
+        eventClick: function(info) {
+          // 點擊已存在的班表 -> 刪除模式
+          // 若是過去的曠職紀錄，也可以刪除(修正)
+          openModal(info.event.startStr, info.event);
+        }
+      });
+      calendar.render();
+    });
+
+    // 從 GAS 抓取班表
+    async function fetchEvents(info, successCallback, failureCallback) {
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: "POST",
+          body: JSON.stringify({ 
+            action: "get_schedule", 
+            userId: userId,
+            start: info.startStr,
+            end: info.endStr
+          })
+        });
+        const json = await res.json();
+        if (json.ok) {
+          // 更新員工選單
+          employeeList = json.employees;
+          updateEmpSelect();
+          successCallback(json.events);
+        } else {
+          failureCallback(json.message);
+        }
+      } catch (e) { failureCallback(e); }
+    }
+
+    function updateEmpSelect() {
+      const sel = document.getElementById("empSelect");
+      sel.innerHTML = "";
+      employeeList.forEach(emp => {
+        const opt = document.createElement("option");
+        opt.value = emp.id;
+        opt.textContent = `${emp.name} (${emp.id})`;
+        sel.appendChild(opt);
+      });
+    }
+
+    // 開啟彈窗
+    function openModal(dateStr, eventObj) {
+      document.getElementById("eventModal").style.display = "flex";
+      document.getElementById("selectedDate").value = dateStr;
+      
+      const title = document.getElementById("modalTitle");
+      const btnDel = document.getElementById("btnDelete");
+      const btnSave = document.getElementById("btnSave");
+      const empSel = document.getElementById("empSelect");
+
+      if (eventObj) {
+        // 編輯模式 (刪除)
+        title.textContent = `${dateStr} 排班詳情`;
+        btnDel.style.display = "block";
+        btnSave.style.display = "none";
+        empSel.disabled = true; // 不能改人，只能刪
+        // 預選該員工
+        empSel.value = eventObj.extendedProps.empId;
+      } else {
+        // 新增模式
+        title.textContent = `新增排班 (${dateStr})`;
+        btnDel.style.display = "none";
+        btnSave.style.display = "block";
+        empSel.disabled = false;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById("eventModal").style.display = "none";
+    }
+
+    async function saveEvent() {
+      const date = document.getElementById("selectedDate").value;
+      const empId = document.getElementById("empSelect").value;
+      const empName = document.getElementById("empSelect").options[document.getElementById("empSelect").selectedIndex].text.split(' (')[0];
+      const shift = document.getElementById("shiftSelect").value;
+
+      document.getElementById("btnSave").textContent = "處理中...";
+      
+      await callApi({
+        action: "add_schedule",
+        date: date, shift: shift, empId: empId, empName: empName, userId: userId
+      });
+      
+      closeModal();
+      calendar.refetchEvents(); // 重新整理日曆
+      document.getElementById("btnSave").textContent = "儲存";
+    }
+
+    async function deleteEvent() {
+      const date = document.getElementById("selectedDate").value;
+      const empId = document.getElementById("empSelect").value;
+
+      if(!confirm("確定要取消此排班嗎？")) return;
+      
+      await callApi({
+        action: "del_schedule",
+        date: date, empId: empId, userId: userId
+      });
+      
+      closeModal();
+      calendar.refetchEvents();
+    }
+
+    async function callApi(payload) {
+      try {
+        await fetch(ENDPOINT, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+      } catch (e) { alert("連線錯誤"); }
+    }
+  </script>
+</body>
+</html>
