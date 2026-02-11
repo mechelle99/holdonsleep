@@ -136,7 +136,8 @@
 
   <script src="config.js"></script>
   <script>
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    let ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";  
+    if (!ENDPOINT) ENDPOINT = "";  
     const userId = localStorage.getItem("employeeId");
     
     if(!userId) location.href="index.html";
