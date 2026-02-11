@@ -58,7 +58,7 @@
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 12px">🚀 外出 / 公務</h3>
+    <h3 style="margin:0 0 12px">🚀 外出 / 公務 (不限地點)</h3>
     <div class="grid">
       <button class="btn btn-outing-start" onclick="clock('clock_outing_start')">外出出發</button>
       <button class="btn btn-outing-end" onclick="clock('clock_outing_end')">外出返回</button>
@@ -88,6 +88,17 @@
         <option value="maternity">產假/陪產假</option>
         <option value="birthday">生日假 (限當月)</option>
       </select>
+    </div>
+
+    <div id="areaOuting" class="hidden">
+      <label class="label" style="margin-top:10px">自動打卡設定 (核准後生效)</label>
+      <select id="autoClock">
+        <option value="">不自動打卡</option>
+        <option value="IN">自動打上班卡 (依開始時間)</option>
+        <option value="OUT">自動打下班卡 (依結束時間)</option>
+        <option value="BOTH">自動打上下班卡</option>
+      </select>
+      <div style="font-size:12px;color:#666;margin-top:4px;">* 核准後系統將自動生成打卡紀錄，避免曠職。</div>
     </div>
 
     <label class="label" style="margin-top:10px">開始時間</label>
@@ -123,16 +134,8 @@
         const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
         const s = document.createElement("script");
         s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-        
-        window[cb] = (res) => {
-           resolve(res);
-           document.body.removeChild(s);
-           document.getElementById("loading").style.display="none";
-        };
-        s.onerror = () => {
-           alert("連線失敗");
-           document.getElementById("loading").style.display="none";
-        };
+        window[cb] = (res) => { resolve(res); document.body.removeChild(s); document.getElementById("loading").style.display="none"; };
+        s.onerror = () => { alert("連線失敗"); document.getElementById("loading").style.display="none"; };
         document.body.appendChild(s);
       });
     }
@@ -163,13 +166,10 @@
     }
 
     async function clock(type){
-      if(!confirm("確定打卡？")) return;
+      if(!confirm("確定要執行此操作嗎？")) return;
       
       if (!navigator.geolocation) {
-        alert("您的瀏覽器不支援定位");
-        // 即便不支援，也嘗試送出(無座標)
-        const r = await api(type, { lat:0, lng:0 });
-        alert(r.message);
+        alert("不支援定位");
         return;
       }
 
@@ -189,24 +189,16 @@
          }
          document.getElementById("loading").style.display="none";
       }, (err) => {
-         // 定位失敗時，仍允許打卡 (後端會標記異常)
          document.getElementById("loading").style.display="none";
-         let msg = "定位失敗";
-         if (err.code === 1) msg = "您拒絕了定位權限";
-         if (confirm(`${msg}，是否仍要打卡？(將標記為異常)`)) {
-             api(type, { lat:0, lng:0 }).then(r => alert(r.message));
-         }
-      }, {
-         enableHighAccuracy: true,
-         timeout: 10000,
-         maximumAge: 0
-      });
+         alert("無法定位，請檢查瀏覽器權限或 GPS");
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
     async function submit(){
       const cat = document.getElementById("cat").value;
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
+      const autoClockVal = document.getElementById("autoClock").value;
       
       let hours = 0;
       if(s && e) {
@@ -220,20 +212,23 @@
         start: s,
         end: e,
         hours: hours,
-        reason: document.getElementById("reason").value
+        reason: document.getElementById("reason").value,
+        autoClock: (cat === 'OUTING') ? autoClockVal : "" // ★ 傳送自動打卡設定
       });
       
-      if(r.ok) {
-        alert("✅ " + r.message);
-        location.reload();
-      } else {
-        alert("❌ 失敗：" + r.message);
-      }
+      if(r.ok) { alert("✅ " + r.message); location.reload(); } 
+      else { alert("❌ 失敗：" + r.message); }
     }
 
     function toggle(){
       const v = document.getElementById("cat").value;
       document.getElementById("areaLeave").style.display = v==="LEAVE"?"block":"none";
+      // ★ 控制外出自動打卡選項的顯示
+      if(v === "OUTING") {
+         document.getElementById("areaOuting").style.display = "block";
+      } else {
+         document.getElementById("areaOuting").style.display = "none";
+      }
     }
 
     function logout(){ localStorage.clear(); location.href="index.html"; }
