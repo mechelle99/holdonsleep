@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的出勤</title>
+
+<style>
+body{font-family:Arial;margin:0;background:#f6f7fb}
+.wrap{max-width:700px;margin:auto;padding:20px}
+.card{background:#fff;padding:16px;border-radius:12px;margin-bottom:16px}
+h2{margin:0 0 10px}
+table{width:100%;border-collapse:collapse}
+td,th{border-bottom:1px solid #eee;padding:8px;font-size:14px}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<div class="card">
+<h2>我的出勤</h2>
+<table id="attendance"></table>
+</div>
+
+<div class="card">
+<h2>我的請假</h2>
+<table id="requests"></table>
+</div>
+
+</div>
+
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+<script>
+const API_URL = "你的GAS網址";
+const LIFF_ID = "你的LIFFID";
+
+async function postApi(action,data){
+  const idToken = liff.getIDToken();
+  const res = await fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action,data,idToken})
+  });
+  return res.json();
+}
+
+function renderTable(el,data){
+  if(!data || data.length===0){
+    el.innerHTML="<tr><td>沒有資料</td></tr>";
+    return;
+  }
+
+  const keys = Object.keys(data[0]);
+  let html="<tr>"+keys.map(k=>"<th>"+k+"</th>").join("")+"</tr>";
+
+  data.forEach(r=>{
+    html+="<tr>"+keys.map(k=>"<td>"+(r[k]||"")+"</td>").join("")+"</tr>";
+  });
+
+  el.innerHTML=html;
+}
+
+async function boot(){
+  await liff.init({liffId:LIFF_ID});
+  if(!liff.isLoggedIn()){ liff.login(); return; }
+
+  const res = await postApi("GET_MY_DASHBOARD",{});
+
+  if(res.ok){
+    renderTable(document.getElementById("attendance"),res.attendance);
+    renderTable(document.getElementById("requests"),res.requests);
+  }else{
+    alert(res.message);
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
