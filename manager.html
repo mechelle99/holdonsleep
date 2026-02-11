@@ -1,25 +1,44 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
   <title>主管後台</title>
   <style>
-    body{font-family:-apple-system,sans-serif;background:#f4f6f8;padding:16px;}
-    .card{background:#fff;padding:16px;border-radius:12px;margin-bottom:16px;}
-    .item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:center;}
-    .btn{padding:6px 12px;border:none;border-radius:4px;color:#fff;margin-left:5px;cursor:pointer;}
-    .ok{background:#28a745;} .no{background:#dc3545;}
-    .tag{font-size:12px;padding:2px 5px;border-radius:4px;background:#e3f2fd;color:#007aff;}
+    body{font-family:-apple-system,sans-serif;background:#f4f6f8;padding:16px;margin:0;}
+    .card{background:#fff;padding:16px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+    .item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:flex-start;}
+    .item:last-child{border:none;}
+    .info{font-size:14px;line-height:1.5;}
+    .actions{display:flex;gap:5px;}
+    .btn{padding:6px 12px;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;}
+    .ok{background:#34c759;} .no{background:#ff3b30;}
+    .tag{font-size:12px;padding:2px 6px;border-radius:4px;background:#e3f2fd;color:#007aff;font-weight:bold;margin-left:5px;}
+    .back-btn{display:inline-block;padding:8px 15px;background:#ddd;color:#333;text-decoration:none;border-radius:8px;margin-bottom:15px;font-size:14px;}
+    
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;}
+    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;}
+    th{background:#fafafa;color:#666;}
   </style>
 </head>
 <body>
+  
+  <a href="app.html" class="back-btn">← 回首頁</a>
+
   <div class="card">
-    <h3>待審核</h3>
+    <h3 style="margin:0 0 10px;">⚡ 待審核申請</h3>
     <div id="list">載入中...</div>
   </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px;">📊 員工假勤餘額</h3>
+    <div id="stats">載入中...</div>
+  </div>
+
   <script src="config.js"></script>
   <script>
     const uid=localStorage.getItem("employeeId");
+    
     function api(a,d={}){
       return new Promise(r=>{
         const cb="c"+Date.now();
@@ -29,31 +48,55 @@
         document.body.appendChild(s);
       });
     }
+
     async function load(){
+      // 1. 待審核
       const res = await api("get_pending");
       const div = document.getElementById("list");
       div.innerHTML = "";
-      if(res.ok && res.list.length>0) {
+      
+      if(res.ok && res.list.length > 0) {
         res.list.forEach(r => {
-          // 後端已轉中文，直接顯示
+          // 修復 undefined：後端回傳 empName
+          const name = r.empName || "未知";
+          const cat = r.category; 
+          const type = r.leaveType ? `(${r.leaveType})` : "";
+          const t1 = r.start.replace("T", " ").substring(0, 16);
+          const t2 = r.end.replace("T", " ").substring(0, 16);
+
           div.innerHTML += `
             <div class="item">
-              <div>
-                <strong>${r.empName}</strong> <span class="tag">${r.category}</span> ${r.leaveType||''}<br>
-                <small>${r.start.substring(5,16)} ~ ${r.end.substring(5,16)}</small><br>
-                <small>事由: ${r.reason}</small>
+              <div class="info">
+                <strong>${name}</strong> <span class="tag">${cat}</span> ${type}<br>
+                <span style="color:#666;font-size:12px;">${t1} ~ ${t2}</span><br>
+                <span style="color:#666;font-size:12px;">事由: ${r.reason || '無'}</span>
               </div>
-              <div>
+              <div class="actions">
                 <button class="btn ok" onclick="rev('${r.reqId}','APPROVED')">准</button>
                 <button class="btn no" onclick="rev('${r.reqId}','REJECTED')">駁</button>
               </div>
             </div>`;
         });
-      } else { div.innerHTML="無待審核"; }
+      } else {
+        div.innerHTML = "<div style='color:#999;text-align:center;'>無待審核項目</div>";
+      }
+
+      // 2. 餘額
+      const sRes = await api("get_team_stats");
+      if(sRes.ok && sRes.list) {
+        let h = "<table><thead><tr><th>姓名</th><th>特休</th><th>補休</th></tr></thead><tbody>";
+        sRes.list.forEach(e => {
+          h += `<tr><td>${e.name}</td><td>${e.annual}</td><td>${e.comp}</td></tr>`;
+        });
+        h += "</tbody></table>";
+        document.getElementById("stats").innerHTML = h;
+      }
     }
+
     async function rev(id, dec) {
-      await api("review_request",{reqId:id, decision:dec});
-      load();
+      if(!confirm("確定執行？")) return;
+      await api("review_request", {reqId:id, decision:dec});
+      load(); // 重新整理
     }
     load();
   </script>
