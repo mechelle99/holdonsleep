@@ -6,4 +6,3 @@
   window.CONFIG.GAS_ENDPOINT = endpoint;
 })();
 
-
