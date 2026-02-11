@@ -1,171 +1,114 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="zh-Hant">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>我的出勤</title>
-
-<style>
-body{
-  font-family:system-ui;
-  margin:0;
-  background:#f6f7fb;
-}
-
-.wrap{
-  max-width:720px;
-  margin:auto;
-  padding:16px;
-}
-
-.card{
-  background:white;
-  border-radius:14px;
-  padding:16px;
-  margin-bottom:16px;
-  box-shadow:0 6px 18px rgba(0,0,0,.06);
-}
-
-h2{
-  margin-top:0;
-}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:14px;
-}
-
-th,td{
-  border-bottom:1px solid #eee;
-  padding:8px;
-  text-align:left;
-}
-
-.badge{
-  background:#fee2e2;
-  color:#991b1b;
-  padding:3px 8px;
-  border-radius:999px;
-  font-size:12px;
-}
-</style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>我的出勤統計</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;margin:0;padding:16px;color:#333;}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+    .btn-back{padding:8px 16px;background:#333;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;}
+    .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:16px;}
+    h3{margin-top:0;border-bottom:1px solid #eee;padding-bottom:10px;}
+    
+    table{width:100%;border-collapse:collapse;font-size:14px;}
+    th,td{padding:10px 5px;text-align:left;border-bottom:1px solid #eee;}
+    th{background:#fafafa;color:#666;font-weight:600;}
+    .badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:12px;color:#fff;}
+    .bg-red{background:#e74c3c;} .bg-green{background:#2ecc71;} .bg-gray{background:#95a5a6;}
+    
+    #loading{text-align:center;padding:20px;color:#666;}
+  </style>
 </head>
-
 <body>
 
-<div class="wrap">
+  <div class="header">
+    <a href="app.html" class="btn-back">← 回首頁</a>
+    <div style="font-weight:bold;">個人出勤紀錄</div>
+  </div>
 
-<div class="card">
-<h2>載入中...</h2>
-<div id="msg">請稍候</div>
-</div>
+  <div class="card">
+    <h3>📊 當月統計 (本月)</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; text-align:center;">
+      <div>
+        <div style="font-size:12px;color:#888">遲到次數</div>
+        <div style="font-size:24px;font-weight:bold;color:#e74c3c;" id="statLate">-</div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#888">請假時數</div>
+        <div style="font-size:24px;font-weight:bold;color:#f39c12;" id="statLeave">-</div>
+      </div>
+    </div>
+  </div>
 
-<div class="card">
-<h2>最近打卡</h2>
-<table id="attendanceTable">
-<thead>
-<tr>
-<th>日期</th>
-<th>上班</th>
-<th>下班</th>
-<th>備註</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-</div>
+  <div class="card">
+    <h3>📅 最近打卡 (近 10 筆)</h3>
+    <table>
+      <thead>
+        <tr><th>日期</th><th>上班</th><th>下班</th><th>狀態</th></tr>
+      </thead>
+      <tbody id="attendanceBody"></tbody>
+    </table>
+    <div id="loading">載入中...</div>
+  </div>
 
-<div class="card">
-<h2>請假紀錄</h2>
-<table id="requestTable">
-<thead>
-<tr>
-<th>日期</th>
-<th>類型</th>
-<th>狀態</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-</div>
+  <script src="config.js"></script>
+  <script>
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    const userId = localStorage.getItem("employeeId");
 
-</div>
+    if(!userId) { alert("請先登入"); location.href="index.html"; }
 
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    function api(act, data={}){
+      return new Promise((resolve, reject)=>{
+        const cb = "cb"+Date.now();
+        const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
+        const s = document.createElement("script");
+        s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+        window[cb] = (res) => { resolve(res); try{delete window[cb]; document.body.removeChild(s);}catch(e){} };
+        s.onerror = () => reject("連線失敗");
+        document.body.appendChild(s);
+      });
+    }
 
-<script>
+    async function loadMyData(){
+      try {
+        const res = await api("get_my_dashboard"); 
+        document.getElementById("loading").style.display = "none";
 
-const API_URL = "你的GAS_URL";
-const LIFF_ID = "你的LIFF_ID";
+        if(res.ok) {
+          // 填寫統計
+          document.getElementById("statLate").textContent = res.stats?.lateCount || 0;
+          document.getElementById("statLeave").textContent = res.stats?.leaveHours || 0;
 
-function fillAttendance(data){
-  const tbody=document.querySelector("#attendanceTable tbody");
-  tbody.innerHTML="";
+          // 填寫表格
+          const tbody = document.getElementById("attendanceBody");
+          tbody.innerHTML = "";
+          
+          if(res.attendance && res.attendance.length > 0){
+            res.attendance.forEach(r => {
+              const statusHtml = r.isLate ? '<span class="badge bg-red">遲到</span>' : '<span class="badge bg-green">正常</span>';
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td>${r.date.substring(5,10)}</td>
+                <td>${r.in || "-"}</td>
+                <td>${r.out || "-"}</td>
+                <td>${statusHtml}</td>
+              `;
+              tbody.appendChild(tr);
+            });
+          } else {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">尚無資料</td></tr>';
+          }
+        } else {
+          document.getElementById("loading").innerText = "載入失敗：" + res.message;
+        }
+      } catch(e) {
+        document.getElementById("loading").innerText = "系統錯誤：" + e;
+      }
+    }
 
-  data.forEach(r=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td>${r.date}</td>
-      <td>${r.in||"-"}</td>
-      <td>${r.out||"-"}</td>
-      <td>${r.late?'<span class="badge">遲到</span>':''}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function fillRequests(data){
-  const tbody=document.querySelector("#requestTable tbody");
-  tbody.innerHTML="";
-
-  data.forEach(r=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td>${r.date}</td>
-      <td>${r.type}</td>
-      <td>${r.status}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function postApi(action,data){
-  const idToken = liff.getIDToken();
-
-  const res = await fetch(API_URL,{
-    method:"POST",
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action,data,idToken})
-  });
-
-  return res.json();
-}
-
-async function boot(){
-  await liff.init({liffId:LIFF_ID});
-
-  if(!liff.isLoggedIn()){
-    liff.login();
-    return;
-  }
-
-  const res = await postApi("get_my_dashboard",{});
-
-  if(!res.ok){
-    document.getElementById("msg").innerText="載入失敗";
-    return;
-  }
-
-  document.getElementById("msg").innerText="資料已更新";
-
-  fillAttendance(res.attendance||[]);
-  fillRequests(res.requests||[]);
-}
-
-boot();
-
-</script>
-
+    loadMyData();
+  </script>
 </body>
 </html>
