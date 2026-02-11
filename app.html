@@ -9,28 +9,26 @@
     body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:100px;}
     
     input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px; box-sizing: border-box; font-size:16px; -webkit-appearance:none; background:#fff;}
-    
-    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:16px;}
+    .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:16px;}
     
     .btn{width:100%;padding:12px;border:none;border-radius:8px;font-weight:bold;color:#fff;cursor:pointer;margin-top:10px;font-size:16px;}
     .btn-in{background:var(--blue);} .btn-out{background:#ff9500;} .btn-gray{background:#555;}
     
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    
     .bal-box{display:flex;gap:10px;}
     .bal-item{flex:1;background:#f0f7ff;padding:8px;border-radius:8px;text-align:center;}
     
-    /* 打卡紀錄樣式 */
+    /* 紀錄卡片樣式 */
     .rec-card { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
     .rec-date { font-weight: bold; font-size: 15px; width: 60px; }
     .rec-shift { font-size: 12px; color: #666; width: 40px; text-align: center; background: #eee; border-radius: 4px; padding: 2px 0; }
-    .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; }
-    .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 40px; text-align: center; }
+    .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; }
+    .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 50px; text-align: center; }
     
-    .st-ok { background: #34c759; } /* 正常 */
-    .st-late { background: #ffcc00; color: #333; } /* 遲到 */
-    .st-miss { background: #ff3b30; } /* 缺卡/曠職 */
-    .st-off { background: #ccc; color: #fff; } /* 休假 */
+    .st-ok { background: #34c759; } 
+    .st-late { background: #ffcc00; color: #333; }
+    .st-miss { background: #ff3b30; }
+    .st-off { background: #ccc; color: #fff; }
 
     .hidden { display: none; }
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
@@ -106,7 +104,13 @@
     const uid=localStorage.getItem("employeeId");
     if(!uid) location.href="index.html";
     document.getElementById("uName").textContent = localStorage.getItem("employeeName");
+    
+    // 嚴格權限顯示
     if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").classList.remove("hidden");
+    else if(localStorage.getItem("canSchedule")==='Y') {
+        document.getElementById("admBtns").classList.remove("hidden");
+        // 如果只有排班權限，隱藏主管按鈕 (但這裡簡單處理，只要有任一權限就顯示按鈕區，按鈕本身再判斷)
+    }
 
     const now=new Date();
     const yS=document.getElementById("y"), mS=document.getElementById("m");
@@ -146,6 +150,7 @@
         if(e <= s) { 
            alert("結束時間不能早於開始時間"); 
            document.getElementById("end").value = "";
+           document.getElementById("hrs").value = "";
            return;
         }
         document.getElementById("hrs").value = ((e-s)/36e5).toFixed(1);
@@ -194,19 +199,15 @@
         });
 
         // 3. 渲染
-        for(let i=days; i>=1; i--) { // 倒序
+        for(let i=days; i>=1; i--) { 
           const item = map[i];
-          // 如果是 OFF 且沒打卡，就跳過不顯示 (或是顯示為休假)
-          // 這裡依照要求：每天都呈現
-          
           let stTag = "正常", stCls = "st-ok";
           let shiftTxt = item.shift==='EARLY'?'早':(item.shift==='LATE'?'午':'休');
           
           if (item.shift === 'OFF') {
              stTag = "休假"; stCls = "st-off";
-             if(item.in || item.out) { stTag="加班"; stCls="st-ok"; } // 休假有打卡算加班
+             if(item.in || item.out) { stTag="加班"; stCls="st-ok"; }
           } else {
-             // 工作日判斷
              if (!item.in && !item.out) { stTag="曠職"; stCls="st-miss"; }
              else if (!item.in) { stTag="缺上班"; stCls="st-miss"; }
              else if (!item.out) { stTag="缺下班"; stCls="st-miss"; }
@@ -217,7 +218,7 @@
              }
           }
           
-          // 如果是未來日期，不顯示狀態
+          // 未來日期不顯示狀態
           if(new Date(yS.value, mS.value-1, i) > new Date()) { stTag="--"; stCls="st-off"; }
 
           d.innerHTML += `
