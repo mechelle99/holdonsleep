@@ -12,11 +12,15 @@
     h3{margin-top:0;border-bottom:1px solid #eee;padding-bottom:10px;}
     
     .req-item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:center;}
-    .req-info{font-size:14px;}
+    .req-info{font-size:14px; line-height: 1.5;}
     .req-actions button{margin-left:8px;padding:6px 12px;border:none;border-radius:4px;cursor:pointer;}
     .btn-approve{background:#28a745;color:#fff;}
     .btn-reject{background:#dc3545;color:#fff;}
     
+    .tag { font-size:12px; padding:2px 6px; border-radius:4px; margin-left:5px; }
+    .tag-blue { background:#e3f2fd; color:#007aff; }
+    .tag-orange { background:#fff3e0; color:#ff9800; }
+
     table{width:100%;border-collapse:collapse;font-size:14px;}
     th,td{padding:10px;text-align:left;border-bottom:1px solid #eee;}
     th{background:#fafafa;}
@@ -83,24 +87,37 @@
         pRes.list.forEach(r => {
           const div = document.createElement("div");
           div.className = "req-item";
-          const typeMap = {
-            'LEAVE': '請假', 'OT': '加班', 'OUTING': '外出',
-            'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假'
-          };
-          const cat = typeMap[r.category] || r.category;
-          const type = typeMap[r.leaveType] || r.leaveType;
           
+          // ★ 修正：全部改用小寫欄位名稱 (empname, reqid, leavetype)
+          const name = r.empname || r.empName || "未知";
+          const reqId = r.reqid || r.reqId;
+          const cat = r.category; 
+          const type = r.leavetype || r.leaveType || "";
+          
+          // 假別中文對照
+          const typeMap = {
+            'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假',
+            'menstrual':'生理假', 'family':'家庭照顧假', 'wedding':'婚假',
+            'funeral':'喪假', 'maternity':'產假', 'birthday':'生日假'
+          };
+          const typeStr = typeMap[type] || type;
+          const catStr = (cat==='OT')?'加班':(cat==='OUTING'?'外出':'請假');
+
+          // 時間格式優化
+          const start = r.start ? r.start.substring(0,16).replace('T',' ') : '';
+          const end = r.end ? r.end.substring(0,16).replace('T',' ') : '';
+
           div.innerHTML = `
             <div class="req-info">
-              <strong>${r.empName}</strong> - ${cat} ${type ? '('+type+')' : ''}<br>
+              <strong>${name}</strong> <span class="tag tag-blue">${catStr}</span> ${typeStr ? '<span class="tag tag-orange">'+typeStr+'</span>' : ''}<br>
               <span style="color:#666;font-size:12px">
-                ${r.start.substring(0,16).replace('T',' ')} ~ ${r.end.substring(0,16).replace('T',' ')}<br>
-                時數: ${r.hours}h / 事由: ${r.reason}
+                ${start} ~ ${end}<br>
+                時數: ${r.hours}h / 事由: ${r.reason || '無'}
               </span>
             </div>
             <div class="req-actions">
-              <button class="btn-approve" onclick="decide('${r.reqId}', 'APPROVED')">准</button>
-              <button class="btn-reject" onclick="decide('${r.reqId}', 'REJECTED')">駁</button>
+              <button class="btn-approve" onclick="decide('${reqId}', 'APPROVED')">准</button>
+              <button class="btn-reject" onclick="decide('${reqId}', 'REJECTED')">駁</button>
             </div>
           `;
           pDiv.appendChild(div);
@@ -117,13 +134,14 @@
       if(sRes.ok && sRes.list) {
         sRes.list.forEach(e => {
           const tr = document.createElement("tr");
-          // 安全讀取屬性，防止 undefined 報錯
-          const annLeft = e.annual ? e.annual.left : '?';
-          const compLeft = e.comp ? e.comp.left : '?';
+          // 防呆：如果數值不存在顯示 0
+          const ann = e.annual ? e.annual.left : 0;
+          const comp = e.comp ? e.comp.left : 0;
+          
           tr.innerHTML = `
             <td>${e.name} (${e.id})</td>
-            <td>${annLeft} 天</td>
-            <td>${compLeft} 時</td>
+            <td>${ann} 天</td>
+            <td>${comp} 時</td>
           `;
           tbody.appendChild(tr);
         });
