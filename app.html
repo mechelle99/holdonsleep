@@ -136,8 +136,7 @@
 
   <script src="config.js"></script>
   <script>
-    let ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";  
-    if (!ENDPOINT) ENDPOINT = "";  
+    if (!window.CONFIG.GAS_ENDPOINT)window.CONFIG.GAS_ENDPOINT = "";  
     const userId = localStorage.getItem("employeeId");
     
     if(!userId) location.href="index.html";
@@ -153,7 +152,7 @@
         const cb = "cb"+Date.now();
         const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
         const s = document.createElement("script");
-        s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
         window[cb] = (res) => { resolve(res); document.body.removeChild(s); document.getElementById("loading").style.display="none"; };
         s.onerror = () => { alert("連線失敗"); document.getElementById("loading").style.display="none"; };
         document.body.appendChild(s);
@@ -394,7 +393,7 @@ app.html
 
   <script src="config.js"></script>
   <script>
-    let ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";  // 改 const 成 let
+    let window.CONFIG.GAS_ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";  // 改 const 成 let
     const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
 
     function jsonp(action, data){
@@ -402,7 +401,7 @@ app.html
         const cb = "cb" + Date.now() + Math.random().toString(16).slice(2);
         const payload = encodeURIComponent(JSON.stringify({...data, webhookKey: WEBHOOK_KEY}));
         const s = document.createElement("script");
-        const url = `${ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cb}`;
+        const url = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cb}`;
         window[cb] = (res)=>{ try{ resolve(res); } finally{ delete window[cb]; s.remove(); } };
         s.onerror = ()=>{ delete window[cb]; s.remove(); reject("Network error"); };
         s.src = url;
