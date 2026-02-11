@@ -2,34 +2,69 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
   <title>排班表</title>
   <style>
-    body{font-family:-apple-system,sans-serif;margin:0;display:flex;flex-direction:column;height:100vh;}
-    .header{padding:10px;background:#f9f9f9;border-bottom:1px solid #ddd;display:flex;gap:10px;}
-    .table-wrap{flex:1;overflow:auto;}
-    table{border-collapse:collapse;min-width:100%;}
-    th,td{border:1px solid #ddd;padding:0;text-align:center;min-width:40px;height:40px;font-size:12px;}
-    thead th{position:sticky;top:0;background:#eee;z-index:2;}
-    td:first-child{position:sticky;left:0;background:#fff;z-index:1;min-width:70px;font-weight:bold;}
-    .sel{width:100%;height:100%;border:none;background:transparent;text-align-last:center;}
-    .bg-early{background:#e3f2fd;color:#0d47a1;} /* 早班藍 */
-    .bg-late{background:#fff3e0;color:#e65100;}  /* 午班橘 */
-    .bg-off{background:#fafafa;color:#999;}
+    body{font-family:-apple-system,sans-serif;margin:0;display:flex;flex-direction:column;height:100vh;background:#fff;}
+    
+    .header{
+      padding:10px 16px; background:#f9f9f9; border-bottom:1px solid #ddd;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .back-btn{
+      padding:6px 12px; background:#eee; border:none; border-radius:6px; cursor:pointer; font-weight:bold;
+    }
+    .refresh-btn{
+      padding:6px 12px; background:#007aff; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;
+    }
+    select{ padding:6px; border-radius:6px; border:1px solid #ccc; font-size:14px; background:#fff;}
+    
+    .table-wrap{flex:1;overflow:auto;position:relative;}
+    table{border-collapse:separate;border-spacing:0;min-width:100%;}
+    
+    th,td{
+      border-right:1px solid #eee; border-bottom:1px solid #eee;
+      text-align:center; min-width:44px; height:44px; font-size:13px; box-sizing:border-box;
+    }
+    
+    /* 固定表頭與首欄 */
+    thead th{position:sticky;top:0;background:#f0f0f0;z-index:10;border-bottom:1px solid #ccc;}
+    thead th:first-child{left:0;z-index:20;border-right:1px solid #ccc;}
+    tbody td:first-child{position:sticky;left:0;background:#fff;z-index:5;border-right:1px solid #ccc;font-weight:600;min-width:70px;}
+    
+    /* 顏色樣式 (加在 td) */
+    .bg-early{background-color:#e3f2fd !important; color:#0d47a1;}
+    .bg-late{background-color:#fff3e0 !important; color:#e65100;}
+    .bg-off{background-color:#fafafa; color:#ccc;}
+    
+    .weekend{color:#d32f2f; background:#fff0f0;}
+    
+    /* 隱藏 select 預設樣式，讓 td 顏色透出來 */
+    .shift-sel {
+      width:100%; height:100%; border:none; background:transparent;
+      text-align:center; text-align-last:center; font-weight:bold; 
+      -webkit-appearance:none; appearance:none;
+    }
   </style>
 </head>
 <body>
+
 <div class="header">
-  <button onclick="location.href='app.html'">← 返回</button>
-  <select id="y"></select><select id="m"></select>
-  <button onclick="load()">刷新</button>
+  <button class="back-btn" onclick="location.href='app.html'">← 返回</button>
+  <div>
+    <select id="y"></select>
+    <select id="m"></select>
+  </div>
+  <button class="refresh-btn" onclick="load()">刷新</button>
 </div>
+
 <div class="table-wrap">
   <table id="tbl">
     <thead><tr id="th"></tr></thead>
     <tbody id="tb"></tbody>
   </table>
 </div>
+
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
@@ -37,8 +72,9 @@
   const selY = document.getElementById("y");
   const selM = document.getElementById("m");
   
-  for(let i=now.getFullYear()-1; i<=now.getFullYear()+1; i++) selY.add(new Option(i,i, i===now.getFullYear(), i===now.getFullYear()));
-  for(let i=1; i<=12; i++) selM.add(new Option(i+"月",i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
+  // 初始化日期
+  for(let i=now.getFullYear()-1; i<=now.getFullYear()+1; i++) selY.add(new Option(i+"年", i, i===now.getFullYear(), i===now.getFullYear()));
+  for(let i=1; i<=12; i++) selM.add(new Option(i+"月", i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
 
   function api(act, data={}) {
     return new Promise(r => {
@@ -55,12 +91,16 @@
     const days = new Date(y,m,0).getDate();
     
     let h = "<th>員工</th>";
-    for(let d=1; d<=days; d++) h+=`<th>${d}</th>`;
+    for(let d=1; d<=days; d++) {
+      const wk = new Date(y, m-1, d).getDay();
+      const isWk = (wk===0 || wk===6);
+      h += `<th class="${isWk?'weekend':''}">${d}<br><small>${['日','一','二','三','四','五','六'][wk]}</small></th>`;
+    }
     document.getElementById("th").innerHTML = h;
-    document.getElementById("tb").innerHTML = "<tr><td colspan='32'>載入中...</td></tr>";
+    document.getElementById("tb").innerHTML = "<tr><td colspan='35' style='padding:20px;color:#999;'>讀取中...</td></tr>";
 
     const res = await api("get_roster_data", {year:y, month:m});
-    if(!res.ok) return alert("失敗");
+    if(!res.ok) return alert("載入失敗");
 
     let b = "";
     res.employees.forEach(e => {
@@ -68,18 +108,24 @@
       for(let d=1; d<=days; d++) {
         const cell = (res.roster[e.id] && res.roster[e.id][d]) ? res.roster[e.id][d] : {};
         const v = cell.value || 'OFF';
-        const cls = (v==='EARLY')?'bg-early':(v==='LATE'?'bg-late':'bg-off');
-        const txt = (v==='EARLY')?'早':(v==='LATE'?'午':'休');
         
-        // 這裡僅顯示，若要編輯需判斷權限
+        // 設定顏色 Class
+        let cls = 'bg-off';
+        if(v === 'EARLY') cls = 'bg-early';
+        if(v === 'LATE') cls = 'bg-late';
+        
+        const txtMap = {'OFF':'休', 'EARLY':'早', 'LATE':'午'};
+        
         if(res.isManager) {
-           b += `<td class="${cls}"><select class="sel" onchange="save('${e.id}','${e.name}',${d},this.value)">
-             <option value="OFF" ${v==='OFF'?'selected':''}>休</option>
-             <option value="EARLY" ${v==='EARLY'?'selected':''}>早</option>
-             <option value="LATE" ${v==='LATE'?'selected':''}>午</option>
-           </select></td>`;
+           b += `<td class="${cls}" id="td_${e.id}_${d}">
+             <select class="shift-sel" onchange="save(this, '${e.id}','${e.name}',${d})">
+               <option value="OFF" ${v==='OFF'?'selected':''}>休</option>
+               <option value="EARLY" ${v==='EARLY'?'selected':''}>早</option>
+               <option value="LATE" ${v==='LATE'?'selected':''}>午</option>
+             </select>
+           </td>`;
         } else {
-           b += `<td class="${cls}">${txt}</td>`;
+           b += `<td class="${cls}">${txtMap[v]}</td>`;
         }
       }
       b += "</tr>";
@@ -87,7 +133,13 @@
     document.getElementById("tb").innerHTML = b;
   }
 
-  async function save(eid, ename, day, val) {
+  async function save(el, eid, ename, day) {
+    const val = el.value;
+    const td = document.getElementById(`td_${eid}_${day}`);
+    
+    // 即時變色
+    td.className = (val==='EARLY') ? 'bg-early' : (val==='LATE' ? 'bg-late' : 'bg-off');
+    
     const dStr = `${selY.value}-${String(selM.value).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     await api("update_schedule", {empId:eid, empName:ename, date:dStr, shift:val});
   }
