@@ -61,10 +61,11 @@
   function api(act, data={}){
     return new Promise((resolve, reject)=>{
       const cb = "cb"+Date.now();
-      const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY }); // FIX: 補上 Key
+      // FIX: 確保傳送 Webhook Key
+      const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY }); 
       const s = document.createElement("script");
       s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      window[cb] = (res) => { resolve(res); document.body.removeChild(s); };
+      window[cb] = (res) => { resolve(res); try{delete window[cb];document.body.removeChild(s);}catch(e){} };
       s.onerror = () => reject("連線失敗");
       document.body.appendChild(s);
     });
@@ -81,7 +82,7 @@
       if (res.ok && res.list && res.list.length > 0) {
         div.innerHTML = "";
         res.list.forEach(r => {
-          if (r.category === 'CLOCK') return;
+          if (r.category === 'CLOCK') return; // 不顯示打卡紀錄，只顯示申請
           const stMap = { 'PENDING':'審核中', 'APPROVED':'通過', 'REJECTED':'駁回' };
           const catMap = { 'LEAVE':'請假', 'OT':'加班', 'OUTING':'外出', 'CORRECTION':'補卡' };
           let title = catMap[r.category] || r.category;
