@@ -85,7 +85,7 @@
              localStorage.setItem("employeeName", res.name);
              localStorage.setItem("isManager", res.isManager ? "Y":"N");
              localStorage.setItem("canSchedule", res.canSchedule ? "Y":"N");
-             location.href = "app.html";
+             location.href = "employee.html";
          } else { alert(res.message); }
        } catch(e){ 
            document.getElementById("loading").style.display = "none";
