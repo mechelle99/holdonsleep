@@ -42,7 +42,7 @@
   </div>
 
   <div class="card">
-    <h3>📅 最近打卡 (近 10 筆)</h3>
+    <h3>📅 最近打卡 (日報表)</h3>
     <table>
       <thead>
         <tr><th>日期</th><th>上班</th><th>下班</th><th>狀態</th></tr>
@@ -62,6 +62,7 @@
     function api(act, data={}){
       return new Promise((resolve, reject)=>{
         const cb = "cb"+Date.now();
+        // 確保加上 webhookKey
         const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
         const s = document.createElement("script");
         s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
@@ -71,56 +72,99 @@
       });
     }
 
-   
     async function loadMyData(){
       try {
         const res = await api("get_my_dashboard"); 
         document.getElementById("loading").style.display = "none";
 
         if(res.ok) {
+          // 1. 更新統計數字
           document.getElementById("statLate").textContent = res.stats?.lateCount || 0;
           document.getElementById("statLeave").textContent = res.stats?.leaveHours || 0;
 
+          // 2. 處理表格資料 (關鍵：將流水帳合併為日報表)
           const tbody = document.getElementById("attendanceBody");
           tbody.innerHTML = "";
           
           if(res.attendance && res.attendance.length > 0){
+            // --- [新增] 資料合併邏輯 ---
+            const dailyMap = {};
+            
             res.attendance.forEach(r => {
-              // 狀態邏輯優化
+              // 取出日期部分 (例如 2023-10-27)
+              const dateKey = r.date.substring(0, 10);
+              
+              if (!dailyMap[dateKey]) {
+                dailyMap[dateKey] = { 
+                  date: r.date, 
+                  in: '-', 
+                  out: '-', 
+                  isLate: false 
+                };
+              }
+              
+              // 如果這筆是上班卡 (有 r.in)
+              if (r.in && r.in !== '') dailyMap[dateKey].in = r.in;
+              
+              // 如果這筆是下班卡 (有 r.out)
+              if (r.out && r.out !== '') dailyMap[dateKey].out = r.out;
+              
+              // 標記遲到
+              if (r.isLate) dailyMap[dateKey].isLate = true;
+            });
+
+            // 將 Map 轉回陣列並排序 (日期新到舊)
+            const mergedList = Object.values(dailyMap).sort((a,b) => 
+              new Date(b.date) - new Date(a.date)
+            );
+            // ------------------------
+
+            mergedList.forEach(r => {
               let statusBadge = '<span class="badge bg-green">正常</span>';
+              
               if(r.isLate) {
                 statusBadge = '<span class="badge bg-red">遲到</span>';
               }
-              // 檢查缺卡 (有上班沒下班，且不是今天)
+              
+              // 檢查缺卡 (合併後判斷才準確)
+              // 邏輯：今天以前的日子，如果有空缺，就是異常
               const isToday = new Date().toDateString() === new Date(r.date).toDateString();
-              const hasIn = r.in && r.in !== '-';
-              const hasOut = r.out && r.out !== '-';
+              const hasIn = r.in !== '-';
+              const hasOut = r.out !== '-';
 
-              if(hasIn && !hasOut && !isToday) {
-                 statusBadge = '<span class="badge bg-gray">缺下班卡</span>';
-              } else if (!hasIn && hasOut) {
-                 statusBadge = '<span class="badge bg-gray">缺上班卡</span>';
+              if (!isToday) {
+                 if(hasIn && !hasOut) {
+                    statusBadge = '<span class="badge bg-gray">缺下班卡</span>';
+                 } else if (!hasIn && hasOut) {
+                    statusBadge = '<span class="badge bg-gray">缺上班卡</span>';
+                 }
+              } else {
+                 // 如果是今天，且只有上班沒下班，顯示「工作中」
+                 if(hasIn && !hasOut) statusBadge = '<span class="badge bg-green">工作中</span>';
               }
 
               const tr = document.createElement("tr");
               tr.innerHTML = `
                 <td>${r.date.substring(5,10)}</td>
-                <td>${r.in || "-"}</td>
-                <td>${r.out || "-"}</td>
+                <td>${r.in}</td>
+                <td>${r.out}</td>
                 <td>${statusBadge}</td>
               `;
               tbody.appendChild(tr);
             });
+            
           } else {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">尚無資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">尚無打卡資料</td></tr>';
           }
         } else {
-          document.getElementById("loading").innerText = "載入失敗：" + res.message;
+          document.getElementById("loading").innerText = "載入失敗：" + (res.message || "未知錯誤");
         }
       } catch(e) {
-        document.getElementById("loading").innerText = "系統錯誤：" + e;
+        console.error(e);
+        document.getElementById("loading").innerText = "系統錯誤，請看 Console";
       }
     }
+
     loadMyData();
   </script>
 </body>
