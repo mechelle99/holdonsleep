@@ -1,251 +1,158 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>門市排班管理</title>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>排班管理表</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; background: #f4f6f8; }
-    .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .btn-back { display: inline-block; padding: 8px 16px; background: #333; color: #fff; text-decoration: none; border-radius: 6px; margin-bottom: 20px; }
-    .quota-box { background:#e3f2fd; color:#0d47a1; padding:15px; border-radius:8px; text-align:center; margin-bottom:20px; }
-    
-    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-content { background: #fff; padding: 24px; border-radius: 12px; width: 320px; }
-    
-    select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-    label { display: block; margin-top: 15px; font-size: 14px; color: #666; }
-    
-    .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-    button { flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    .btn-save { background: #007aff; color: #fff; }
-    .btn-del { background: #dc3545; color: #fff; display: none; }
-    .btn-approve { background: #28a745; color: #fff; display: none; }
-    .btn-close { background: #eee; color: #333; }
-    
-    #loadingOverlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center; }
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;margin:0;padding:10px;color:#333;}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;background:#fff;padding:15px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+    .controls{display:flex;gap:10px;align-items:center;}
+    .table-container { overflow-x: auto; background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); padding-bottom: 10px; }
+    table { width:100%; border-collapse: collapse; min-width: 800px; font-size: 13px; }
+    th, td { border: 1px solid #eee; padding: 8px; text-align: center; white-space: nowrap; }
+    th { background: #f8f9fa; font-weight: bold; position: sticky; top: 0; z-index: 10; }
+    .col-emp { position: sticky; left: 0; background: #fff; z-index: 5; border-right: 2px solid #ddd; font-weight: bold; }
+    .shift-select { border:1px solid #ddd; padding:4px; border-radius:4px; width:100%; }
+    .cell-early { background-color: #e3f2fd; } 
+    .cell-late { background-color: #fff3e0; }
+    .cell-off { background-color: #f5f5f5; color:#999; }
+    .cell-leave { background-color: #ffebee; color:#c62828; font-weight:bold; cursor: not-allowed; }
+    .btn { padding:8px 16px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; color:#fff; }
+    .btn-back { background:#333; text-decoration:none; display:inline-block; font-size:14px;}
+    .btn-save { background:#28a745; }
+    .btn-approve { background:#6f42c1; }
+    .hidden{display:none;}
+    #loading { position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:flex;justify-content:center;align-items:center;z-index:99;}
   </style>
 </head>
 <body>
-
-  <div id="loadingOverlay">資料讀取中...</div>
-
-  <div class="container">
-    <a href="app.html" class="btn-back">← 回打卡首頁</a>
-
-    <div class="quota-box">
-      <span id="currentMonthStr" style="font-weight:bold; font-size:18px;">...</span><br>
-      應休天數：<span id="monthlyQuota" style="font-size:24px; font-weight:bold; color:#c22;">-</span> 天
-      <div id="quotaDetail" style="font-size:13px; color:#555; margin-top:5px;"></div>
-      <button id="btnApproveAll" style="background:#007aff;color:#fff;padding:5px 10px;border-radius:15px;margin-top:10px;display:none;" onclick="approveMonthAll()">✅ 一鍵核准本月</button>
-    </div>
-
-    <div id="calendar"></div>
+<div id="loading">載入資料中...</div>
+<div class="header">
+  <a href="app.html" class="btn btn-back">← 回首頁</a>
+  <div class="controls">
+    <select id="selYear"></select>
+    <select id="selMonth"></select>
+    <button class="btn btn-save" onclick="loadRoster()">重新載入</button>
   </div>
+</div>
+<div class="table-container">
+  <table id="rosterTable">
+    <thead>
+      <tr id="dateRow">
+        <th class="col-emp">員工</th>
+      </tr>
+    </thead>
+    <tbody id="rosterBody"></tbody>
+  </table>
+</div>
+<div style="margin-top:15px; text-align:right;">
+  <span style="font-size:12px; color:#666; margin-right:10px;">* 灰色:休假 / 藍色:早班 / 橘色:午班 / 紅色:已請假(鎖定)</span>
+  <button id="btnBatchApprove" class="btn btn-approve hidden" onclick="approveAll()">主管：核准本月所有班表</button>
+</div>
+<script src="config.js"></script>
+<script>
+  const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+  const userId = localStorage.getItem("employeeId");
+  let isManager = false;
+  if(!userId) location.href="index.html";
 
-  <div id="eventModal" class="modal">
-    <div class="modal-content">
-      <h3 id="modalTitle">排班設定</h3>
-      <input type="hidden" id="selectedDate">
-      <label>員工</label>
-      <select id="empSelect"></select>
-      <label>班別</label>
-      <select id="shiftSelect">
-        <option value="早班">☀️ 早班</option>
-        <option value="午班">🌙 午班</option>
-      </select>
-      <div id="statusInfo" style="margin-top:10px; font-size:12px; color:#888;"></div>
-      <div class="btn-group">
-        <button class="btn-approve" id="btnApprove" onclick="approveEvent()">✅ 核准</button>
-        <button class="btn-del" id="btnDelete" onclick="deleteEvent()">🗑️ 刪除</button>
-        <button class="btn-save" id="btnSave" onclick="saveEvent()">💾 儲存</button>
-        <button class="btn-close" onclick="closeModal()">取消</button>
-      </div>
-    </div>
-  </div>
+  const now = new Date();
+  const ySel = document.getElementById("selYear");
+  const mSel = document.getElementById("selMonth");
+  for(let y=now.getFullYear()-1; y<=now.getFullYear()+1; y++){
+    ySel.add(new Option(y+"年", y, y===now.getFullYear(), y===now.getFullYear()));
+  }
+  for(let m=1; m<=12; m++){
+    mSel.add(new Option(m+"月", m, m===(now.getMonth()+1), m===(now.getMonth()+1)));
+  }
 
-  <script src="config.js"></script>
-  <script>
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
-    const userId = localStorage.getItem("employeeId");
-    // 預設從 localStorage 讀取，稍後 loadEmployees 會更新
-    let isManager = (localStorage.getItem("isManager") === "Y");
-    let calendar, currentEventObj, currentYear, currentMonth;
-
-    if(!userId) { alert("請先登入"); location.href="index.html"; }
-
-    function api(act, data={}){
-      document.getElementById("loadingOverlay").style.display = "flex";
-      return new Promise((resolve, reject)=>{
-        const cb = "cb" + Date.now();
-        const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY });
-        const script = document.createElement("script");
-        script.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-        window[cb] = (res) => { resolve(res); delete window[cb]; script.remove(); document.getElementById("loadingOverlay").style.display = "none"; };
-        script.onerror = () => { reject("連線失敗"); document.getElementById("loadingOverlay").style.display = "none"; };
-        document.body.appendChild(script);
-      });
-    }
-
-    document.addEventListener("DOMContentLoaded", async function() {
-      await loadEmployees();
-      const calendarEl = document.getElementById("calendar");
-      calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: "dayGridMonth",
-        locale: "zh-tw",
-        height: "auto",
-        events: fetchEvents,
-        dateClick: (info) => openModal(info.dateStr, null),
-        eventClick: (info) => openModal(info.event.startStr, info.event),
-        datesSet: (info) => {
-           const mid = new Date((info.start.getTime() + info.end.getTime()) / 2);
-           updateMonthlyQuota(mid.getFullYear(), mid.getMonth() + 1);
-        }
-      });
-      calendar.render();
+  function api(act, data={}){
+    document.getElementById("loading").style.display="flex";
+    return new Promise((resolve, reject)=>{
+      const cb = "cb"+Date.now();
+      const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
+      const s = document.createElement("script");
+      s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+      window[cb] = (res) => { resolve(res); try{delete window[cb];document.body.removeChild(s);}catch(e){} document.getElementById("loading").style.display="none"; };
+      s.onerror = () => { alert("連線失敗"); document.getElementById("loading").style.display="none"; };
+      document.body.appendChild(s);
     });
+  }
 
-    async function loadEmployees() {
-      const sel = document.getElementById("empSelect");
-      sel.innerHTML = "";
-      try {
-        const res = await api("get_all_employees");
-        
-        // ★ 更新主管狀態
-        if (res.isManager) {
-           isManager = true;
-           localStorage.setItem("isManager", "Y");
-           document.getElementById("btnApproveAll").style.display = "inline-block";
-        } else {
-           isManager = false;
-           localStorage.setItem("isManager", "N");
+  async function loadRoster(){
+    const y = ySel.value;
+    const m = mSel.value;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    
+    const dateRow = document.getElementById("dateRow");
+    dateRow.innerHTML = '<th class="col-emp">員工</th>';
+    for(let i=1; i<=daysInMonth; i++){
+      const dayOfWeek = new Date(y, m-1, i).getDay();
+      const color = (dayOfWeek===0||dayOfWeek===6) ? 'color:red' : '';
+      dateRow.innerHTML += `<th style="${color}">${i}<br><span style="font-size:10px">${['日','一','二','三','四','五','六'][dayOfWeek]}</span></th>`;
+    }
+
+    try {
+      const res = await api("get_roster_data", { year: y, month: m });
+      if(!res.ok) return alert(res.message);
+
+      isManager = res.isManager;
+      if(isManager) document.getElementById("btnBatchApprove").classList.remove("hidden");
+
+      const tbody = document.getElementById("rosterBody");
+      tbody.innerHTML = "";
+
+      res.employees.forEach(emp => {
+        const tr = document.createElement("tr");
+        let html = `<td class="col-emp">${emp.name}</td>`;
+        for(let d=1; d<=daysInMonth; d++){
+          const cellData = (res.roster[emp.id] && res.roster[emp.id][d]) ? res.roster[emp.id][d] : {};
+          
+          if(cellData.type === 'LEAVE') {
+            html += `<td class="cell-leave">${cellData.value}</td>`;
+          } else {
+            const shift = cellData.value || 'OFF';
+            const schId = cellData.scheduleId || '';
+            const disabled = (cellData.status === 'APPROVED' && !isManager) ? 'disabled' : '';
+            const bgClass = shift==='EARLY'?'cell-early':(shift==='LATE'?'cell-late':'cell-off');
+            html += `
+              <td class="${bgClass}">
+                <select class="shift-select" ${disabled} 
+                  onchange="updateShift('${emp.id}', '${emp.name}', ${d}, this.value, '${schId}')">
+                  <option value="OFF" ${shift==='OFF'?'selected':''}>休</option>
+                  <option value="EARLY" ${shift==='EARLY'?'selected':''}>早 10-18</option>
+                  <option value="LATE" ${shift==='LATE'?'selected':''}>午 12-21</option>
+                </select>
+              </td>`;
+          }
         }
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+      });
+    } catch(e){ alert("錯誤:"+e); }
+  }
 
-        (res.list || []).forEach(emp => {
-          const opt = document.createElement("option");
-          opt.value = emp.id;
-          opt.textContent = `${emp.name} (${emp.id})`;
-          sel.appendChild(opt);
-        });
+  async function updateShift(empId, empName, day, shift, oldId){
+    const y = ySel.value;
+    const m = mSel.value;
+    const fullDate = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const action = oldId ? "update_schedule" : "add_schedule";
+    if(!oldId && shift === 'OFF') return; 
 
-        // 預設選自己
-        sel.value = userId;
-        
-        // ★ 關鍵：若非主管，才鎖住選單
-        sel.disabled = !isManager; 
-        
-      } catch (e) { alert("載入員工失敗: " + e); }
-    }
+    try {
+      await api(action, { scheduleId: oldId, empId, empName, date: fullDate, shift });
+    } catch(e) { alert("儲存失敗: " + e); loadRoster(); }
+  }
 
-    async function fetchEvents(info, success, fail) {
-      try {
-        const res = await api("get_schedule", { start: info.startStr, end: info.endStr });
-        success(res.events || []);
-      } catch (e) { fail(e); }
-    }
+  async function approveAll(){
+    if(!confirm("確定核准本月所有排班？")) return;
+    await api("approve_month_all", { year: ySel.value, month: mSel.value });
+    alert("✅ 全月已核准");
+    loadRoster();
+  }
 
-    async function updateMonthlyQuota(y, m) {
-      currentYear = y; currentMonth = m;
-      document.getElementById("currentMonthStr").textContent = `${y}年 ${m}月`;
-      document.getElementById("monthlyQuota").textContent = "...";
-      
-      const res = await api("get_month_quota", { ym: `${y}-${String(m).padStart(2,'0')}` });
-      if(res.ok) {
-        document.getElementById("monthlyQuota").textContent = res.totalOffDays;
-        document.getElementById("quotaDetail").textContent = `(週末 ${res.weekendDays} + 國定 ${res.holidayDays})`;
-      }
-    }
-
-    function openModal(date, event) {
-      document.getElementById("eventModal").style.display = "flex";
-      document.getElementById("selectedDate").value = date;
-      currentEventObj = event;
-      
-      const btnSave = document.getElementById("btnSave");
-      const btnDel = document.getElementById("btnDelete");
-      const btnApprove = document.getElementById("btnApprove");
-      const empSel = document.getElementById("empSelect");
-      const shiftSel = document.getElementById("shiftSelect");
-      
-      // 重置按鈕
-      btnDel.style.display = "none";
-      btnApprove.style.display = "none";
-      
-      if(event) {
-        // 編輯模式
-        const props = event.extendedProps;
-        empSel.value = props.empId;
-        shiftSel.value = props.shift;
-        empSel.disabled = true; // 編輯舊班表時鎖定人名
-        
-        document.getElementById("statusInfo").textContent = `狀態：${props.reqStatus}`;
-        
-        if(isManager) {
-           btnDel.style.display = "block";
-           if(props.reqStatus === 'PENDING') btnApprove.style.display = "block";
-        } else if(props.empId === userId && props.reqStatus === 'PENDING') {
-           btnDel.style.display = "block";
-        }
-      } else {
-        // 新增模式
-        // ★ 再次確認：主管可選，非主管鎖定
-        empSel.disabled = !isManager; 
-        
-        // 若非主管，強制選回自己；若是主管，保留上次選擇或預設
-        if(!isManager) empSel.value = userId;
-        
-        shiftSel.value = "早班";
-        document.getElementById("statusInfo").textContent = "";
-      }
-    }
-
-    function closeModal() { document.getElementById("eventModal").style.display = "none"; }
-
-    async function saveEvent() {
-      const date = document.getElementById("selectedDate").value;
-      const shift = document.getElementById("shiftSelect").value;
-      const targetId = document.getElementById("empSelect").value;
-      
-      // 取得選中員工的名字 (傳給後端備用)
-      const sel = document.getElementById("empSelect");
-      const targetName = sel.options[sel.selectedIndex].text.split(' (')[0];
-
-      const action = currentEventObj ? "update_schedule" : "add_schedule";
-      const payload = { 
-        date, shift, 
-        empId: targetId, 
-        empName: targetName,
-        scheduleId: currentEventObj?.extendedProps?.scheduleId 
-      };
-      
-      const res = await api(action, payload);
-      alert(res.message);
-      closeModal();
-      calendar.refetchEvents();
-    }
-
-    async function deleteEvent() {
-      if(!confirm("確定刪除？")) return;
-      const res = await api("del_schedule", { scheduleId: currentEventObj.extendedProps.scheduleId });
-      alert(res.message);
-      closeModal();
-      calendar.refetchEvents();
-    }
-
-    async function approveEvent() {
-      const res = await api("approve_schedule", { scheduleId: currentEventObj.extendedProps.scheduleId });
-      alert(res.message);
-      closeModal();
-      calendar.refetchEvents();
-    }
-
-    async function approveMonthAll() {
-      if(!confirm("確定核准本月所有？")) return;
-      const res = await api("approve_month_all", { year: currentYear, month: currentMonth });
-      alert(res.message);
-      calendar.refetchEvents();
-    }
-  </script>
+  loadRoster();
+</script>
 </body>
 </html>
