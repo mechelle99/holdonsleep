@@ -83,7 +83,6 @@
         pRes.list.forEach(r => {
           const div = document.createElement("div");
           div.className = "req-item";
-          // 轉換假別顯示
           const typeMap = {
             'LEAVE': '請假', 'OT': '加班', 'OUTING': '外出',
             'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假'
@@ -118,10 +117,13 @@
       if(sRes.ok && sRes.list) {
         sRes.list.forEach(e => {
           const tr = document.createElement("tr");
+          // 安全讀取屬性，防止 undefined 報錯
+          const annLeft = e.annual ? e.annual.left : '?';
+          const compLeft = e.comp ? e.comp.left : '?';
           tr.innerHTML = `
             <td>${e.name} (${e.id})</td>
-            <td>${e.annual.left} 天</td>
-            <td>${e.comp.left} 時</td>
+            <td>${annLeft} 天</td>
+            <td>${compLeft} 時</td>
           `;
           tbody.appendChild(tr);
         });
