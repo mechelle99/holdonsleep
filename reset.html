@@ -2,127 +2,51 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>重設密碼</title>
   <style>
-    body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;color:#111;display:flex;align-items:center;justify-content:center;height:100vh;}
-    .card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.08);width:100%;max-width:360px;}
-    h1{font-size:20px;margin:0 0 10px;}
-    .sub{color:#666;font-size:13px;line-height:1.5;margin-bottom:14px}
-    input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;margin:8px 0;outline:none;}
-    button{width:100%;padding:14px;border:0;border-radius:12px;background:#111;color:#fff;font-weight:800;font-size:16px;cursor:pointer;}
-    button:disabled{opacity:.55;cursor:not-allowed;}
-    .msg{margin-top:12px;font-size:13px;color:#c22;display:none;white-space:pre-line}
-    .link{display:block;margin-top:12px;font-size:13px;color:#007aff;text-decoration:none;text-align:center}
+    body{font-family:system-ui,sans-serif;background:#f6f7fb;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
+    .card{background:#fff;padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1);width:100%;max-width:320px;}
+    input{width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;}
+    button{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:10px;font-weight:bold;}
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>更改 / 重設密碼</h1>
-    <div class="sub">
-      若你是從 Email 連結進來，系統會自動帶入驗證資訊。<br>
-      若你是手動進來，請輸入員工編號與信件中的驗證碼。
+    <h2 style="margin-top:0">重設密碼</h2>
+    <input id="empId" placeholder="員工編號">
+    <input id="token" placeholder="驗證碼">
+    <input id="newPass" type="password" placeholder="新密碼 (至少6碼)">
+    <button onclick="doReset()">確認變更</button>
+    <div style="text-align:center;margin-top:10px;">
+      <a href="index.html" style="font-size:13px;color:#007aff;">回登入頁</a>
     </div>
-
-    <input id="empId" placeholder="員工編號（例如 M001）" />
-    <input id="token" placeholder="驗證碼（Email 連結會自動帶入）" />
-    <input id="p1" type="password" placeholder="新密碼（至少 6 碼）" />
-    <input id="p2" type="password" placeholder="再次輸入新密碼" />
-    <button id="btn">更新密碼</button>
-
-    <div id="msg" class="msg"></div>
-    <a class="link" href="login.html">回登入</a>
   </div>
-
   <script src="config.js"></script>
   <script>
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
-    const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('id')) document.getElementById('empId').value = params.get('id');
+    if(params.get('token')) document.getElementById('token').value = params.get('token');
 
-    function showMsg(text){
-      const el = document.getElementById("msg");
-      el.textContent = text;
-      el.style.display = "block";
-    }
-    function hideMsg(){
-      const el = document.getElementById("msg");
-      el.style.display = "none";
-      el.textContent = "";
-    }
+    function doReset() {
+      const id = document.getElementById("empId").value;
+      const token = document.getElementById("token").value;
+      const pass = document.getElementById("newPass").value;
+      if(!id || !token || pass.length < 6) return alert("資料不完整或密碼太短");
 
-    function jsonp(action, dataObj={}, timeoutMs=20000){
-      return new Promise((resolve, reject)=>{
-        if(!ENDPOINT) return reject(new Error("尚未設定 GAS_ENDPOINT（config.js）"));
-
-        const cb = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
-        window[cb] = (res)=>{ cleanup(); resolve(res); };
-
-        const payload = { webhookKey: WEBHOOK_KEY, data: dataObj };
-        const qs = new URLSearchParams();
-        qs.set("action", action);
-        qs.set("payload", JSON.stringify(payload));
-        qs.set("callback", cb);
-
-        const s = document.createElement("script");
-        s.src = ENDPOINT + "?" + qs.toString();
-        s.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗（JSONP）")); };
-        document.head.appendChild(s);
-
-        const t = setTimeout(()=>{ cleanup(); reject(new Error("連線逾時（JSONP）")); }, timeoutMs);
-
-        function cleanup(){
-          clearTimeout(t);
-          try{ delete window[cb]; }catch(e){}
-          if(s && s.parentNode) s.parentNode.removeChild(s);
-        }
-      });
-    }
-
-    function readQuery(){
-      const u = new URL(location.href);
-      return {
-        id: u.searchParams.get("id") || "",
-        token: u.searchParams.get("token") || ""
+      const script = document.createElement("script");
+      const cb = "cb" + Date.now();
+      const payload = JSON.stringify({ empId: id, token: token, newPass: pass, webhookKey: window.CONFIG?.WEBHOOK_KEY });
+      
+      window[cb] = (res) => {
+        if(res.ok) { alert("修改成功，請登入"); location.href="index.html"; }
+        else { alert(res.message); }
+        delete window[cb]; script.remove();
       };
+      
+      script.src = `${window.CONFIG.GAS_ENDPOINT}?action=reset_password&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+      document.body.appendChild(script);
     }
-
-    async function resetPass(){
-      hideMsg();
-      const btn = document.getElementById("btn");
-
-      const empId = document.getElementById("empId").value.trim();
-      const token = document.getElementById("token").value.trim();
-      const p1 = document.getElementById("p1").value.trim();
-      const p2 = document.getElementById("p2").value.trim();
-
-      if(!empId) return showMsg("請輸入員工編號");
-      if(!token) return showMsg("請輸入驗證碼（或從 Email 連結進來）");
-      if(p1.length < 6) return showMsg("新密碼至少 6 碼");
-      if(p1 !== p2) return showMsg("兩次密碼不一致");
-
-      btn.disabled = true;
-      btn.textContent = "更新中...";
-
-      try{
-        const res = await jsonp("reset_password", { id: empId, token, newPass: p1 });
-        if(!res?.ok) throw new Error(res?.message || "更新失敗");
-        alert("✅ 密碼已更新，請重新登入");
-        location.href = "login.html";
-      }catch(e){
-        showMsg("❌ " + e.message);
-      }finally{
-        btn.disabled = false;
-        btn.textContent = "更新密碼";
-      }
-    }
-
-    // auto fill from email link
-    const q = readQuery();
-    if(q.id) document.getElementById("empId").value = q.id;
-    if(q.token) document.getElementById("token").value = q.token;
-
-    document.getElementById("btn").addEventListener("click", resetPass);
   </script>
 </body>
 </html>
-reset.html
