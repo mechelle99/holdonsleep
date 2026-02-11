@@ -394,7 +394,7 @@ app.html
 
   <script src="config.js"></script>
   <script>
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    let ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";  // 改 const 成 let
     const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
 
     function jsonp(action, data){
