@@ -46,7 +46,6 @@
       
       const r = await api("get_roster_data",{year:y,month:m});
       if(r.ok){
-        // 顯示應休天數
         if(r.holidayCount) {
            document.getElementById("hols").innerText = `本月應休: ${r.holidayCount.total} 天 (週末:${r.holidayCount.weekends} + 國定:${r.holidayCount.national})`;
         }
@@ -60,8 +59,8 @@
             const cls = v==='EARLY'?'bg-early':(v==='LATE'?'bg-late':'');
             const txt = v==='EARLY'?'早':(v==='LATE'?'午':'');
             
-            // 權限判斷：只有主管或本人有權限時才顯示下拉，否則顯示文字
-            if(r.isManager) {
+            // 權限判斷：使用後端回傳的 canEdit
+            if(r.canEdit) {
                b+=`<td class="${cls}"><select class="shift-sel" onchange="save('${e.id}','${e.name}',${i},this.value)">
                <option value="OFF" ${v==='OFF'?'selected':''}></option>
                <option value="EARLY" ${v==='EARLY'?'selected':''}>早</option>
