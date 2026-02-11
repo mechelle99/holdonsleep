@@ -1,69 +1,57 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>歷史紀錄</title>
-  <style>
-    body{font-family:-apple-system,sans-serif;background:#f4f6f8;margin:0;padding:20px;color:#333;}
-    .container{max-width:800px;margin:0 auto;}
-    .btn-back{display:inline-block;padding:8px 16px;background:#333;color:#fff;text-decoration:none;border-radius:6px;margin-bottom:20px;}
-    .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);}
-    .hist-item {border-bottom:1px solid #eee;padding:12px 0;}
-    .hist-status {font-size:12px;padding:2px 6px;border-radius:4px;float:right;font-weight:bold;}
-    .st-PENDING { background:#fff3e0; color:#ff9800; }
-    .st-APPROVED { background:#e8f5e9; color:#28a745; }
-    .st-REJECTED { background:#ffebee; color:#c62828; }
-  </style>
+<html>
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  body{font-family:sans-serif;padding:16px;background:#f4f6f8;}
+  .card{background:#fff;padding:16px;border-radius:12px;margin-bottom:10px;}
+  .st{float:right;font-size:12px;padding:2px 6px;border-radius:4px;}
+  .ok{background:#d4edda;color:#155724;} .wait{background:#fff3cd;color:#856404;}
+</style>
 </head>
 <body>
-<div class="container">
-  <a href="app.html" class="btn-back">← 回首頁</a>
-  <div class="card">
-    <h3 style="margin-top:0;">📜 申請紀錄</h3>
-    <div id="listArea">載入中...</div>
+  <h3>📜 歷史紀錄</h3>
+  <div style="margin-bottom:10px;">
+    <select id="y"></select><select id="m"></select>
+    <button onclick="load()">查詢</button>
+    <button onclick="location.href='app.html'">返回</button>
   </div>
-</div>
-<script src="config.js"></script>
-<script>
-  const userId = localStorage.getItem("employeeId");
-  if(!userId) location.href="index.html";
+  <div id="list"></div>
+  <script src="config.js"></script>
+  <script>
+    const uid=localStorage.getItem("employeeId");
+    const now=new Date();
+    // init select
+    const yS=document.getElementById("y"), mS=document.getElementById("m");
+    for(let i=now.getFullYear();i>=2024;i--) yS.add(new Option(i,i));
+    for(let i=1;i<=12;i++) mS.add(new Option(i,i,i===(now.getMonth()+1),i===(now.getMonth()+1)));
 
-  function api(act) {
-    return new Promise((resolve, reject)=>{
-      const cb = "cb"+Date.now();
-      const payload = JSON.stringify({ userId, webhookKey: window.CONFIG?.WEBHOOK_KEY });
-      const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      window[cb] = (res) => { resolve(res); document.body.removeChild(s); };
-      document.body.appendChild(s);
-    });
-  }
+    function api(a,d){ /* 同上，省略重複寫法 */ 
+      return new Promise(r=>{
+        const cb="c"+Date.now();
+        const s=document.createElement("script");
+        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid}))}&callback=${cb}`;
+        window[cb]=res=>{r(res);s.remove()};
+        document.body.appendChild(s);
+      });
+    }
 
-  async function loadData(){
-    try {
-      const res = await api("list_requests");
-      const div = document.getElementById("listArea");
-      if (res.ok && res.list && res.list.length > 0) {
-        div.innerHTML = "";
+    async function load(){
+      document.getElementById("list").innerHTML = "載入中...";
+      const res = await api("get_dashboard", {year:yS.value, month:mS.value});
+      let h = "";
+      if(res.ok && res.list) {
         res.list.forEach(r => {
-          const stMap = { 'PENDING':'審核中', 'APPROVED':'通過', 'REJECTED':'駁回' };
-          const timeStr = r.start.substring(5,16).replace('T',' ') + ' ~ ' + r.end.substring(5,16).replace('T',' ');
-          div.innerHTML += `
-            <div class="hist-item">
-              <span class="hist-status st-${r.status}">${stMap[r.status]||r.status}</span>
-              <div style="font-weight:bold;">${r.category} ${r.leaveType||''}</div>
-              <div style="color:#666;font-size:13px;margin-top:4px;">${timeStr}</div>
-              <div style="color:#888;font-size:12px;">${r.reason||''}</div>
-            </div>
-          `;
+          const cls = r.status==='通過'?'ok':'wait';
+          h += `<div class="card">
+            <span class="st ${cls}">${r.status}</span>
+            <b>${r.title}</b><br>
+            <small>${r.date} ${r.time}</small>
+          </div>`;
         });
-      } else {
-        div.innerHTML = "<div style='text-align:center;color:#999;'>無紀錄</div>";
       }
-    } catch(e) { document.getElementById("listArea").innerHTML = "載入失敗"; }
-  }
-  loadData();
-</script>
+      document.getElementById("list").innerHTML = h || "無資料";
+    }
+    load();
+  </script>
 </body>
 </html>
