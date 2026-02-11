@@ -7,255 +7,172 @@
   <style>
     :root{ --blue:#007aff; --bg:#f4f6f8; --card:#fff; }
     body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:100px;}
-    
     input, select, textarea {
       -webkit-appearance: none; appearance: none;
       background: #fff; border: 1px solid #ddd; border-radius: 8px;
-      width: 100%; padding: 12px; box-sizing: border-box; font-size: 16px; margin-top: 5px;
+      width: 100%; padding: 12px; font-size: 16px; margin-top: 5px; box-sizing: border-box;
     }
-    
     .card{background:var(--card);border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.04);margin-bottom:16px;}
-    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-    
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;cursor:pointer;margin-top:10px;}
-    .btn-in{background:var(--blue);}
-    .btn-out{background:#ff9500;}
-    .btn-gray{background:#555;}
-    
+    .btn-in{background:var(--blue);} .btn-out{background:#ff9500;} .btn-gray{background:#555;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-    label{font-size:13px;color:#666;font-weight:600;margin-top:12px;display:block;}
-    
+    .bal-box{display:flex;gap:10px;margin-top:10px;}
+    .bal-item{flex:1;background:#f0f7ff;padding:10px;border-radius:8px;text-align:center;}
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.85);display:none;justify-content:center;align-items:center;z-index:999;}
-    
-    .balance-box { display: flex; gap: 10px; margin-top: 10px; }
-    .bal-item { flex: 1; background: #f0f7ff; padding: 10px; border-radius: 8px; text-align: center; }
-    .bal-num { font-size: 18px; font-weight: bold; color: var(--blue); }
-    
-    .search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
-    .rec-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; font-size: 15px; }
   </style>
 </head>
 <body>
-
   <div id="loading">處理中...</div>
-
+  
   <div class="card">
-    <div class="header">
-      <h2 style="margin:0;font-size:20px;" id="userName">載入中...</h2>
+    <div style="display:flex;justify-content:space-between;">
+      <h2 style="margin:0;font-size:20px;" id="uName">...</h2>
       <a href="javascript:logout()" style="color:#c00;font-size:14px;">登出</a>
     </div>
-    
-    <div class="balance-box">
-      <div class="bal-item">
-        <div style="font-size:12px;color:#666;">特休剩餘</div>
-        <div class="bal-num" id="balAnn">--</div>
-      </div>
-      <div class="bal-item">
-        <div style="font-size:12px;color:#666;">補休剩餘</div>
-        <div class="bal-num" id="balComp">--</div>
-      </div>
+    <div class="bal-box">
+      <div class="bal-item"><div style="font-size:12px;color:#666">特休(時)</div><b style="font-size:18px;color:var(--blue)" id="bAnn">--</b></div>
+      <div class="bal-item"><div style="font-size:12px;color:#666">補休(時)</div><b style="font-size:18px;color:var(--blue)" id="bComp">--</b></div>
     </div>
-
-    <div id="mgrBtn" class="hidden" style="margin-top:10px;">
-      <button class="btn" style="background:#6f42c1;" onclick="location.href='manager.html'">👑 主管後台</button>
-    </div>
-    <div id="schBtn" class="hidden">
-      <button class="btn" style="background:#17a2b8;" onclick="location.href='schedule.html'">📅 排班表</button>
-    </div>
+    <div id="btns" style="margin-top:10px;"></div>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 10px">📍 上下班打卡</h3>
+    <h3 style="margin:0 0 10px">📍 打卡</h3>
     <div class="grid">
       <button class="btn btn-in" onclick="clock('clock_in')">上班</button>
       <button class="btn btn-out" onclick="clock('clock_out')">下班</button>
     </div>
-    <div id="clockMsg" style="text-align:center;margin-top:10px;font-size:13px;color:var(--blue);"></div>
+    <div id="cMsg" style="text-align:center;margin-top:10px;font-size:13px;color:var(--blue);"></div>
   </div>
 
   <div class="card">
-    <h3 style="margin:0">📝 線上申請</h3>
+    <h3 style="margin:0">📝 申請</h3>
     <label>類型</label>
     <select id="cat" onchange="uiChange()">
       <option value="LEAVE">請假</option>
-      <option value="OT">加班 (轉補休)</option>
+      <option value="OT">加班</option>
       <option value="OUTING">外出公務</option>
-      <option value="CORRECTION">補卡 (每月限5次)</option>
+      <option value="CORRECTION">補卡</option>
     </select>
-
+    
     <div id="areaLeave">
       <label>假別</label>
       <select id="lType">
-        <option value="annual">特休</option>
-        <option value="sick">病假</option>
-        <option value="personal">事假</option>
-        <option value="menstrual">生理假</option>
-        <option value="family">家庭照顧假</option>
-        <option value="wedding">婚假</option>
-        <option value="funeral">喪假</option>
-        <option value="maternity">產假</option>
-        <option value="birthday">生日假 (限當月/單日)</option>
-        <option value="comp">補休</option>
+        <option value="annual">特休</option><option value="comp">補休</option>
+        <option value="sick">病假</option><option value="personal">事假</option>
+        <option value="birthday">生日假</option><option value="wedding">婚假</option>
       </select>
     </div>
     
-    <div id="areaCorrect" class="hidden">
-      <label>補卡類別</label>
-      <select id="cType">
-        <option value="IN">上班卡</option>
-        <option value="OUT">下班卡</option>
-      </select>
-    </div>
-
-    <div id="areaAuto" class="hidden">
-      <label>自動打卡 (核准後生效)</label>
+    <div id="areaOut" class="hidden">
+      <label>自動打卡</label>
       <select id="autoClock">
-        <option value="">手動打卡</option>
-        <option value="OUT">自動打外出出發(上班)</option>
-        <option value="BOTH">自動打往返卡</option>
+        <option value="">手動</option><option value="OUT">自動外出(上班)</option><option value="BOTH">自動往返</option>
       </select>
     </div>
 
     <div class="grid">
-      <div><label>開始時間</label><input type="datetime-local" id="start" onchange="calc()"></div>
-      <div><label>結束時間</label><input type="datetime-local" id="end" onchange="calc()"></div>
+      <div><label>開始</label><input type="datetime-local" id="start" onchange="calc()"></div>
+      <div><label>結束</label><input type="datetime-local" id="end" onchange="calc()"></div>
     </div>
-    
-    <label>時數 (系統自動計算)</label>
-    <input id="hours" readonly style="background:#f9f9f9;color:#555;">
-
-    <label>事由</label>
-    <textarea id="reason" rows="2"></textarea>
-
-    <button class="btn btn-gray" onclick="submit()">送出申請</button>
-    <button class="btn" style="background:#fff;color:#007aff;border:1px solid #007aff;margin-top:12px;" onclick="location.href='history.html'">📜 查詢歷史紀錄</button>
+    <label>時數 (自動)</label><input id="hrs" readonly style="background:#eee;">
+    <label>事由</label><textarea id="reason"></textarea>
+    <button class="btn btn-gray" onclick="submit()">送出</button>
+    <button class="btn" style="background:#fff;color:#007aff;border:1px solid #007aff;margin-top:10px;" onclick="location.href='history.html'">📜 紀錄</button>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 10px">📊 打卡紀錄查詢</h3>
-    <div class="search-bar">
-      <select id="sYear"></select>
-      <select id="sMonth"></select>
-      <button class="btn" style="width:auto;margin:0;padding:0 15px;" onclick="searchClock()">搜尋</button>
+    <h3 style="margin:0 0 10px">📊 打卡查詢</h3>
+    <div style="display:flex;gap:5px;">
+      <select id="y"></select><select id="m"></select>
+      <button class="btn" style="width:auto;margin:0;padding:0 15px;" onclick="search()">搜</button>
     </div>
-    <div id="clockList" style="min-height:50px;"></div>
+    <div id="resList" style="padding-top:10px;"></div>
   </div>
 
   <script src="config.js"></script>
   <script>
-    const userId = localStorage.getItem("employeeId");
-    if(!userId) location.href="index.html";
-    document.getElementById("userName").textContent = localStorage.getItem("employeeName");
+    const uid=localStorage.getItem("employeeId");
+    if(!uid) location.href="index.html";
+    document.getElementById("uName").textContent = localStorage.getItem("employeeName");
+    
+    if(localStorage.getItem("isManager")==='Y') document.getElementById("btns").innerHTML += `<button class="btn" style="background:#6f42c1" onclick="location.href='manager.html'">👑 主管</button>`;
+    if(localStorage.getItem("canSchedule")==='Y'||localStorage.getItem("isManager")==='Y') document.getElementById("btns").innerHTML += `<button class="btn" style="background:#17a2b8;margin-top:5px;" onclick="location.href='schedule.html'">📅 排班</button>`;
 
-    // 權限顯示
-    if(localStorage.getItem("isManager")==="Y") document.getElementById("mgrBtn").classList.remove("hidden");
-    if(localStorage.getItem("canSchedule")==="Y" || localStorage.getItem("isManager")==="Y") document.getElementById("schBtn").classList.remove("hidden");
+    const now=new Date();
+    const yS=document.getElementById("y"), mS=document.getElementById("m");
+    for(let i=now.getFullYear();i>=2024;i--) yS.add(new Option(i,i));
+    for(let i=1;i<=12;i++) mS.add(new Option(i,i,i===now.getMonth()+1,i===now.getMonth()+1));
 
-    // 初始化日期選單
-    const now = new Date();
-    const sY = document.getElementById("sYear");
-    const sM = document.getElementById("sMonth");
-    for(let i=now.getFullYear(); i>=2024; i--) sY.add(new Option(i+"年", i));
-    for(let i=1; i<=12; i++) sM.add(new Option(i+"月", i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
-
-    function api(act, data={}) {
+    function api(a,d={}){
       document.getElementById("loading").style.display="flex";
-      return new Promise((r,rj)=>{
-        const cb = "cb"+Date.now();
-        const payload = JSON.stringify({...data, userId, webhookKey:window.CONFIG.WEBHOOK_KEY});
-        const s = document.createElement("script");
-        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-        window[cb]=(res)=>{ r(res); s.remove(); document.getElementById("loading").style.display="none"; };
-        s.onerror=()=>{ rj(); document.getElementById("loading").style.display="none"; }
+      return new Promise(r=>{
+        const cb="c"+Date.now();
+        const s=document.createElement("script");
+        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid,webhookKey:window.CONFIG.WEBHOOK_KEY}))}&callback=${cb}`;
+        window[cb]=(res)=>{r(res);s.remove();document.getElementById("loading").style.display="none"};
         document.body.appendChild(s);
       });
     }
 
-    async function init() {
-      // 取得餘額與紀錄
-      const res = await api("get_balances");
-      if(res.ok) {
-        document.getElementById("balAnn").textContent = res.annual.left + " 時";
-        document.getElementById("balComp").textContent = res.comp.left + " 時";
+    async function init(){
+      const r = await api("get_balances");
+      if(r.ok) {
+        document.getElementById("bAnn").textContent = r.annual.left;
+        document.getElementById("bComp").textContent = r.comp.left;
       }
-      searchClock();
+      search();
     }
     init();
 
-    function uiChange() {
+    function uiChange(){
       const v = document.getElementById("cat").value;
       document.getElementById("areaLeave").style.display = (v==='LEAVE')?'block':'none';
-      document.getElementById("areaAuto").style.display = (v==='OUTING')?'block':'none';
-      document.getElementById("areaCorrect").style.display = (v==='CORRECTION')?'block':'none';
+      document.getElementById("areaOut").style.display = (v==='OUTING')?'block':'none';
     }
 
-    function calc() {
-      const sVal = document.getElementById("start").value;
-      const eVal = document.getElementById("end").value;
-      if(sVal && eVal) {
-        const s = new Date(sVal);
-        const e = new Date(eVal);
-        const diff = (e - s) / 36e5; // 轉小時
-        document.getElementById("hours").value = diff > 0 ? diff.toFixed(1) : 0;
+    function calc(){
+      const s = new Date(document.getElementById("start").value);
+      const e = new Date(document.getElementById("end").value);
+      if(s&&e) {
+        const h = (e-s)/36e5;
+        document.getElementById("hrs").value = h>0 ? h.toFixed(1) : 0;
       }
     }
 
-    async function clock(type) {
-      if(!navigator.geolocation) return alert("無定位權限");
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const res = await api(type, { lat: pos.coords.latitude, lng: pos.coords.longitude });
-        alert(res.message);
-        if(res.ok) {
-          document.getElementById("clockMsg").textContent = `最後: ${res.time}`;
-          searchClock();
-        }
-      });
+    async function clock(t){
+      navigator.geolocation.getCurrentPosition(async p => {
+        const r = await api(t, {lat:p.coords.latitude, lng:p.coords.longitude});
+        alert(r.message);
+        if(r.ok) { document.getElementById("cMsg").innerText = "最後: "+r.time; search(); }
+      }, ()=>alert("無定位"));
     }
 
-    async function submit() {
-      const cat = document.getElementById("cat").value;
-      let lType = "";
-      if (cat === 'LEAVE') lType = document.getElementById("lType").value;
-      if (cat === 'CORRECTION') lType = document.getElementById("cType").value;
-
-      const data = {
-        category: cat,
-        leaveType: lType,
-        autoClock: (cat==='OUTING') ? document.getElementById("autoClock").value : '',
+    async function submit(){
+      const c = document.getElementById("cat").value;
+      const d = {
+        category: c,
+        leaveType: (c==='LEAVE') ? document.getElementById("lType").value : (c==='CORRECTION'?'補卡':''),
+        autoClock: document.getElementById("autoClock").value,
         start_ts: document.getElementById("start").value,
         end_ts: document.getElementById("end").value,
-        hours: document.getElementById("hours").value,
+        hours: document.getElementById("hrs").value,
         reason: document.getElementById("reason").value
       };
-      
-      if(!data.start_ts || !data.end_ts) return alert("請填寫時間");
-      
-      const res = await api("submit_request", data);
-      alert(res.message);
-      if(res.ok) { 
-        document.getElementById("reason").value=""; 
-        init(); // 重新整理餘額
-      }
+      if(!d.start_ts) return alert("請填時間");
+      const r = await api("submit_request", d);
+      alert(r.message);
+      if(r.ok) init();
     }
 
-    async function searchClock() {
-      const list = document.getElementById("clockList");
-      list.innerHTML = '<div style="text-align:center;padding:10px;color:#999;">載入中...</div>';
-      
-      const res = await api("get_dashboard", { year: sY.value, month: sM.value });
-      if(res.ok && res.searchResult && res.searchResult.length > 0) {
-        list.innerHTML = res.searchResult.map(r => `
-          <div class="rec-item">
-            <span>${r.date} <span style="font-weight:bold;color:${r.type.includes('上班')?'#007aff':'#ff9500'}">${r.type}</span></span>
-            <span>${r.time}</span>
-          </div>
-        `).join("");
-      } else {
-        list.innerHTML = '<div style="text-align:center;padding:10px;color:#999;">該月無紀錄</div>';
-      }
+    async function search(){
+      const r = await api("get_dashboard", {year:yS.value, month:mS.value});
+      const d = document.getElementById("resList");
+      d.innerHTML = (r.ok && r.searchResult.length) ? 
+        r.searchResult.map(x=>`<div style="display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid #eee;"><span>${x.date} ${x.type}</span><span>${x.time}</span></div>`).join("") : 
+        "<div style='text-align:center;color:#999'>無紀錄</div>";
     }
-    
     function logout(){ localStorage.clear(); location.href="index.html"; }
   </script>
 </body>
