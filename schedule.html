@@ -5,135 +5,93 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>排班表</title>
   <style>
-    body{font-family:-apple-system,sans-serif;margin:0;padding:0;background:#fff;display:flex;flex-direction:column;height:100vh;}
-    .header{padding:12px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;background:#f9f9f9;}
-    .controls{display:flex;gap:6px;}
-    select, button{padding:6px;border-radius:4px;border:1px solid #ccc;font-size:14px;}
-    .btn-save{background:#007aff;color:#fff;border:none;font-weight:bold;}
-    .btn-back{text-decoration:none;color:#333;font-weight:bold;font-size:16px;}
-    .table-container{flex:1;overflow:auto;position:relative;}
-    table{border-collapse:separate;border-spacing:0;min-width:100%;}
-    th, td{border-right:1px solid #ddd;border-bottom:1px solid #ddd;text-align:center;min-width:50px;height:40px;box-sizing:border-box;font-size:13px;}
-    thead th {position:sticky;top:0;background:#f0f0f0;z-index:2;}
-    tbody td:first-child {position:sticky;left:0;background:#fff;z-index:1;border-right:2px solid #ccc;font-weight:bold;min-width:80px;}
-    thead th:first-child {z-index:3;left:0;border-right:2px solid #ccc;}
-    .weekend{background:#fff0f0;color:#c00;}
-    .shift-sel{width:100%;height:100%;border:none;background:transparent;text-align:center;font-weight:bold;}
-    .bg-early{background:#e8f0fe;color:#1967d2;}
-    .bg-late{background:#fff3e0;color:#ea8600;}
-    .bg-off{background:#fafafa;color:#ccc;}
+    body{font-family:-apple-system,sans-serif;margin:0;display:flex;flex-direction:column;height:100vh;}
+    .header{padding:10px;background:#f9f9f9;border-bottom:1px solid #ddd;display:flex;gap:10px;}
+    .table-wrap{flex:1;overflow:auto;}
+    table{border-collapse:collapse;min-width:100%;}
+    th,td{border:1px solid #ddd;padding:0;text-align:center;min-width:40px;height:40px;font-size:12px;}
+    thead th{position:sticky;top:0;background:#eee;z-index:2;}
+    td:first-child{position:sticky;left:0;background:#fff;z-index:1;min-width:70px;font-weight:bold;}
+    .sel{width:100%;height:100%;border:none;background:transparent;text-align-last:center;}
+    .bg-early{background:#e3f2fd;color:#0d47a1;} /* 早班藍 */
+    .bg-late{background:#fff3e0;color:#e65100;}  /* 午班橘 */
+    .bg-off{background:#fafafa;color:#999;}
   </style>
 </head>
 <body>
-
 <div class="header">
-  <div>
-    <a href="app.html" class="btn-back">←</a>
-    <span style="margin-left:8px;font-weight:bold;">排班</span>
-  </div>
-  <div class="controls">
-    <select id="selY"></select>
-    <select id="selM"></select>
-    <button class="btn-save" onclick="loadRoster()">刷</button>
-  </div>
+  <button onclick="location.href='app.html'">← 返回</button>
+  <select id="y"></select><select id="m"></select>
+  <button onclick="load()">刷新</button>
 </div>
-
-<div class="table-container">
-  <table id="rosterTable">
-    <thead><tr id="tHead"></tr></thead>
-    <tbody id="tBody"></tbody>
+<div class="table-wrap">
+  <table id="tbl">
+    <thead><tr id="th"></tr></thead>
+    <tbody id="tb"></tbody>
   </table>
 </div>
-
 <script src="config.js"></script>
 <script>
-  const userId = localStorage.getItem("employeeId");
-  if(!userId) location.href="index.html";
-
+  const uid = localStorage.getItem("employeeId");
   const now = new Date();
-  const selY = document.getElementById("selY");
-  const selM = document.getElementById("selM");
+  const selY = document.getElementById("y");
+  const selM = document.getElementById("m");
   
-  for(let y=now.getFullYear()-1; y<=now.getFullYear()+1; y++) 
-    selY.add(new Option(y, y, y===now.getFullYear(), y===now.getFullYear()));
-  for(let m=1; m<=12; m++) 
-    selM.add(new Option(m+"月", m, m===(now.getMonth()+1), m===(now.getMonth()+1)));
+  for(let i=now.getFullYear()-1; i<=now.getFullYear()+1; i++) selY.add(new Option(i,i, i===now.getFullYear(), i===now.getFullYear()));
+  for(let i=1; i<=12; i++) selM.add(new Option(i+"月",i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
 
   function api(act, data={}) {
-    return new Promise((resolve, reject) => {
-      const cb = "cb"+Date.now()+Math.floor(Math.random()*100);
-      const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY });
+    return new Promise(r => {
+      const cb = "c"+Date.now();
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      window[cb] = (res) => { resolve(res); try{delete window[cb];s.remove();}catch(e){} };
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...data,userId:uid}))}&callback=${cb}`;
+      window[cb]=res=>{r(res);s.remove()};
       document.body.appendChild(s);
     });
   }
 
-  async function loadRoster() {
-    const y = selY.value;
-    const m = selM.value;
-    const days = new Date(y, m, 0).getDate();
+  async function load() {
+    const y=selY.value, m=selM.value;
+    const days = new Date(y,m,0).getDate();
     
-    let hHtml = '<th>員工</th>';
-    for(let d=1; d<=days; d++){
-      const week = new Date(y, m-1, d).getDay();
-      const isWk = (week===0||week===6);
-      hHtml += `<th class="${isWk?'weekend':''}">${d}<br><small>${['日','一','二','三','四','五','六'][week]}</small></th>`;
-    }
-    document.getElementById("tHead").innerHTML = hHtml;
-    document.getElementById("tBody").innerHTML = '<tr><td colspan="35">載入中...</td></tr>';
+    let h = "<th>員工</th>";
+    for(let d=1; d<=days; d++) h+=`<th>${d}</th>`;
+    document.getElementById("th").innerHTML = h;
+    document.getElementById("tb").innerHTML = "<tr><td colspan='32'>載入中...</td></tr>";
 
-    try {
-      const res = await api("get_roster_data", { year: y, month: m });
-      if(!res.ok) { alert(res.message); return; }
+    const res = await api("get_roster_data", {year:y, month:m});
+    if(!res.ok) return alert("失敗");
 
-      const tbody = document.getElementById("tBody");
-      tbody.innerHTML = "";
-      
-      const roster = res.roster || {}; 
-
-      res.employees.forEach(emp => {
-        const tr = document.createElement("tr");
-        let tds = `<td>${emp.name}</td>`;
+    let b = "";
+    res.employees.forEach(e => {
+      b += `<tr><td>${e.name}</td>`;
+      for(let d=1; d<=days; d++) {
+        const cell = (res.roster[e.id] && res.roster[e.id][d]) ? res.roster[e.id][d] : {};
+        const v = cell.value || 'OFF';
+        const cls = (v==='EARLY')?'bg-early':(v==='LATE'?'bg-late':'bg-off');
+        const txt = (v==='EARLY')?'早':(v==='LATE'?'午':'休');
         
-        for(let d=1; d<=days; d++){
-          const cell = (roster[emp.id] && roster[emp.id][d]) ? roster[emp.id][d] : {};
-          const val = cell.value || 'OFF';
-          let cls = 'bg-off';
-          if(val==='EARLY') cls = 'bg-early';
-          if(val==='LATE') cls = 'bg-late';
-          
-          tds += `
-            <td class="${cls}" id="cell_${emp.id}_${d}">
-              <select class="shift-sel" onchange="updateShift(this, '${emp.id}', '${emp.name}', ${d})">
-                <option value="OFF" ${val==='OFF'?'selected':''}>休</option>
-                <option value="EARLY" ${val==='EARLY'?'selected':''}>早</option>
-                <option value="LATE" ${val==='LATE'?'selected':''}>午</option>
-              </select>
-            </td>`;
+        // 這裡僅顯示，若要編輯需判斷權限
+        if(res.isManager) {
+           b += `<td class="${cls}"><select class="sel" onchange="save('${e.id}','${e.name}',${d},this.value)">
+             <option value="OFF" ${v==='OFF'?'selected':''}>休</option>
+             <option value="EARLY" ${v==='EARLY'?'selected':''}>早</option>
+             <option value="LATE" ${v==='LATE'?'selected':''}>午</option>
+           </select></td>`;
+        } else {
+           b += `<td class="${cls}">${txt}</td>`;
         }
-        tr.innerHTML = tds;
-        tbody.appendChild(tr);
-      });
-      
-    } catch(e){ alert("錯誤:"+e); }
-  }
-  
-  async function updateShift(el, empId, empName, day) {
-    const val = el.value;
-    const y = selY.value;
-    const m = selM.value;
-    const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const td = document.getElementById(`cell_${empId}_${day}`);
-    td.className = (val==='EARLY')?'bg-early':(val==='LATE'?'bg-late':'bg-off');
-    
-    try {
-      await api("update_schedule", { empId, empName, date: dateStr, shift: val });
-    } catch(e){ console.error(e); }
+      }
+      b += "</tr>";
+    });
+    document.getElementById("tb").innerHTML = b;
   }
 
-  loadRoster();
+  async function save(eid, ename, day, val) {
+    const dStr = `${selY.value}-${String(selM.value).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    await api("update_schedule", {empId:eid, empName:ename, date:dStr, shift:val});
+  }
+  load();
 </script>
 </body>
 </html>
