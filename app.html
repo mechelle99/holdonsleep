@@ -76,7 +76,7 @@
     
     <div id="areaLeave">
       <label class="label" style="margin-top:10px">假別</label>
-      <select id="lType">
+      <select id="lType" onchange="calcHours()">
         <option value="annual">特休</option>
         <option value="comp">補休</option>
         <option value="sick">病假</option>
@@ -93,12 +93,12 @@
     <div id="areaOuting" class="hidden">
       <label class="label" style="margin-top:10px">自動打卡設定 (核准後生效)</label>
       <select id="autoClock">
-        <option value="">不自動打卡</option>
+        <option value="">不自動打卡 (需手動打卡)</option>
         <option value="IN">自動打上班卡 (依開始時間)</option>
         <option value="OUT">自動打下班卡 (依結束時間)</option>
         <option value="BOTH">自動打上下班卡</option>
       </select>
-      <div style="font-size:12px;color:#666;margin-top:4px;">* 核准後系統將自動生成打卡紀錄，避免曠職。</div>
+      <div style="font-size:12px;color:#666;margin-top:4px;">* 若啟用，核准後系統將自動生成打卡紀錄，避免曠職。</div>
     </div>
 
     <label class="label" style="margin-top:10px">開始時間</label>
@@ -152,6 +152,12 @@
     init();
 
     function calcHours() {
+      const type = document.getElementById("lType").value;
+      const cat = document.getElementById("cat").value;
+      if (cat === 'LEAVE' && type === 'birthday') {
+         document.getElementById("calcResult").textContent = "🎂 生日假固定為 1 天 (8小時)";
+         return;
+      }
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
       if(s && e) {
@@ -162,31 +168,24 @@
         } else {
           document.getElementById("calcResult").textContent = "時間無效";
         }
+      } else {
+        document.getElementById("calcResult").textContent = "";
       }
     }
 
     async function clock(type){
       if(!confirm("確定要執行此操作嗎？")) return;
-      
       if (!navigator.geolocation) {
         alert("不支援定位");
         return;
       }
-
       document.getElementById("loading").style.display="flex";
-
       navigator.geolocation.getCurrentPosition(async pos => {
          try {
-           const r = await api(type, { 
-             lat: pos.coords.latitude, 
-             lng: pos.coords.longitude, 
-             accuracy: pos.coords.accuracy 
-           });
+           const r = await api(type, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
            alert(r.message);
            document.getElementById("clockMsg").innerText = `${r.message} @ ${r.time}`;
-         } catch(e) {
-           alert("打卡錯誤：" + e);
-         }
+         } catch(e) { alert("打卡錯誤：" + e); }
          document.getElementById("loading").style.display="none";
       }, (err) => {
          document.getElementById("loading").style.display="none";
@@ -213,7 +212,7 @@
         end: e,
         hours: hours,
         reason: document.getElementById("reason").value,
-        autoClock: (cat === 'OUTING') ? autoClockVal : "" // ★ 傳送自動打卡設定
+        autoClock: (cat === 'OUTING') ? autoClockVal : "" 
       });
       
       if(r.ok) { alert("✅ " + r.message); location.reload(); } 
@@ -223,12 +222,12 @@
     function toggle(){
       const v = document.getElementById("cat").value;
       document.getElementById("areaLeave").style.display = v==="LEAVE"?"block":"none";
-      // ★ 控制外出自動打卡選項的顯示
       if(v === "OUTING") {
          document.getElementById("areaOuting").style.display = "block";
       } else {
          document.getElementById("areaOuting").style.display = "none";
       }
+      calcHours();
     }
 
     function logout(){ localStorage.clear(); location.href="index.html"; }
