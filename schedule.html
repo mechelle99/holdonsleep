@@ -13,6 +13,7 @@
     <button onclick="location.href='app.html'">返回</button>
     <select id="y"></select><select id="m"></select>
     <button onclick="load()">刷</button>
+    <div id="hols" style="margin-top:5px;font-size:12px;color:blue"></div>
   </div>
   <div style="flex:1;overflow:auto;">
     <table id="tbl"><thead><tr id="th"></tr></thead><tbody id="tb"></tbody></table>
@@ -42,6 +43,7 @@
       
       const r = await api("get_roster_data",{year:y,month:m});
       if(r.ok){
+        document.getElementById("hols").innerText = `本月應休: ${r.holidayCount.total} 天 (週末:${r.holidayCount.weekends} + 國定:${r.holidayCount.national})`;
         let b="";
         r.employees.forEach(e=>{
           b+=`<tr><td>${e.name}</td>`;
@@ -64,7 +66,7 @@
     }
     async function save(eid,nm,d,v){
       await api("update_schedule",{empId:eid,empName:nm,date:`${yS.value}-${mS.value}-${d}`,shift:v});
-      load(); // 刷新變色
+      load();
     }
     load();
   </script>
