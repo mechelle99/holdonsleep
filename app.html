@@ -8,7 +8,6 @@
     :root{ --blue:#007aff; --bg:#f4f6f8; --card:#fff; }
     body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:100px;}
     
-    /* Reset iOS Input Styles */
     input, select, textarea {
       -webkit-appearance: none; appearance: none;
       background: #fff; border: 1px solid #ddd; border-radius: 8px;
@@ -29,10 +28,11 @@
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.85);display:none;justify-content:center;align-items:center;z-index:999;}
     
-    /* 搜尋區樣式 */
+    .balance-box { display: flex; gap: 10px; margin-top: 10px; }
+    .bal-item { flex: 1; background: #f0f7ff; padding: 10px; border-radius: 8px; text-align: center; }
+    .bal-num { font-size: 18px; font-weight: bold; color: var(--blue); }
+    
     .search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
-    .search-bar select { flex: 1; margin-top:0; }
-    .search-btn { background: var(--blue); color: #fff; border:0; border-radius:8px; padding:0 15px; font-weight:bold; cursor:pointer;}
     .rec-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; font-size: 15px; }
   </style>
 </head>
@@ -45,7 +45,19 @@
       <h2 style="margin:0;font-size:20px;" id="userName">載入中...</h2>
       <a href="javascript:logout()" style="color:#c00;font-size:14px;">登出</a>
     </div>
-    <div id="mgrBtn" class="hidden">
+    
+    <div class="balance-box">
+      <div class="bal-item">
+        <div style="font-size:12px;color:#666;">特休剩餘</div>
+        <div class="bal-num" id="balAnn">--</div>
+      </div>
+      <div class="bal-item">
+        <div style="font-size:12px;color:#666;">補休剩餘</div>
+        <div class="bal-num" id="balComp">--</div>
+      </div>
+    </div>
+
+    <div id="mgrBtn" class="hidden" style="margin-top:10px;">
       <button class="btn" style="background:#6f42c1;" onclick="location.href='manager.html'">👑 主管後台</button>
     </div>
     <div id="schBtn" class="hidden">
@@ -125,11 +137,9 @@
     <div class="search-bar">
       <select id="sYear"></select>
       <select id="sMonth"></select>
-      <button class="search-btn" onclick="searchClock()">搜尋</button>
+      <button class="btn" style="width:auto;margin:0;padding:0 15px;" onclick="searchClock()">搜尋</button>
     </div>
-    <div id="clockList" style="min-height:50px;">
-      <div style="color:#999;font-size:14px;text-align:center;padding:10px;">請點擊搜尋</div>
-    </div>
+    <div id="clockList" style="min-height:50px;"></div>
   </div>
 
   <script src="config.js"></script>
@@ -138,7 +148,7 @@
     if(!userId) location.href="index.html";
     document.getElementById("userName").textContent = localStorage.getItem("employeeName");
 
-    // 權限按鈕
+    // 權限顯示
     if(localStorage.getItem("isManager")==="Y") document.getElementById("mgrBtn").classList.remove("hidden");
     if(localStorage.getItem("canSchedule")==="Y" || localStorage.getItem("isManager")==="Y") document.getElementById("schBtn").classList.remove("hidden");
 
@@ -162,7 +172,17 @@
       });
     }
 
-    // UI 切換
+    async function init() {
+      // 取得餘額與紀錄
+      const res = await api("get_balances");
+      if(res.ok) {
+        document.getElementById("balAnn").textContent = res.annual.left + " 時";
+        document.getElementById("balComp").textContent = res.comp.left + " 時";
+      }
+      searchClock();
+    }
+    init();
+
     function uiChange() {
       const v = document.getElementById("cat").value;
       document.getElementById("areaLeave").style.display = (v==='LEAVE')?'block':'none';
@@ -170,12 +190,13 @@
       document.getElementById("areaCorrect").style.display = (v==='CORRECTION')?'block':'none';
     }
 
-    // 自動算時數
     function calc() {
-      const s = document.getElementById("start").value;
-      const e = document.getElementById("end").value;
-      if(s && e) {
-        const diff = (new Date(e) - new Date(s)) / 36e5;
+      const sVal = document.getElementById("start").value;
+      const eVal = document.getElementById("end").value;
+      if(sVal && eVal) {
+        const s = new Date(sVal);
+        const e = new Date(eVal);
+        const diff = (e - s) / 36e5; // 轉小時
         document.getElementById("hours").value = diff > 0 ? diff.toFixed(1) : 0;
       }
     }
@@ -187,7 +208,7 @@
         alert(res.message);
         if(res.ok) {
           document.getElementById("clockMsg").textContent = `最後: ${res.time}`;
-          searchClock(); // 重新搜尋
+          searchClock();
         }
       });
     }
@@ -208,11 +229,14 @@
         reason: document.getElementById("reason").value
       };
       
-      if(!data.start_ts || !data.end_ts) return alert("請填寫完整時間");
+      if(!data.start_ts || !data.end_ts) return alert("請填寫時間");
       
       const res = await api("submit_request", data);
       alert(res.message);
-      if(res.ok) { document.getElementById("reason").value=""; }
+      if(res.ok) { 
+        document.getElementById("reason").value=""; 
+        init(); // 重新整理餘額
+      }
     }
 
     async function searchClock() {
@@ -223,7 +247,7 @@
       if(res.ok && res.searchResult && res.searchResult.length > 0) {
         list.innerHTML = res.searchResult.map(r => `
           <div class="rec-item">
-            <span>${r.date} <span style="font-weight:bold;color:${r.type==='上班'?'#007aff':'#ff9500'}">${r.type}</span></span>
+            <span>${r.date} <span style="font-weight:bold;color:${r.type.includes('上班')?'#007aff':'#ff9500'}">${r.type}</span></span>
             <span>${r.time}</span>
           </div>
         `).join("");
@@ -231,9 +255,6 @@
         list.innerHTML = '<div style="text-align:center;padding:10px;color:#999;">該月無紀錄</div>';
       }
     }
-    
-    // 預設載入一次
-    searchClock();
     
     function logout(){ localStorage.clear(); location.href="index.html"; }
   </script>
