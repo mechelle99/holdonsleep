@@ -67,7 +67,11 @@
   function api(act, data={}){
     return new Promise((resolve, reject)=>{
       const cb = "cb"+Date.now();
-      const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
+      const payload = JSON.stringify({
+        ...data,
+        userId,
+        webhookKey: window.CONFIG?.WEBHOOK_KEY  // 新增這行
+        });
       const s = document.createElement("script");
       s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
       window[cb] = (res) => { resolve(res); document.body.removeChild(s); };
