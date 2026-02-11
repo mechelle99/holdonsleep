@@ -78,7 +78,6 @@
 
   async function loadData(){
     try {
-      // 1. 載入待審核
       const pRes = await api("get_pending");
       const pDiv = document.getElementById("pendingList");
       pDiv.innerHTML = "";
@@ -88,11 +87,9 @@
           const div = document.createElement("div");
           div.className = "req-item";
           
-          // ★ 修正：全部改用小寫欄位名稱 (empname, reqid, leavetype)
-          const name = r.empname || r.empName || "未知";
-          const reqId = r.reqid || r.reqId;
-          const cat = r.category; 
-          const type = r.leavetype || r.leaveType || "";
+          // ★ 使用後端已修復的 CamelCase 變數
+          const name = r.empName || r.empname || "未知";
+          const reqId = r.reqId || r.reqid;
           
           // 假別中文對照
           const typeMap = {
@@ -100,10 +97,9 @@
             'menstrual':'生理假', 'family':'家庭照顧假', 'wedding':'婚假',
             'funeral':'喪假', 'maternity':'產假', 'birthday':'生日假'
           };
-          const typeStr = typeMap[type] || type;
-          const catStr = (cat==='OT')?'加班':(cat==='OUTING'?'外出':'請假');
+          const typeStr = typeMap[r.leaveType || r.leavetype] || r.leaveType;
+          const catStr = (r.category==='OT')?'加班':(r.category==='OUTING'?'外出':'請假');
 
-          // 時間格式優化
           const start = r.start ? r.start.substring(0,16).replace('T',' ') : '';
           const end = r.end ? r.end.substring(0,16).replace('T',' ') : '';
 
@@ -126,7 +122,6 @@
         pDiv.innerHTML = '<div style="padding:10px;color:#999">目前沒有待審核項目</div>';
       }
 
-      // 2. 載入團隊報表
       const sRes = await api("get_team_stats");
       const tbody = document.querySelector("#statsTable tbody");
       tbody.innerHTML = "";
@@ -134,7 +129,6 @@
       if(sRes.ok && sRes.list) {
         sRes.list.forEach(e => {
           const tr = document.createElement("tr");
-          // 防呆：如果數值不存在顯示 0
           const ann = e.annual ? e.annual.left : 0;
           const comp = e.comp ? e.comp.left : 0;
           
@@ -153,10 +147,14 @@
   }
 
   async function decide(reqId, decision) {
+    if(!reqId || reqId === 'undefined') {
+        alert("錯誤：無法取得申請單編號 (reqId is undefined)");
+        return;
+    }
     if(!confirm(decision==='APPROVED'?"確定核准？":"確定駁回？")) return;
     const res = await api("review_request", { data: { reqId, decision } });
     alert(res.message);
-    loadData(); // 重新載入
+    loadData();
   }
 
   loadData();
