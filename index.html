@@ -7,8 +7,8 @@
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;padding:24px;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
     .card{width:100%;max-width:360px;background:#fff;padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
-    input{width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:8px;box-sizing:border-box}
-    button{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:10px}
+    input{width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;font-size:16px;}
+    button{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:10px;font-size:16px;}
     .link{text-align:center;margin-top:16px;font-size:13px}
     .link a{color:#666;text-decoration:none;border-bottom:1px dotted #999}
     .hidden{display:none}
@@ -16,7 +16,7 @@
 </head>
 <body>
   <div class="card" id="loginCard">
-    <h2 style="margin-top:0">HOLDON 登入</h2>
+    <h2 style="margin-top:0;text-align:center;">HOLDON 登入</h2>
     <input id="empId" placeholder="員工編號 (例如 M001)" />
     <input id="pass" type="password" placeholder="密碼" />
     <button onclick="login()">登入</button>
@@ -24,7 +24,6 @@
     <div class="link">
       <a href="javascript:showForgot()">忘記密碼？</a>
     </div>
-    <div id="msg" style="color:red;font-size:12px;margin-top:10px"></div>
   </div>
 
   <div class="card hidden" id="forgotCard">
@@ -37,7 +36,7 @@
 
   <div class="card hidden" id="resetCard">
     <h2 style="margin-top:0">設定新密碼</h2>
-    <input id="r_token" placeholder="請輸入 Email 收到的驗證碼" />
+    <input id="r_token" placeholder="驗證碼" />
     <input id="r_p1" type="password" placeholder="新密碼" />
     <button onclick="doReset()">確認重設</button>
     <div class="link"><a href="javascript:showLogin()">取消</a></div>
@@ -80,8 +79,10 @@
     }
 
     async function login(){
-       const empId = document.getElementById("empId").value;
-       const pass = document.getElementById("pass").value;
+       const empId = document.getElementById("empId").value.trim();
+       const pass = document.getElementById("pass").value.trim();
+       if(!empId || !pass) return alert("請輸入帳號密碼");
+
        try {
          const res = await jsonpCall("login", { empId, pass });
          if(res.ok){
@@ -89,11 +90,13 @@
              localStorage.setItem("employeeName", res.name);
              localStorage.setItem("isManager", res.isManager ? "Y":"N");
              localStorage.setItem("canSchedule", res.canSchedule ? "Y":"N");
-             location.href = res.isManager ? "manager.html" : "app.html";
+             
+             // ★★★ 關鍵修正：無論是否為主管，一律先去打卡頁 ★★★
+             location.href = "app.html";
          } else {
              alert(res.message);
          }
-       } catch(e){ alert(e); }
+       } catch(e){ alert("登入失敗：" + e); }
     }
 
     async function sendForgot(){
@@ -103,7 +106,7 @@
             const res = await jsonpCall("forgot_password", { empId });
             if(res.ok) {
                 alert(res.message);
-                showReset(); // 跳轉到輸入驗證碼
+                showReset(); 
             } else {
                 alert(res.message);
             }
