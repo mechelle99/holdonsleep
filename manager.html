@@ -14,16 +14,16 @@
     /* 統計 Grid */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
     .stat-card { background: var(--card); padding: 16px; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
-    .stat-name { font-weight: 700; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+    .stat-name { font-weight: 700; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .stat-row { display: flex; justify-content: space-between; font-size: 12px; color: #6B7280; margin-top: 4px; }
     .stat-val { font-weight: 700; color: var(--primary); }
 
     /* 待審卡片 */
     .req-card { background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-    .req-info { display: flex; flex-direction: column; gap: 4px; }
-    .req-title { font-weight: 700; font-size: 15px; }
+    .req-info { display: flex; flex-direction: column; gap: 4px; max-width: 70%; }
+    .req-title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+    .req-tag { background: #EEF2FF; color: var(--primary); padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .req-sub { font-size: 12px; color: #6B7280; }
-    .req-tag { background: #EEF2FF; color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px; }
 
     .actions { display: flex; gap: 8px; }
     .btn-act { width: 36px; height: 36px; border-radius: 50%; border: none; color: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
@@ -33,7 +33,7 @@
 
     .btn-approve-all { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; float: right; cursor: pointer; }
 
-    /* 導航 (同上) */
+    /* 底部導航 */
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); }
@@ -44,18 +44,21 @@
 
   <h2>👨‍💼 主管專區</h2>
 
-  <h3>團隊餘額</h3>
+  <h3>團隊餘額概況</h3>
   <div id="teamStats" class="stat-grid">載入中...</div>
 
-  <h3>待審核 <button class="btn-approve-all" onclick="approveAll()">一鍵全准</button></h3>
+  <h3>
+    待審核申請 
+    <button class="btn-approve-all" onclick="approveAll()">一鍵全准</button>
+  </h3>
   <div id="pendingList">載入中...</div>
 
   <nav class="nav">
-    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
-    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
-    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
-    <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span>排班</a>
-    <a href="manager.html" class="nav-item active"><span class="nav-icon">👑</span>主管</a>
+    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span><span>首頁</span></a>
+    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span><span>申請</span></a>
+    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span><span>紀錄</span></a>
+    <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span><span>排班</span></a>
+    <a href="manager.html" class="nav-item active"><span class="nav-icon">👑</span><span>主管</span></a>
   </nav>
 
 <script src="config.js"></script>
@@ -72,31 +75,58 @@
   }
 
   async function load() {
+    // 1. 載入團隊餘額
     const stats = await api("get_team_stats");
+    const sDiv = document.getElementById("teamStats");
+    
     if(stats.ok) {
         let h = "";
         stats.list.forEach(d => {
+            // 防呆：如果沒名字，顯示 ID
+            const name = (d.name && d.name !== 'undefined') ? d.name : d.id;
             h += `<div class="stat-card">
-              <div class="stat-name">${d.name}</div>
+              <div class="stat-name">${name}</div>
               <div class="stat-row"><span>特休</span><span class="stat-val">${d.annual}</span></div>
               <div class="stat-row"><span>補休</span><span class="stat-val">${d.comp}</span></div>
             </div>`;
         });
-        document.getElementById("teamStats").innerHTML = h;
+        sDiv.innerHTML = h || "<div style='grid-column:1/-1;text-align:center;color:#999'>無員工資料</div>";
+    } else {
+        sDiv.innerHTML = "讀取失敗";
     }
 
+    // 2. 載入待審核名單 (含中文轉換)
     const pend = await api("get_pending");
+    const pDiv = document.getElementById("pendingList");
+    
     if(pend.ok && pend.list.length > 0) {
         let h = "";
+        
+        // 假別對照表
+        const typeMap = {
+            'annual': '特休', 'sick': '病假', 'personal': '事假', 'comp': '補休',
+            'official': '公假', 'marriage': '婚假', 'bereavement': '喪假',
+            'menstrual': '生理假', 'maternity': '產假', 'prenatal': '產檢假',
+            'paternity': '陪產假', 'miscarriage': '流產假', 'injury': '公傷病假',
+            'family': '家庭照顧假', 'epidemic': '防疫照顧假', 'birthday': '生日假'
+        };
+
         pend.list.forEach(r => {
-            let label = r.leaveType;
-            if(r.category==='CORRECTION') label="補卡";
-            
+            // 轉換類別與假別
+            let displayType = typeMap[r.leaveType] || r.leaveType;
+            if(r.category === 'CORRECTION') displayType = "補卡";
+            if(r.category === 'OT') displayType = "加班";
+            if(r.category === 'OUTING') displayType = "外出";
+
+            // 時間格式處理
+            const dateStr = r.start.split('T')[0];
+            const hoursInfo = (r.category !== 'CORRECTION' && r.hours > 0) ? ` • ${r.hours}小時` : '';
+
             h += `<div class="req-card" id="c-${r.reqId}">
               <div class="req-info">
-                <div class="req-title">${r.reqId} <span class="req-tag">${label}</span></div>
-                <div class="req-sub">${r.start.split('T')[0]} • ${r.hours}h</div>
-                <div class="req-sub">${r.reason||'無事由'}</div>
+                <div class="req-title">${r.reqId} <span class="req-tag">${displayType}</span></div>
+                <div class="req-sub">${dateStr} ${hoursInfo}</div>
+                <div class="req-sub" style="color:#4B5563;">${r.reason || '無事由'}</div>
               </div>
               <div class="actions">
                 <button class="btn-act btn-ok" onclick="review('${r.reqId}','APPROVED')">✔</button>
@@ -104,24 +134,33 @@
               </div>
             </div>`;
         });
-        document.getElementById("pendingList").innerHTML = h;
+        pDiv.innerHTML = h;
     } else {
-        document.getElementById("pendingList").innerHTML = "<div style='text-align:center;color:#999'>無待審核</div>";
+        pDiv.innerHTML = "<div style='text-align:center;color:#999;padding:20px'>目前無待審核項目</div>";
     }
   }
 
   async function review(rid, dec) {
-      if(!confirm("確定嗎？")) return;
+      if(!confirm(dec==='APPROVED' ? "確定核准？" : "確定駁回？")) return;
       await api("review_request", {reqId:rid, decision:dec});
-      document.getElementById(`c-${rid}`).remove();
+      // 移除該卡片
+      const card = document.getElementById(`c-${rid}`);
+      if(card) card.remove();
+      
+      // 如果清空了，顯示無資料
+      if(document.querySelectorAll('.req-card').length === 0) {
+          document.getElementById("pendingList").innerHTML = "<div style='text-align:center;color:#999;padding:20px'>目前無待審核項目</div>";
+      }
   }
 
   async function approveAll() {
-      if(!confirm("確定全部核准？")) return;
+      if(!confirm("確定全部核准本月申請？")) return;
       const now = new Date();
       await api("approve_month_all", {year:now.getFullYear(), month:now.getMonth()+1});
-      alert("完成"); location.reload();
+      alert("批次審核完成"); 
+      location.reload();
   }
+
   load();
 </script>
 </body>
