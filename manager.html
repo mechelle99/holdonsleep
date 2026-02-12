@@ -2,146 +2,133 @@
 <html lang="zh-TW">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>主管管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>主管專區</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f4f8; margin: 0; padding: 20px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    button { padding: 8px 16px; background: #111; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    /* 引用 root 變數 */
+    :root { --primary: #2563eb; --bg: #f3f4f6; --surface: #ffffff; --text: #1f2937; }
+    body { font-family: -apple-system, sans-serif; background: var(--bg); padding: 20px 20px 100px 20px; color: var(--text); }
     
-    h3 { color: #333; border-left: 5px solid #007aff; padding-left: 10px; margin-top: 30px; margin-bottom: 15px; }
+    .header { margin-bottom: 20px; }
+    h2 { margin: 0; font-size: 24px; }
+    h3 { margin-top: 30px; margin-bottom: 15px; border-left: 4px solid var(--primary); padding-left: 10px; }
 
-    /* ★ 修復重點：團隊統計改用 Grid 網格，避免跑版 */
-    .stats-grid { 
-        display: grid; 
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); 
-        gap: 15px; 
-    }
-    .stat-card { 
-        background: white; 
-        padding: 15px; 
-        border-radius: 12px; 
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
-        text-align: center; 
-        border: 1px solid #eee;
-    }
-    .stat-name { font-weight: bold; font-size: 16px; margin-bottom: 10px; color: #333; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; }
-    .stat-row { font-size: 13px; color: #666; display: flex; justify-content: space-between; margin-top: 5px; }
-    .stat-val { font-weight: bold; color: #007aff; }
+    /* 統計卡片 */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .stat-card { background: var(--surface); padding: 16px; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
+    .stat-name { font-weight: 700; margin-bottom: 8px; font-size: 16px; }
+    .stat-row { font-size: 13px; color: #6b7280; display: flex; justify-content: space-between; margin-top: 4px; }
+    .stat-val { font-weight: 700; color: var(--primary); }
 
-    /* 待審核列表 */
-    .req-card { 
-        background: white; 
-        padding: 15px; 
-        border-radius: 12px; 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: center; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
-        margin-bottom: 10px;
-    }
+    /* 待審列表 */
+    .req-card { background: var(--surface); padding: 16px; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
     .req-info div { margin-bottom: 4px; font-size: 14px; }
-    .req-tag { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-    .req-actions { display: flex; gap: 8px; }
-    .btn-ok { background: #34c759; padding: 6px 12px; font-size: 13px; }
-    .btn-no { background: #ff3b30; padding: 6px 12px; font-size: 13px; }
+    .req-tag { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    
+    .btn-action { padding: 8px 16px; border-radius: 8px; border: none; color: white; font-weight: 600; cursor: pointer; margin-left: 5px; }
+    .btn-approve { background: #10b981; }
+    .btn-reject { background: #ef4444; }
+    .btn-all { background: var(--primary); color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 12px; float: right; cursor: pointer; }
+
+    /* 底部導航 (同上) */
+    .bottom-nav { position: fixed; bottom: 20px; left: 20px; right: 20px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: 24px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 100; border: 1px solid rgba(255,255,255,0.5); }
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #9ca3af; text-decoration: none; font-size: 10px; font-weight: 600; }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 20px; }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <h2>👨‍💼 主管專區</h2>
-  <button onclick="location.href='app.html'">返回</button>
-</div>
+<div class="header"><h2>👨‍💼 主管專區</h2></div>
 
-<h3>📊 團隊餘額</h3>
+<h3>📊 團隊餘額概況</h3>
 <div id="teamStats" class="stats-grid">載入中...</div>
 
 <h3>
-  📝 待審核
-  <button onclick="approveAll()" style="font-size:12px; background:#007aff; margin-left:10px;">一鍵全准</button>
+  📝 待審核申請
+  <button class="btn-all" onclick="approveAll()">一鍵全准</button>
 </h3>
 <div id="pendingList">載入中...</div>
+
+<nav class="bottom-nav">
+  <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span><span>首頁</span></a>
+  <a href="request.html" class="nav-item"><span class="nav-icon">📝</span><span>申請</span></a>
+  <a href="history.html" class="nav-item"><span class="nav-icon">📋</span><span>紀錄</span></a>
+  <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span><span>排班</span></a>
+  <a href="manager.html" class="nav-item active"><span class="nav-icon">👑</span><span>主管</span></a>
+</nav>
 
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
 
-  function api(action, payload={}) {
-    return new Promise(resolve => {
+  function api(act, d={}) {
+    return new Promise(r => {
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${action}&payload=${encodeURIComponent(JSON.stringify({...payload, userId:uid}))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { resolve(res); s.remove(); };
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
       document.body.appendChild(s);
     });
   }
 
-  async function loadData() {
-    // 1. 團隊統計 (修復 undefined)
+  async function load() {
+    // 統計
     const stats = await api("get_team_stats");
-    const statsDiv = document.getElementById("teamStats");
-    
-    if(stats && stats.ok && stats.list) {
-        let html = "";
+    const sDiv = document.getElementById("teamStats");
+    if(stats.ok) {
+        let h = "";
         stats.list.forEach(d => {
-            // ★ 強力防呆：如果名字是 undefined，顯示 '未知' 或 ID
-            const safeName = (d.name && d.name !== 'undefined') ? d.name : '未知員工';
-            html += `
-            <div class="stat-card">
-              <div class="stat-name">${safeName}</div>
-              <div class="stat-row"><span>特休</span> <span class="stat-val">${d.annual}</span></div>
-              <div class="stat-row"><span>補休</span> <span class="stat-val">${d.comp}</span></div>
+            h += `<div class="stat-card">
+              <div class="stat-name">${d.name||'ID:'+d.id}</div>
+              <div class="stat-row"><span>特休</span><span class="stat-val">${d.annual}</span></div>
+              <div class="stat-row"><span>補休</span><span class="stat-val">${d.comp}</span></div>
             </div>`;
         });
-        statsDiv.innerHTML = html || "<div style='grid-column:1/-1;text-align:center'>無資料</div>";
-    } else {
-        statsDiv.innerHTML = "讀取失敗";
+        sDiv.innerHTML = h;
     }
 
-    // 2. 待審核
-    const pending = await api("get_pending");
-    const listDiv = document.getElementById("pendingList");
-    if(pending && pending.ok && pending.list) {
-        let html = "";
-        pending.list.forEach(r => {
-            let label = r.leaveType;
-            if(r.category === 'CORRECTION') label = "補卡 (" + r.leaveType + ")";
-            else if(r.category === 'OT') label = "加班";
+    // 待審
+    const pend = await api("get_pending");
+    const pDiv = document.getElementById("pendingList");
+    if(pend.ok && pend.list.length > 0) {
+        let h = "";
+        pend.list.forEach(r => {
+            let type = r.leaveType;
+            if(r.category==='CORRECTION') type="補卡";
+            if(r.category==='OT') type="加班";
             
-            html += `
-            <div class="req-card" id="card-${r.reqId}">
+            h += `<div class="req-card" id="c-${r.reqId}">
               <div class="req-info">
-                <div style="font-weight:bold">${r.reqId} <span class="req-tag">${label}</span></div>
-                <div>${r.start.split('T')[0]} ${r.category!=='CORRECTION' ? '('+r.hours+'h)' : ''}</div>
+                <div style="font-weight:700">${r.reqId} <span class="req-tag">${type}</span></div>
+                <div>${r.start.split('T')[0]} ${r.category!=='CORRECTION'?'('+r.hours+'h)':''}</div>
                 <div style="color:#666;font-size:12px">${r.reason||'無事由'}</div>
               </div>
-              <div class="req-actions">
-                <button class="btn-ok" onclick="review('${r.reqId}', 'APPROVED')">准</button>
-                <button class="btn-no" onclick="review('${r.reqId}', 'REJECTED')">駁</button>
+              <div>
+                <button class="btn-action btn-approve" onclick="review('${r.reqId}','APPROVED')">准</button>
+                <button class="btn-action btn-reject" onclick="review('${r.reqId}','REJECTED')">駁</button>
               </div>
             </div>`;
         });
-        listDiv.innerHTML = html || "<div style='text-align:center;padding:20px;color:#999'>目前無待審核項目</div>";
+        pDiv.innerHTML = h;
+    } else {
+        pDiv.innerHTML = "<div style='text-align:center;color:#999;padding:20px'>無待審核項目</div>";
     }
   }
 
-  async function review(reqId, decision) {
-      if(!confirm(decision==='APPROVED'?"確定核准？":"確定駁回？")) return;
-      await api("review_request", { reqId, decision });
-      // 移除該卡片
-      const card = document.getElementById(`card-${reqId}`);
-      if(card) card.remove();
+  async function review(rid, dec) {
+      if(!confirm("確定嗎？")) return;
+      await api("review_request", {reqId:rid, decision:dec});
+      document.getElementById(`c-${rid}`).remove();
   }
 
   async function approveAll() {
-      if(!confirm("確定全部核准本月申請？")) return;
+      if(!confirm("確定全部核准？")) return;
       const now = new Date();
-      await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
-      alert("處理完成，請重新整理");
-      location.reload();
+      await api("approve_month_all", {year:now.getFullYear(), month:now.getMonth()+1});
+      alert("完成"); location.reload();
   }
 
-  loadData();
+  load();
 </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9cca92f09bbd8f07',t:'MTc3MDg4MzQ1Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
