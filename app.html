@@ -1,264 +1,258 @@
-<!doctype html>
-<html lang="zh-Hant">
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>HOLDON</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>員工系統</title>
   <style>
-    :root{ --blue:#007aff; --bg:#f4f6f8; --card:#fff; }
-    body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:100px;}
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; margin: 0; padding: 20px; }
     
-    input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px; box-sizing: border-box; font-size:16px; -webkit-appearance:none; background:#fff;}
-    .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:16px;}
-    
-    .btn{width:100%;padding:12px;border:none;border-radius:8px;font-weight:bold;color:#fff;cursor:pointer;margin-top:10px;font-size:16px;}
-    .btn-in{background:var(--blue);} .btn-out{background:#ff9500;} .btn-gray{background:#555;}
-    
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    .bal-box{display:flex;gap:10px;}
-    .bal-item{flex:1;background:#f0f7ff;padding:8px;border-radius:8px;text-align:center;}
-    
-    /* 紀錄卡片 */
-    .rec-card { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
-    .rec-date { font-weight: bold; font-size: 15px; width: 60px; }
-    .rec-shift { font-size: 12px; color: #666; width: 40px; text-align: center; background: #eee; border-radius: 4px; padding: 2px 0; }
-    .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; color:#333; }
-    .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 50px; text-align: center; }
-    
-    .st-ok { background: #34c759; } /* 正常 */
-    .st-late { background: #ffcc00; color: #333; } /* 遲到/早退 */
-    .st-miss { background: #ff3b30; } /* 缺卡/曠職 */
-    .st-abn { background: #5856d6; } /* 異常(超時) */
-    .st-off { background: #ccc; color: #fff; } /* 休假 */
-    .st-leave { background: #007aff; } /* 請假 */
+    /* 卡片通用樣式 */
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .card h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
 
-    .hidden { display: none; }
-    #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
+    /* 打卡區 */
+    .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    button.clock-btn { padding: 15px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; transition: opacity 0.2s; }
+    .btn-in { background: #34c759; }
+    .btn-out { background: #ff9500; }
+    .btn-outing { background: #5856d6; grid-column: span 2; } /* 外出 */
+    
+    /* 申請表單 */
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 14px; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    .btn-submit { width: 100%; background: #007aff; color: white; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+
+    /* 功能選單 */
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .menu-btn { padding: 12px; background: #fff; border: 1px solid #ddd; border-radius: 8px; text-align: center; color: #333; font-size: 14px; cursor: pointer; text-decoration: none; display: block; }
+    .menu-btn:hover { background: #f0f0f0; }
+
+    /* 歡迎詞 */
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .user-info { font-size: 18px; font-weight: bold; }
+    .logout { font-size: 14px; color: #ff3b30; cursor: pointer; }
   </style>
 </head>
 <body>
-  <div id="loading">處理中...</div>
-  
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
-      <h2 style="margin:0;font-size:18px;" id="uName">...</h2>
-      <a href="javascript:logout()" style="color:#c00;font-size:14px;">登出</a>
-    </div>
-    <div class="bal-box">
-      <div class="bal-item"><small>特休剩餘</small><div style="font-size:18px;color:var(--blue);font-weight:bold;" id="bAnn">--</div></div>
-      <div class="bal-item"><small>補休剩餘</small><div style="font-size:18px;color:var(--blue);font-weight:bold;" id="bComp">--</div></div>
-    </div>
-    <div id="admBtns" style="margin-top:10px;" class="hidden">
-      <button class="btn" style="width:auto;background:#6f42c1;padding:8px 15px;" onclick="location.href='manager.html'">👑 主管</button>
-      <button class="btn" style="width:auto;background:#17a2b8;padding:8px 15px;" onclick="location.href='schedule.html'">📅 排班</button>
-    </div>
-  </div>
 
-  <div class="card">
-    <h3 style="margin:0 0 10px">📍 打卡</h3>
-    <div class="grid">
-      <button class="btn btn-in" onclick="clock('clock_in')">上班</button>
-      <button class="btn btn-out" onclick="clock('clock_out')">下班</button>
-    </div>
-    <div id="cMsg" style="text-align:center;margin-top:8px;font-size:13px;color:var(--blue);"></div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin:0">📝 申請</h3>
-    <label>類型</label>
-    <select id="cat" onchange="uiChange()">
-      <option value="LEAVE">請假</option><option value="OT">加班</option>
-      <option value="OUTING">外出公務</option><option value="CORRECTION">補卡</option>
-    </select>
-    <div id="areaLeave">
-      <label>假別</label>
-      <select id="lType">
-        <option value="annual">特休</option><option value="sick">病假</option><option value="personal">事假</option>
-        <option value="menstrual">生理假</option><option value="family">家庭照顧假</option>
-        <option value="comp">補休</option><option value="birthday">生日假</option>
-        <option value="checkup">產檢假</option><option value="paternity">陪產假</option>
-        <option value="maternity">產假</option><option value="wedding">婚假</option>
-        <option value="funeral">喪假</option><option value="injury">公傷病假</option>
-      </select>
-    </div>
-    <div id="areaOut" class="hidden"><label>自動打卡</label><select id="autoClock"><option value="">手動</option><option value="OUT">自動外出(上班)</option><option value="BOTH">自動往返</option></select></div>
-    <div class="grid">
-      <div><label>開始</label><input type="datetime-local" id="start" onchange="calc()"></div>
-      <div><label>結束</label><input type="datetime-local" id="end" onchange="calc()"></div>
-    </div>
-    <label>時數 (自動)</label><input id="hrs" readonly style="background:#eee">
-    <label>事由</label><textarea id="reason" rows="1"></textarea>
-    <button class="btn btn-gray" onclick="submit()">送出</button>
-    <button class="btn" style="background:#fff;color:#007aff;border:1px solid #007aff;margin-top:10px;" onclick="location.href='history.html'">📜 歷史紀錄</button>
-  </div>
-
-  <div class="card">
-  <button class="btn" style="width:100%;background:#333;color:#fff;" onclick="location.href='attendance.html'">
-    📅 查看詳細出勤紀錄
-  </button>
+<div class="header">
+  <div class="user-info">Hi, <span id="userName">...</span></div>
+  <div class="logout" onclick="logout()">登出</div>
 </div>
 
-  <script src="config.js"></script>
-  <script>
-    const uid=localStorage.getItem("employeeId");
-    if(!uid) location.href="index.html";
-    document.getElementById("uName").textContent = localStorage.getItem("employeeName");
+<div class="card">
+  <h3>🕒 打卡作業</h3>
+  <div class="clock-grid">
+    <button class="clock-btn btn-in" onclick="clock('clock_in')">上班打卡</button>
+    <button class="clock-btn btn-out" onclick="clock('clock_out')">下班打卡</button>
+    <button class="clock-btn btn-outing" onclick="clock('outing_clock_in')">📍 外出打卡</button>
+  </div>
+  <div id="gpsStatus" style="font-size:12px; color:#999; text-align:center;">定位中...</div>
+</div>
+
+<div class="card">
+  <h3>📝 提出申請</h3>
+  
+  <div class="form-group">
+    <label>申請類別</label>
+    <select id="category" onchange="updateFormUI()">
+      <option value="LEAVE">請假申請</option>
+      <option value="OT">加班申請</option>
+      <option value="CORRECTION">補卡申請</option>
+    </select>
+  </div>
+
+  <div class="form-group" id="typeGroup">
+    <label>假別</label>
+    <select id="leaveType">
+      <option value="annual">特休</option>
+      <option value="personal">事假</option>
+      <option value="sick">病假</option>
+      <option value="comp">補休</option>
+      <option value="official">公假</option>
+      <option value="maternity">產假/陪產假</option>
+      <option value="bereavement">喪假</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label id="startLabel">開始時間</label>
+    <input type="datetime-local" id="start">
+  </div>
+
+  <div class="form-group" id="endGroup">
+    <label>結束時間</label>
+    <input type="datetime-local" id="end" onchange="calcHours()">
+  </div>
+
+  <div class="form-group" id="hoursGroup">
+    <label>時數</label>
+    <input type="number" id="hours" step="0.5" placeholder="自動計算">
+  </div>
+
+  <div class="form-group">
+    <label>事由</label>
+    <textarea id="reason" rows="2" placeholder="請輸入說明..."></textarea>
+  </div>
+
+  <button class="btn-submit" onclick="submitRequest()">送出申請</button>
+</div>
+
+<div class="menu-grid">
+  <a href="attendance.html" class="menu-btn">📅 出勤紀錄</a>
+  <a href="roster.html" class="menu-btn">📊 團隊排班</a>
+  <a href="manager.html" class="menu-btn" id="mgrBtn" style="display:none; color:#007aff; font-weight:bold;">👨‍💼 主管專區</a>
+</div>
+
+<script src="config.js"></script>
+<script>
+  // 初始化檢查
+  const uid = localStorage.getItem("employeeId");
+  const uname = localStorage.getItem("employeeName");
+  const isMgr = localStorage.getItem("isManager") === "true";
+
+  if (!uid) { location.href = "index.html"; }
+  document.getElementById("userName").innerText = uname || uid;
+  if (isMgr) document.getElementById("mgrBtn").style.display = "block";
+
+  // GPS 變數
+  let currentLat = "", currentLng = "";
+
+  // 啟動 GPS
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      currentLat = pos.coords.latitude;
+      currentLng = pos.coords.longitude;
+      document.getElementById("gpsStatus").innerText = "✅ GPS 已定位";
+    },
+    (err) => {
+      document.getElementById("gpsStatus").innerText = "⚠️ 無法定位 (請允許權限)";
+    },
+    { enableHighAccuracy: true }
+  );
+
+  // API 呼叫工具
+  function api(action, payload={}) {
+    return new Promise(resolve => {
+      const s = document.createElement("script");
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${action}&payload=${encodeURIComponent(JSON.stringify({...payload, userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { resolve(res); s.remove(); };
+      document.body.appendChild(s);
+    });
+  }
+
+  // --- 打卡功能 ---
+  async function clock(type) {
+    if (!currentLat) { alert("請等待 GPS 定位完成"); return; }
     
-    // 嚴格權限顯示
-    if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").classList.remove("hidden");
-    else if(localStorage.getItem("canSchedule")==='Y') document.getElementById("admBtns").classList.remove("hidden");
+    const btn = event.target;
+    const originalText = btn.innerText;
+    btn.innerText = "處理中...";
+    btn.disabled = true;
 
-    const now=new Date();
-    const yS=document.getElementById("y"), mS=document.getElementById("m");
-    for(let i=now.getFullYear();i>=2024;i--) yS.add(new Option(i,i));
-    for(let i=1;i<=12;i++) mS.add(new Option(i,i,i===now.getMonth()+1,i===now.getMonth()+1));
+    const res = await api(type, { lat: currentLat, lng: currentLng });
+    alert(res.message);
+    
+    btn.innerText = originalText;
+    btn.disabled = false;
+  }
 
-    function api(a,d={}){
-      document.getElementById("loading").style.display="flex";
-      return new Promise(r=>{
-        const s=document.createElement("script");
-        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid,webhookKey:window.CONFIG.WEBHOOK_KEY}))}&callback=cb${Date.now()}`;
-        window[`cb${Date.now()}`]=(res)=>{r(res);s.remove();document.getElementById("loading").style.display="none"};
-        document.body.appendChild(s);
-      });
-    }
+  // --- 申請表單 UI 連動 (關鍵修復：補卡隱藏欄位) ---
+  function updateFormUI() {
+      const cat = document.getElementById("category").value;
+      const typeGroup = document.getElementById("typeGroup");
+      const typeSel = document.getElementById("leaveType");
+      const endGroup = document.getElementById("endGroup");
+      const hoursGroup = document.getElementById("hoursGroup");
+      const startLabel = document.getElementById("startLabel");
 
-    async function init(){
-      const r = await api("get_balances");
-      if(r.ok) {
-        document.getElementById("bAnn").textContent = r.annual.left;
-        document.getElementById("bComp").textContent = r.comp.left;
-      }
-      search();
-    }
-    init();
-
-    function uiChange(){
-      const v = document.getElementById("cat").value;
-      document.getElementById("areaLeave").style.display = (v==='LEAVE')?'block':'none';
-      document.getElementById("areaOut").style.display = (v==='OUTING')?'block':'none';
-    }
-    function calc(){
-      const sVal = document.getElementById("start").value;
-      const eVal = document.getElementById("end").value;
-      if(sVal && eVal) {
-        const s = new Date(sVal), e = new Date(eVal);
-        if(e <= s) { 
-           alert("結束時間不能早於開始時間"); 
-           document.getElementById("end").value = "";
-           document.getElementById("hrs").value = "";
-           return;
-        }
-        document.getElementById("hrs").value = ((e-s)/36e5).toFixed(1);
-      }
-    }
-    async function clock(t){
-      navigator.geolocation.getCurrentPosition(async p => {
-        const r = await api(t, {lat:p.coords.latitude, lng:p.coords.longitude});
-        alert(r.message); if(r.ok) search();
-      }, ()=>alert("無定位"));
-    }
-    async function submit(){
-      const d = {
-        category: document.getElementById("cat").value,
-        leaveType: document.getElementById("lType").value,
-        autoClock: document.getElementById("autoClock").value,
-        start_ts: document.getElementById("start").value,
-        end_ts: document.getElementById("end").value,
-        hours: document.getElementById("hrs").value,
-        reason: document.getElementById("reason").value
-      };
-      if(!d.start_ts) return alert("請填時間");
-      const r = await api("submit_request", d);
-      alert(r.message); if(r.ok) init();
-    }
-
-    async function search(){
-      const r = await api("get_dashboard", {year:yS.value, month:mS.value});
-      const d = document.getElementById("resList");
-      d.innerHTML = "";
-      
-      if(r.ok && r.schedule) {
-        const days = new Date(yS.value, mS.value, 0).getDate();
-        const map = {}; 
-        
-        // 1. 初始化 (不在班表=預設早班)
-        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
-        
-        // 2. 填入打卡
-        r.clocks.forEach(c => {
-          const parts = c.date.split('-');
-          const day = parseInt(parts[2]);
-          if(map[day]) {
-            if(c.type.includes('上班')) map[day].in = c.time;
-            if(c.type.includes('下班')) map[day].out = c.time;
-          }
-        });
-
-        // 3. 填入請假
-        if(r.leaves) {
-          r.leaves.forEach(l => {
-            const parts = l.date.split('-');
-            const day = parseInt(parts[2]);
-            if(map[day]) map[day].leave = l.type; // 優先顯示假別
-          });
-        }
-
-        // 4. 渲染 (倒序)
-        for(let i=days; i>=1; i--) { 
-          const item = map[i];
-          let stTag = "正常", stCls = "st-ok";
-          let shiftTxt = item.shift==='EARLY'?'早':(item.shift==='LATE'?'午':'休');
+      if (cat === 'CORRECTION') {
+          // 補卡模式
+          endGroup.style.display = 'none';
+          hoursGroup.style.display = 'none';
+          startLabel.innerText = "補卡時間 (請選正確打卡點)";
           
-          if (item.leave) {
-             stTag = item.leave; stCls = "st-leave";
-          } 
-          else if (item.shift === 'OFF') {
-             stTag = "休假"; stCls = "st-off";
-             if(item.in || item.out) { stTag="加班"; stCls="st-ok"; }
+          // 假別變成 上/下班
+          typeSel.innerHTML = `
+            <option value="IN">上班卡</option>
+            <option value="OUT">下班卡</option>
+          `;
+      } else {
+          // 恢復正常模式
+          endGroup.style.display = 'block';
+          hoursGroup.style.display = 'block';
+          startLabel.innerText = "開始時間";
+          
+          if(cat === 'LEAVE') {
+             typeSel.innerHTML = `
+                <option value="annual">特休</option>
+                <option value="personal">事假</option>
+                <option value="sick">病假</option>
+                <option value="comp">補休</option>
+                <option value="official">公假</option>
+                <option value="maternity">產假/陪產假</option>
+                <option value="bereavement">喪假</option>
+             `;
           } else {
-             // 工作日判斷
-             if (!item.in && !item.out) { stTag="曠職"; stCls="st-miss"; }
-             else if (!item.in) { stTag="缺上班卡"; stCls="st-miss"; }
-             else if (!item.out) { stTag="缺下班卡"; stCls="st-miss"; }
-             else {
-                // 時間標準
-                const startTarget = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
-                const endTarget   = item.shift==='EARLY' ? '18:00:00' : '21:00:00';
-                
-                // 1. 遲到
-                if(item.in > startTarget) { stTag="遲到"; stCls="st-late"; }
-                
-                // 2. 早退 (下班時間早於表定)
-                if(item.out < endTarget) { 
-                    stTag = (stTag==="遲到") ? "遲到/早退" : "早退";
-                    stCls="st-late"; 
-                }
-
-                // 3. 異常 (超過1小時下班)
-                const outH = parseInt(item.out.split(':')[0]);
-                const stdH = item.shift==='EARLY' ? 18 : 21;
-                if(outH >= stdH + 1) { stTag="異常"; stCls="st-abn"; }
-             }
+             // 加班
+             typeSel.innerHTML = `<option value="OT">加班</option>`;
           }
-          
-          // 未來日期不顯示
-          if(new Date(yS.value, mS.value-1, i) > new Date()) { stTag="--"; stCls="st-off"; }
+      }
+  }
 
-          d.innerHTML += `
-            <div class="rec-card">
-              <div class="rec-date">${mS.value}/${i}</div>
-              <div class="rec-shift">${shiftTxt}</div>
-              <div class="rec-time">
-                上: ${item.in||'--:--'}<br>
-                下: ${item.out||'--:--'}
-              </div>
-              <div class="status-tag ${stCls}">${stTag}</div>
-            </div>`;
-        }
-      } else { d.innerHTML = "<div style='text-align:center'>無資料</div>"; }
-    }
-    function logout(){ localStorage.clear(); location.href="index.html"; }
-  </script>
+  // 自動計算時數
+  function calcHours() {
+      const s = new Date(document.getElementById("start").value);
+      const e = new Date(document.getElementById("end").value);
+      if(s && e && e > s) {
+          const diff = (e - s) / (1000 * 60 * 60);
+          document.getElementById("hours").value = diff.toFixed(1);
+      }
+  }
+
+  // --- 送出申請 ---
+  async function submitRequest() {
+      const cat = document.getElementById("category").value;
+      const start = document.getElementById("start").value;
+      
+      if(!start) { alert("請選擇時間"); return; }
+
+      const payload = {
+          category: cat,
+          leaveType: document.getElementById("leaveType").value,
+          start: start,
+          // 補卡時，結束時間 = 開始時間 (後端會處理)
+          end: document.getElementById("end").value || start, 
+          hours: document.getElementById("hours").value || 0,
+          reason: document.getElementById("reason").value
+      };
+
+      const btn = document.querySelector(".btn-submit");
+      btn.innerText = "送出中...";
+      btn.disabled = true;
+
+      const res = await api("submit_request", payload);
+      alert(res.message);
+      
+      btn.innerText = "送出申請";
+      btn.disabled = false;
+      
+      if(res.ok) {
+          // 清空表單
+          document.getElementById("reason").value = "";
+          document.getElementById("hours").value = "";
+      }
+  }
+
+  function logout() {
+      localStorage.clear();
+      location.href = "index.html";
+  }
+
+  // 初始化 UI
+  updateFormUI();
+</script>
 </body>
 </html>
