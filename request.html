@@ -6,15 +6,55 @@
   <title>提出申請</title>
   <style>
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
-    body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
-    .header { margin-bottom: 20px; } h2 { margin: 0; font-size: 22px; }
-    .form-card { background: var(--card); border-radius: 20px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .input-group { margin-bottom: 20px; }
-    label { display: block; font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 6px; }
-    select, input, textarea { width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 12px; font-size: 16px; background: #F9FAFB; outline: none; -webkit-appearance: none; }
-    .checkbox-wrapper { display: flex; align-items: center; gap: 10px; padding: 10px; background: #EEF2FF; border-radius: 12px; display: none; }
-    .checkbox-wrapper input { width: 20px; height: 20px; }
-    .btn-submit { width: 100%; background: var(--primary); color: white; padding: 16px; border: none; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--text); }
+    
+    .header { margin-bottom: 20px; } 
+    h2 { margin: 0; font-size: 22px; font-weight: 700; }
+
+    .form-card { background: var(--card); border-radius: 20px; padding: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+    
+    .input-group { margin-bottom: 20px; width: 100%; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 8px; }
+    
+    /* ★ V96 CSS 強力修正：強制所有輸入框寬度一致 */
+    select, input, textarea {
+      width: 100% !important;           /* 強制滿版 */
+      box-sizing: border-box !important; /* 邊框算在寬度內 (關鍵) */
+      padding: 12px;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      font-size: 16px;
+      background: #F9FAFB;
+      outline: none;
+      margin: 0;
+      
+      /* 移除手機預設樣式 */
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+    }
+
+    /* 針對日期輸入框的特殊修正 */
+    input[type="datetime-local"] {
+        /* 確保高度與文字框一致 */
+        line-height: 1.3;
+        min-height: 45px; 
+    }
+
+    /* 唯讀欄位樣式 */
+    input[readonly] { background-color: #F3F4F6; color: #6B7280; }
+
+    .checkbox-wrapper { display: flex; align-items: center; gap: 10px; padding: 12px; background: #EEF2FF; border-radius: 12px; display: none; width: 100%; box-sizing: border-box; }
+    .checkbox-wrapper input { width: 20px !important; height: 20px; margin: 0; -webkit-appearance: checkbox; appearance: checkbox; }
+    .checkbox-wrapper label { margin: 0; color: var(--primary); font-weight: 600; }
+
+    .btn-submit {
+      width: 100%; background: var(--primary); color: white; padding: 16px;
+      border: none; border-radius: 16px; font-size: 16px; font-weight: 700;
+      cursor: pointer; margin-top: 10px; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2);
+    }
+    .btn-submit:active { transform: scale(0.98); }
+
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
@@ -64,7 +104,7 @@
     
     <div class="input-group" id="hrsGrp">
       <label>時數 (自動計算)</label>
-      <input type="number" id="hours" step="0.5" readonly style="color:#6B7280; background:#f3f4f6;">
+      <input type="number" id="hours" step="0.1" readonly placeholder="系統自動計算">
     </div>
 
     <div class="checkbox-wrapper" id="autoClockGrp">
@@ -128,7 +168,6 @@
       calc();
   }
 
-  // ★ V90: 分流計算邏輯
   function calc() {
       const cat = document.getElementById("cat").value;
       const sVal = document.getElementById("start").value;
@@ -143,14 +182,14 @@
 
       if (e <= s) { hInput.value = 0; return; }
 
-      // 1. OT 或 OUTING：實報實銷 (不管跨不跨日)
+      // 1. OT 或 OUTING：實報實銷
       if (cat === 'OT' || cat === 'OUTING') {
           const diffHours = (e - s) / 3600000;
           hInput.value = diffHours.toFixed(1);
           return;
       }
 
-      // 2. LEAVE (請假)：天數 x 8 (跨日才算)
+      // 2. LEAVE：天數 x 8 (跨日) 或 時數 (同日)
       const isSameDate = (
           s.getFullYear() === e.getFullYear() &&
           s.getMonth() === e.getMonth() &&
