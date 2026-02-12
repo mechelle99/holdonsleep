@@ -1,53 +1,72 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>紀錄</title>
-<style>
-  body{font-family:sans-serif;background:#f4f6f8;padding:16px;}
-  .card{background:#fff;padding:16px;border-radius:12px;margin-bottom:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);}
-  .st{float:right;font-size:12px;padding:2px 6px;border-radius:4px;}
-  .ok{background:#d4edda;color:#155724} .wait{background:#fff3cd;color:#856404} .no{background:#f8d7da;color:#721c24}
-  select{padding:8px;border-radius:6px;border:1px solid #ddd;}
-</style>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>申請紀錄</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+    button { padding: 8px 15px; background: #333; color: #fff; border: none; border-radius: 6px; }
+    
+    .list { display: flex; flex-direction: column; gap: 10px; }
+    .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+    
+    .status { padding: 4px 8px; border-radius: 6px; font-size: 12px; color: white; font-weight: bold; }
+    .PENDING { background: #ff9500; }
+    .APPROVED { background: #34c759; }
+    .REJECTED { background: #ff3b30; }
+  </style>
 </head>
 <body>
-  <div style="margin-bottom:15px;display:flex;gap:10px;">
-    <button onclick="location.href='app.html'">返回</button>
-    <select id="filter" onchange="render()"><option value="ALL">全部</option><option value="審核中">審核中</option><option value="通過">通過</option><option value="駁回">駁回</option></select>
-  </div>
-  <div id="list">載入中...</div>
-  <script src="config.js"></script>
-  <script>
-    const uid=localStorage.getItem("employeeId");
-    let rawData = [];
-    function api(a,d={}){
-      return new Promise(r=>{
-        const s=document.createElement("script");
-        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid}))}&callback=cb${Date.now()}`;
-        window[`cb${Date.now()}`]=(res)=>{r(res);s.remove()};
-        document.body.appendChild(s);
-      });
-    }
-    async function load(){
-      const r = await api("get_history");
-      if(r.ok) { rawData = r.list; render(); }
-    }
-    function render(){
-      const f = document.getElementById("filter").value;
-      const d = document.getElementById("list");
-      d.innerHTML = "";
-      rawData.forEach(i=>{
-        if(f!=='ALL' && i.status!==f) return;
-        let cls = i.status==='通過'?'ok':(i.status==='駁回'?'no':'wait');
-        d.innerHTML += `<div class="card">
-          <span class="st ${cls}">${i.status}</span>
-          <b>${i.title}</b> ${i.sub||''}<br>
-          <small>${i.date} ${i.time}</small><br>
-          <small style="color:#888">${i.reason||''}</small>
-        </div>`;
-      });
-      if(!d.innerHTML) d.innerHTML="無資料";
-    }
-    load();
-  </script>
+
+<div class="header">
+  <h2>📋 申請紀錄</h2>
+  <button onclick="location.href='app.html'">返回</button>
+</div>
+
+<div id="list" class="list">載入中...</div>
+
+<script src="config.js"></script>
+<script>
+  const uid = localStorage.getItem("employeeId");
+
+  function api(act) {
+    return new Promise(r => {
+      const s = document.createElement("script");
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      document.body.appendChild(s);
+    });
+  }
+
+  async function load() {
+      const res = await api("list_requests");
+      const div = document.getElementById("list");
+      
+      if(res.ok && res.list.length > 0) {
+          let html = "";
+          res.list.forEach(r => {
+              let type = r.leaveType;
+              if(r.category === 'CORRECTION') type = "補卡";
+              if(r.category === 'OUTING') type = "外出";
+              
+              html += `
+              <div class="card">
+                <div>
+                  <div style="font-weight:bold">${type}</div>
+                  <div style="font-size:12px;color:#666">${r.start.split('T')[0]}</div>
+                  <div style="font-size:12px;color:#999">${r.reason||''}</div>
+                </div>
+                <div class="status ${r.status}">${r.status}</div>
+              </div>`;
+          });
+          div.innerHTML = html;
+      } else {
+          div.innerHTML = "<div style='text-align:center;color:#999'>尚無申請紀錄</div>";
+      }
+  }
+  load();
+</script>
 </body>
 </html>
