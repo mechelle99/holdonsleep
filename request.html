@@ -16,21 +16,25 @@
     .input-group { margin-bottom: 20px; }
     label { display: block; font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 6px; }
     
-    select, input[type="datetime-local"], input[type="number"], textarea {
+    select, input, textarea {
       width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 12px;
       font-size: 16px; background: #F9FAFB; outline: none; -webkit-appearance: none;
     }
     
-    /* Checkbox 特殊樣式 */
-    .checkbox-group { display: flex; align-items: center; gap: 10px; background: #EEF2FF; padding: 12px; border-radius: 12px; margin-bottom: 20px; display: none; /* 預設隱藏 */ }
-    .checkbox-group input { width: 20px; height: 20px; margin: 0; }
-    .checkbox-group label { margin: 0; color: var(--primary); }
+    /* 針對 iOS Safari 下拉選單優化 */
+    select { background-color: #F9FAFB; }
+
+    /* Checkbox */
+    .checkbox-wrapper { display: flex; align-items: center; gap: 10px; padding: 10px; background: #EEF2FF; border-radius: 12px; display: none; /* 預設隱藏 */ }
+    .checkbox-wrapper input { width: 20px; height: 20px; margin: 0; }
+    .checkbox-wrapper label { margin: 0; color: var(--primary); font-size: 14px; }
 
     .btn-submit {
       width: 100%; background: var(--primary); color: white; padding: 16px;
       border: none; border-radius: 16px; font-size: 16px; font-weight: 700;
-      cursor: pointer; margin-top: 10px;
+      cursor: pointer; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); margin-top: 10px;
     }
+    .btn-submit:active { transform: scale(0.98); }
 
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
@@ -58,10 +62,21 @@
       <select id="type">
         <option value="annual">特休</option>
         <option value="comp">補休</option>
-        <option value="sick">病假</option>
         <option value="personal">事假</option>
+        <option value="sick">病假</option>
+        <option value="menstrual">生理假</option>
         <option value="official">公假</option>
-        </select>
+        <option value="marriage">婚假</option>
+        <option value="bereavement">喪假</option>
+        <option value="family">家庭照顧假</option>
+        <option value="maternity">產假</option>
+        <option value="prenatal">產檢假</option>
+        <option value="paternity">陪產檢及陪產假</option>
+        <option value="miscarriage">流產假</option>
+        <option value="injury">公傷病假</option>
+        <option value="epidemic">防疫照顧假</option>
+        <option value="birthday">生日假</option>
+      </select>
     </div>
 
     <div class="input-group">
@@ -76,12 +91,12 @@
     
     <div class="input-group" id="hrsGrp">
       <label>時數 (自動計算)</label>
-      <input type="number" id="hours" step="0.5" readonly style="color:#6B7280">
+      <input type="number" id="hours" step="0.5" readonly style="color:#6B7280; background:#f3f4f6;">
     </div>
 
-    <div class="checkbox-group" id="autoClockGrp">
+    <div class="checkbox-wrapper" id="autoClockGrp">
       <input type="checkbox" id="autoClock">
-      <label for="autoClock">立即打卡 (外出)</label>
+      <label for="autoClock">立即打卡 (現在出門)</label>
     </div>
 
     <div class="input-group">
@@ -106,35 +121,61 @@
   const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
 
+  // 定義完整假別 HTML，避免切換時遺失
+  const fullLeaveOptions = `
+    <option value="annual">特休</option>
+    <option value="comp">補休</option>
+    <option value="personal">事假</option>
+    <option value="sick">病假</option>
+    <option value="menstrual">生理假</option>
+    <option value="official">公假</option>
+    <option value="marriage">婚假</option>
+    <option value="bereavement">喪假</option>
+    <option value="family">家庭照顧假</option>
+    <option value="maternity">產假</option>
+    <option value="prenatal">產檢假</option>
+    <option value="paternity">陪產檢及陪產假</option>
+    <option value="miscarriage">流產假</option>
+    <option value="injury">公傷病假</option>
+    <option value="epidemic">防疫照顧假</option>
+    <option value="birthday">生日假</option>
+  `;
+
   function uiChange() {
       const c = document.getElementById("cat").value;
       const typeDiv = document.getElementById("typeGrp");
+      const typeSel = document.getElementById("type");
       const endDiv = document.getElementById("endGrp");
       const hrsDiv = document.getElementById("hrsGrp");
       const lbl = document.getElementById("startLbl");
       const clockDiv = document.getElementById("autoClockGrp");
 
-      // 預設全開
+      // 1. 重置預設狀態 (全部顯示)
       typeDiv.style.display = 'block';
       endDiv.style.display = 'block';
       hrsDiv.style.display = 'block';
-      clockDiv.style.display = 'none'; // 預設隱藏自動打卡
+      clockDiv.style.display = 'none';
       lbl.innerText = '開始時間';
 
+      // 2. 依類別調整
       if (c === 'CORRECTION') { 
           // 補卡
           endDiv.style.display = 'none';
           hrsDiv.style.display = 'none';
           lbl.innerText = '補卡時間';
-          typeDiv.style.display = 'none';
+          // 補卡不需要假別，但為了不報錯，隱藏它
+          typeDiv.style.display = 'none'; 
       } else if (c === 'OUTING') { 
-          // 外出 (需要起訖時間，不需要假別，顯示自動打卡選項)
-          typeDiv.style.display = 'none';
+          // 外出
+          typeDiv.style.display = 'none'; 
           lbl.innerText = '預計外出時間';
-          clockDiv.style.display = 'flex'; // 顯示勾選框
+          clockDiv.style.display = 'flex'; // 顯示打卡勾選
       } else if (c === 'OT') { 
           // 加班
           typeDiv.style.display = 'none';
+      } else {
+          // 請假 (LEAVE) -> 恢復完整假別選單
+          typeSel.innerHTML = fullLeaveOptions;
       }
   }
 
@@ -172,7 +213,7 @@
           end: document.getElementById("end").value || start,
           hours: document.getElementById("hours").value || 0,
           reason: document.getElementById("reason").value,
-          autoClock: auto // 傳送是否要自動打卡
+          autoClock: auto // 外出自動打卡
       };
 
       const res = await api("submit_request", payload);
@@ -180,6 +221,7 @@
       location.href = 'history.html';
   }
   
+  // 初始化
   uiChange();
 </script>
 </body>
