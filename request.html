@@ -120,16 +120,15 @@
           lbl.innerText = '預計外出時間';
           clockDiv.style.display = 'flex';
       } else if (c === 'OT') { 
-          typeDiv.style.display = 'none'; // 加班不需選假別
-          // 加班需要結束時間與時數，保持顯示
+          typeDiv.style.display = 'none';
+          lbl.innerText = '加班開始時間';
       } else {
-          // 請假
           document.getElementById("type").innerHTML = fullLeaveOptions;
       }
-      calc(); // 切換時重算
+      calc();
   }
 
-  // ★ V84 修復：精確計算時數
+  // ★ V86 核心修正：嚴格日期比對
   function calc() {
       const cat = document.getElementById("cat").value;
       const sVal = document.getElementById("start").value;
@@ -144,24 +143,25 @@
 
       if (e <= s) { hInput.value = 0; return; }
 
-      // 比對日期字串 (YYYY-MM-DD) 來判斷是否同一天
-      // 例如：2/12 17:00 到 2/12 20:00 -> 同一天
-      const isSameDate = s.toDateString() === e.toDateString();
+      // 嚴格比對年、月、日
+      const isSameDate = (
+          s.getFullYear() === e.getFullYear() &&
+          s.getMonth() === e.getMonth() &&
+          s.getDate() === e.getDate()
+      );
 
       if (isSameDate) {
-          // 同一天：直接算時數 (毫秒差 / 3600000)
-          const diffHours = (e - s) / 3600000;
+          // 同日：計算實際時數差
+          const diffHours = (e - s) / (1000 * 60 * 60);
           hInput.value = diffHours.toFixed(1);
       } else {
-          // 跨天：算法為 (天數差 + 1) * 8
-          // 計算日曆天數差
-          const sDate = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-          const eDate = new Date(e.getFullYear(), e.getMonth(), e.getDate());
-          const dayDiff = Math.round((eDate - sDate) / (1000 * 60 * 60 * 24));
+          // 跨日：(天數差 + 1) * 8
+          // 使用 UTC 時間計算純天數差，避免時區干擾
+          const utc1 = Date.UTC(s.getFullYear(), s.getMonth(), s.getDate());
+          const utc2 = Date.UTC(e.getFullYear(), e.getMonth(), e.getDate());
+          const dayDiff = Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
           
-          const totalDays = dayDiff + 1; 
-          // 範例：12號到13號，dayDiff=1，實際是請2天假，所以 1+1=2
-          hInput.value = totalDays * 8;
+          hInput.value = (dayDiff + 1) * 8;
       }
   }
 
