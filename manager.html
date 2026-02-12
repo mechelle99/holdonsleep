@@ -5,58 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>主管專區</title>
   <style>
-    /* 引用 root 變數 */
-    :root { --primary: #2563eb; --bg: #f3f4f6; --surface: #ffffff; --text: #1f2937; }
-    body { font-family: -apple-system, sans-serif; background: var(--bg); padding: 20px 20px 100px 20px; color: var(--text); }
+    :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; --success: #10B981; --danger: #EF4444; }
+    body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
     
-    .header { margin-bottom: 20px; }
-    h2 { margin: 0; font-size: 24px; }
-    h3 { margin-top: 30px; margin-bottom: 15px; border-left: 4px solid var(--primary); padding-left: 10px; }
+    h2 { margin: 0 0 20px 0; font-size: 22px; }
+    h3 { margin: 30px 0 15px 0; font-size: 16px; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; font-weight: 800; }
 
-    /* 統計卡片 */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-    .stat-card { background: var(--surface); padding: 16px; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
-    .stat-name { font-weight: 700; margin-bottom: 8px; font-size: 16px; }
-    .stat-row { font-size: 13px; color: #6b7280; display: flex; justify-content: space-between; margin-top: 4px; }
+    /* 統計 Grid */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .stat-card { background: var(--card); padding: 16px; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
+    .stat-name { font-weight: 700; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+    .stat-row { display: flex; justify-content: space-between; font-size: 12px; color: #6B7280; margin-top: 4px; }
     .stat-val { font-weight: 700; color: var(--primary); }
 
-    /* 待審列表 */
-    .req-card { background: var(--surface); padding: 16px; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-    .req-info div { margin-bottom: 4px; font-size: 14px; }
-    .req-tag { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; }
-    
-    .btn-action { padding: 8px 16px; border-radius: 8px; border: none; color: white; font-weight: 600; cursor: pointer; margin-left: 5px; }
-    .btn-approve { background: #10b981; }
-    .btn-reject { background: #ef4444; }
-    .btn-all { background: var(--primary); color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 12px; float: right; cursor: pointer; }
+    /* 待審卡片 */
+    .req-card { background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+    .req-info { display: flex; flex-direction: column; gap: 4px; }
+    .req-title { font-weight: 700; font-size: 15px; }
+    .req-sub { font-size: 12px; color: #6B7280; }
+    .req-tag { background: #EEF2FF; color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px; }
 
-    /* 底部導航 (同上) */
-    .bottom-nav { position: fixed; bottom: 20px; left: 20px; right: 20px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: 24px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 100; border: 1px solid rgba(255,255,255,0.5); }
-    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #9ca3af; text-decoration: none; font-size: 10px; font-weight: 600; }
+    .actions { display: flex; gap: 8px; }
+    .btn-act { width: 36px; height: 36px; border-radius: 50%; border: none; color: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
+    .btn-act:active { transform: scale(0.9); }
+    .btn-ok { background: var(--success); }
+    .btn-no { background: var(--danger); }
+
+    .btn-approve-all { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; float: right; cursor: pointer; }
+
+    /* 導航 (同上) */
+    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
+    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); }
-    .nav-icon { font-size: 20px; }
+    .nav-icon { font-size: 22px; }
   </style>
 </head>
 <body>
 
-<div class="header"><h2>👨‍💼 主管專區</h2></div>
+  <h2>👨‍💼 主管專區</h2>
 
-<h3>📊 團隊餘額概況</h3>
-<div id="teamStats" class="stats-grid">載入中...</div>
+  <h3>團隊餘額</h3>
+  <div id="teamStats" class="stat-grid">載入中...</div>
 
-<h3>
-  📝 待審核申請
-  <button class="btn-all" onclick="approveAll()">一鍵全准</button>
-</h3>
-<div id="pendingList">載入中...</div>
+  <h3>待審核 <button class="btn-approve-all" onclick="approveAll()">一鍵全准</button></h3>
+  <div id="pendingList">載入中...</div>
 
-<nav class="bottom-nav">
-  <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span><span>首頁</span></a>
-  <a href="request.html" class="nav-item"><span class="nav-icon">📝</span><span>申請</span></a>
-  <a href="history.html" class="nav-item"><span class="nav-icon">📋</span><span>紀錄</span></a>
-  <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span><span>排班</span></a>
-  <a href="manager.html" class="nav-item active"><span class="nav-icon">👑</span><span>主管</span></a>
-</nav>
+  <nav class="nav">
+    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
+    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
+    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
+    <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span>排班</a>
+    <a href="manager.html" class="nav-item active"><span class="nav-icon">👑</span>主管</a>
+  </nav>
 
 <script src="config.js"></script>
 <script>
@@ -72,46 +72,41 @@
   }
 
   async function load() {
-    // 統計
     const stats = await api("get_team_stats");
-    const sDiv = document.getElementById("teamStats");
     if(stats.ok) {
         let h = "";
         stats.list.forEach(d => {
             h += `<div class="stat-card">
-              <div class="stat-name">${d.name||'ID:'+d.id}</div>
+              <div class="stat-name">${d.name}</div>
               <div class="stat-row"><span>特休</span><span class="stat-val">${d.annual}</span></div>
               <div class="stat-row"><span>補休</span><span class="stat-val">${d.comp}</span></div>
             </div>`;
         });
-        sDiv.innerHTML = h;
+        document.getElementById("teamStats").innerHTML = h;
     }
 
-    // 待審
     const pend = await api("get_pending");
-    const pDiv = document.getElementById("pendingList");
     if(pend.ok && pend.list.length > 0) {
         let h = "";
         pend.list.forEach(r => {
-            let type = r.leaveType;
-            if(r.category==='CORRECTION') type="補卡";
-            if(r.category==='OT') type="加班";
+            let label = r.leaveType;
+            if(r.category==='CORRECTION') label="補卡";
             
             h += `<div class="req-card" id="c-${r.reqId}">
               <div class="req-info">
-                <div style="font-weight:700">${r.reqId} <span class="req-tag">${type}</span></div>
-                <div>${r.start.split('T')[0]} ${r.category!=='CORRECTION'?'('+r.hours+'h)':''}</div>
-                <div style="color:#666;font-size:12px">${r.reason||'無事由'}</div>
+                <div class="req-title">${r.reqId} <span class="req-tag">${label}</span></div>
+                <div class="req-sub">${r.start.split('T')[0]} • ${r.hours}h</div>
+                <div class="req-sub">${r.reason||'無事由'}</div>
               </div>
-              <div>
-                <button class="btn-action btn-approve" onclick="review('${r.reqId}','APPROVED')">准</button>
-                <button class="btn-action btn-reject" onclick="review('${r.reqId}','REJECTED')">駁</button>
+              <div class="actions">
+                <button class="btn-act btn-ok" onclick="review('${r.reqId}','APPROVED')">✔</button>
+                <button class="btn-act btn-no" onclick="review('${r.reqId}','REJECTED')">✖</button>
               </div>
             </div>`;
         });
-        pDiv.innerHTML = h;
+        document.getElementById("pendingList").innerHTML = h;
     } else {
-        pDiv.innerHTML = "<div style='text-align:center;color:#999;padding:20px'>無待審核項目</div>";
+        document.getElementById("pendingList").innerHTML = "<div style='text-align:center;color:#999'>無待審核</div>";
     }
   }
 
@@ -127,7 +122,6 @@
       await api("approve_month_all", {year:now.getFullYear(), month:now.getMonth()+1});
       alert("完成"); location.reload();
   }
-
   load();
 </script>
 </body>
