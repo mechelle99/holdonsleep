@@ -3,60 +3,57 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>申請紀錄</title>
+  <title>紀錄查詢</title>
   <style>
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
-    body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 80px 20px; color: var(--text); }
     
-    .header { margin-bottom: 20px; } 
+    .header { margin-bottom: 15px; } 
     h2 { margin: 0; font-size: 22px; font-weight: 700; }
-    
-    /* ★ V97 修復：過濾器排版優化 */
+
+    /* ★ 分頁切換器 (Tabs) */
+    .tabs { display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+    .tab { flex: 1; text-align: center; padding: 10px; font-size: 14px; font-weight: 600; color: #6B7280; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+    .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+    /* 過濾器 */
     .filter-card { 
-        background: var(--card); 
-        padding: 16px; 
-        border-radius: 16px; 
-        margin-bottom: 20px; 
-        
-        /* 讓左右兩邊並排，並拉開距離 */
-        display: flex; 
-        align-items: center;
-        gap: 15px; /* 這個間距把它們分開 */
-        width: 100%; 
-        box-sizing: border-box;
+        background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 20px; 
+        display: flex; align-items: center; gap: 15px; width: 100%; box-sizing: border-box;
         box-shadow: 0 2px 6px rgba(0,0,0,0.02);
     }
-    
-    .filter-group { 
-        flex: 1; /* 左右各佔 50% */
-        min-width: 0; /* 防止跑版 */
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .filter-group label { 
-        font-size: 12px; 
-        margin-bottom: 6px; 
-        color: #6B7280; 
-        font-weight: 600;
-    }
-    
-    /* 統一 Select 和 Input 的樣式 */
-    .filter-group select, .filter-group input { 
-        width: 100%; 
-        box-sizing: border-box; /* 邊框算在內，才不會凸出去 */
-        height: 42px; /* 固定高度，讓兩邊一樣高 */
-        padding: 0 12px; 
-        border: 1px solid #E5E7EB; 
-        border-radius: 10px; 
-        background: #F9FAFB;
-        font-size: 14px;
-        color: #374151;
-        outline: none;
-        -webkit-appearance: none; /* 移除 iPhone 預設圓角 */
-        appearance: none;
+    .filter-group { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .filter-group label { font-size: 12px; margin-bottom: 6px; color: #6B7280; font-weight: 600; }
+    .filter-group select { 
+        width: 100%; box-sizing: border-box; height: 42px; padding: 0 12px; 
+        border: 1px solid #E5E7EB; border-radius: 10px; background: #F9FAFB; 
+        font-size: 14px; outline: none; -webkit-appearance: none;
     }
 
+    /* 內容容器 */
+    .content-area { display: none; }
+    .content-area.active { display: block; }
+
+    /* --- 出勤卡片樣式 (Attendance) --- */
+    .att-card { background: white; padding: 15px; border-radius: 16px; display: flex; align-items: center; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); border-left: 5px solid transparent; }
+    .att-date { width: 50px; text-align: center; border-right: 1px solid #eee; margin-right: 15px; padding-right: 15px; }
+    .d-num { font-size: 18px; font-weight: 800; color: #333; }
+    .d-week { font-size: 12px; color: #999; }
+    .weekend .d-num, .weekend .d-week { color: #EF4444; }
+    
+    .att-times { flex: 1; font-size: 13px; color: #555; line-height: 1.6; }
+    .t-row span { display: inline-block; width: 32px; color: #999; font-size: 11px; }
+    
+    .att-tag { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; color: white; min-width: 60px; text-align: center; }
+    
+    /* 狀態顏色 */
+    .cls-ok { border-left-color: #10B981; } .tag-ok { background: #10B981; }
+    .cls-late { border-left-color: #F59E0B; } .tag-late { background: #F59E0B; }
+    .cls-miss { border-left-color: #EF4444; } .tag-miss { background: #EF4444; }
+    .cls-leave { border-left-color: #3B82F6; } .tag-leave { background: #3B82F6; }
+    .cls-off { border-left-color: #E5E7EB; } .tag-off { background: #E5E7EB; color: #9CA3AF; }
+
+    /* --- 申請單樣式 (Requests) --- */
     .req-card { background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 12px; border-left: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
     .req-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .req-title { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px; }
@@ -74,16 +71,22 @@
 </head>
 <body>
 
-  <div class="header"><h2>📋 申請紀錄</h2></div>
+  <div class="header"><h2>📋 紀錄查詢</h2></div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('att')">每日出勤</div>
+    <div class="tab" onclick="switchTab('req')">申請單據</div>
+  </div>
 
   <div class="filter-card">
     <div class="filter-group">
       <label>月份</label>
-      <select id="mSelect" onchange="load()"></select>
+      <select id="mSelect" onchange="refresh()"></select>
     </div>
-    <div class="filter-group">
+    
+    <div class="filter-group" id="statusFilter" style="display:none;">
       <label>狀態</label>
-      <select id="sSelect" onchange="load()">
+      <select id="sSelect" onchange="refresh()">
         <option value="">全部</option>
         <option value="PENDING">審核中</option>
         <option value="APPROVED">已通過</option>
@@ -92,8 +95,12 @@
     </div>
   </div>
 
-  <div id="list">
-    <div style="text-align:center;color:#999;padding:40px;">載入中...</div>
+  <div id="view-att" class="content-area active">
+    <div id="list-att" style="text-align:center;color:#999;padding:40px;">請選擇月份查詢</div>
+  </div>
+
+  <div id="view-req" class="content-area">
+    <div id="list-req" style="text-align:center;color:#999;padding:40px;">請選擇月份查詢</div>
   </div>
 
   <nav class="nav">
@@ -110,16 +117,37 @@
   const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
 
-  // 產生最近 6 個月的選項
+  // 初始化月份選單
   const mSel = document.getElementById("mSelect");
   const now = new Date();
   for(let i=0; i<6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      // 格式：YYYY/M
-      const v = `${d.getFullYear()}/${d.getMonth()+1}`;
-      // 顯示：YYYY年MM月
+      const v = `${d.getFullYear()}/${d.getMonth()+1}`; // 2026/2
       const t = `${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月`;
       mSel.add(new Option(t, v));
+  }
+
+  let currentTab = 'att'; // 預設顯示出勤
+
+  function switchTab(tab) {
+      currentTab = tab;
+      
+      // UI 切換
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      
+      document.querySelectorAll('.content-area').forEach(c => c.classList.remove('active'));
+      document.getElementById(`view-${tab}`).classList.add('active');
+
+      // 狀態過濾器只在「申請單」顯示
+      document.getElementById('statusFilter').style.display = (tab === 'req') ? 'flex' : 'none';
+
+      refresh();
+  }
+
+  function refresh() {
+      if (currentTab === 'att') loadAttendance();
+      else loadRequests();
   }
 
   function api(act, d={}) {
@@ -131,24 +159,70 @@
     });
   }
 
-  async function load() {
-      document.getElementById("list").innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入中...</div>';
-      const status = document.getElementById("sSelect").value;
+  // ★ 載入每日出勤 (舊 attendance.html 邏輯)
+  async function loadAttendance() {
+      const listDiv = document.getElementById("list-att");
+      listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入中...</div>';
       
-      // 這裡呼叫後端，後端 V96 會根據身分自動過濾 (主管看自己，除非是在 manager 頁面)
-      const res = await api("list_requests", { filterStatus: status });
-      
-      if(!res.ok || res.list.length === 0) {
-          document.getElementById("list").innerHTML = `
-            <div style="text-align:center;padding:60px 0;">
-              <div style="font-size:40px;margin-bottom:10px;">📭</div>
-              <div style="color:#9CA3AF;">無符合資料</div>
-            </div>`;
+      const [y, m] = mSel.value.split('/');
+      const res = await api("get_dashboard", {year: y, month: m});
+
+      if(!res.ok || !res.dailyData || res.dailyData.length === 0) {
+          listDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">無打卡資料</div>`;
           return;
       }
 
       let h = "";
-      res.list.forEach(r => {
+      res.dailyData.forEach(d => {
+          const isWk = (d.week==='日'||d.week==='六') ? 'weekend' : '';
+          // 樣式對應: cls-ok, cls-late, cls-miss...
+          const cls = `cls-${d.cls}`; 
+          const tagCls = `tag-${d.cls}`;
+
+          h += `
+          <div class="att-card ${cls}">
+            <div class="att-date ${isWk}">
+              <div class="d-num">${d.date}</div>
+              <div class="d-week">${d.week}</div>
+            </div>
+            <div class="att-times">
+              <div class="t-row"><span>上班</span> ${d.in}</div>
+              <div class="t-row"><span>下班</span> ${d.out}</div>
+            </div>
+            <div class="att-tag ${tagCls}">${d.tag}</div>
+          </div>`;
+      });
+      listDiv.innerHTML = h;
+  }
+
+  // ★ 載入申請單據 (舊 history.html 邏輯)
+  async function loadRequests() {
+      const listDiv = document.getElementById("list-req");
+      listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入中...</div>';
+      
+      // 注意：目前的後端 listRequests API 尚未支援 "月份過濾"，它只給全部
+      // 為了不要改動後端太多，我們前端過濾即可
+      const [y, m] = mSel.value.split('/');
+      const status = document.getElementById("sSelect").value;
+      
+      const res = await api("list_requests", { filterStatus: status });
+
+      if(!res.ok || res.list.length === 0) {
+          listDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">無申請資料</div>`;
+          return;
+      }
+
+      // 前端過濾月份
+      const targetPrefix = `${y}-${m.padStart(2,'0')}`; // e.g. 2026-02
+      const filtered = res.list.filter(r => r.start.startsWith(targetPrefix));
+
+      if(filtered.length === 0) {
+          listDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">本月無申請資料</div>`;
+          return;
+      }
+
+      let h = "";
+      filtered.forEach(r => {
           let badge = "審核中";
           if(r.status==='APPROVED') badge="已通過";
           if(r.status==='REJECTED') badge="已駁回";
@@ -176,10 +250,11 @@
             <div class="req-reason">${r.reason || '無備註'}</div>
           </div>`;
       });
-      document.getElementById("list").innerHTML = h;
+      listDiv.innerHTML = h;
   }
   
-  load();
+  // 啟動
+  refresh();
 </script>
 </body>
 </html>
