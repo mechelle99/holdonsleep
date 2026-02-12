@@ -8,40 +8,37 @@
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
     body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
     
-    .header { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
-    .controls select, .controls button { padding: 8px 12px; border-radius: 8px; border: 1px solid #E5E7EB; background: #FFF; font-size: 14px; margin-left: 5px; }
-    .controls button { background: var(--text); color: white; border: none; }
+    .header { margin-bottom: 15px; }
+    .status-bar { font-size: 13px; color: #6B7280; margin-top: 5px; background: #EEF2FF; padding: 8px; border-radius: 8px; display: inline-block; }
+    .controls { display: flex; gap: 8px; margin-top: 10px; }
+    select, button { padding: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
+    button { background: var(--text); color: white; border: none; }
 
-    .table-wrapper { background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    
+    .table-wrapper { background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .table-scroll { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; min-width: 800px; }
     th, td { padding: 12px; text-align: center; border-bottom: 1px solid #F3F4F6; font-size: 13px; white-space: nowrap; }
-    th { background: #F9FAFB; font-weight: 700; color: #4B5563; height: 40px; }
-    
+    th { background: #F9FAFB; font-weight: 700; height: 40px; }
     th:first-child, td:first-child { position: sticky; left: 0; background: var(--card); z-index: 10; border-right: 2px solid #F3F4F6; font-weight: 700; color: var(--primary); }
     th:first-child { background: #F9FAFB; z-index: 20; }
 
-    /* 下拉選單樣式 */
-    .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; text-align: center; font-weight: 700; color: #555; }
+    .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; text-align: center; font-weight: 700; }
+    .bg-EARLY { background-color: #D1FAE5 !important; color: #065F46 !important; border: 1px solid #10B981 !important; }
+    .bg-LATE { background-color: #FEF3C7 !important; color: #92400E !important; border: 1px solid #F59E0B !important; }
+    .bg-OFF { background-color: #F3F4F6 !important; color: #9CA3AF !important; border: 1px solid #E5E7EB !important; }
     
-    /* 顏色定義 */
-    .bg-EARLY { background-color: #D1FAE5 !important; color: #065F46 !important; border: 1px solid #10B981 !important; } /* 早班綠 */
-    .bg-LATE { background-color: #FEF3C7 !important; color: #92400E !important; border: 1px solid #F59E0B !important; } /* 午班橘 */
-    .bg-OFF { background-color: #F3F4F6 !important; color: #9CA3AF !important; border: 1px solid #E5E7EB !important; } /* 休假灰 */
-
-    .tag { padding: 4px 8px; background: #DBEAFE; color: #1E40AF; border-radius: 4px; font-size: 11px; font-weight: 700; }
-
-    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
-    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
-    .nav-item.active { color: var(--primary); }
-    .nav-icon { font-size: 22px; }
+    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 10px 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
+    .nav.is-manager { grid-template-columns: repeat(5, 1fr); }
+    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; width: 100%; }
+    .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
+    #mgrBtn { display: none; } .nav.is-manager #mgrBtn { display: flex; }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h2 style="margin:0;font-size:20px;">📅 排班表</h2>
+    <h2 style="margin:0;font-size:20px;">📅 團隊排班</h2>
+    <div id="statusInfo" class="status-bar">載入中...</div>
     <div class="controls">
       <select id="y"></select><select id="m"></select>
       <button onclick="load()">查詢</button>
@@ -57,19 +54,19 @@
     </div>
   </div>
 
-  <nav class="nav">
-    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
-    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
-    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
-    <a href="schedule.html" class="nav-item active"><span class="nav-icon">📅</span>排班</a>
-    <a href="manager.html" class="nav-item" id="mgrBtn" style="display:none"><span class="nav-icon">👑</span>主管</a>
+  <nav class="nav" id="bottomNav">
+    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span><span>首頁</span></a>
+    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span><span>申請</span></a>
+    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span><span>紀錄</span></a>
+    <a href="schedule.html" class="nav-item active"><span class="nav-icon">📅</span><span>排班</span></a>
+    <a href="manager.html" class="nav-item" id="mgrBtn"><span class="nav-icon">👑</span><span>主管</span></a>
   </nav>
 
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
   const isMgr = localStorage.getItem("isManager") === "true";
-  if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
+  if(isMgr) { document.getElementById("bottomNav").classList.add('is-manager'); }
 
   const yS = document.getElementById("y");
   const mS = document.getElementById("m");
@@ -90,6 +87,22 @@
     const res = await api("get_roster_data", {year:yS.value, month:mS.value});
     if(!res.ok) { document.getElementById("tbRow").innerHTML = `<tr><td>${res.message}</td></tr>`; return; }
 
+    // 狀態提示
+    const today = new Date();
+    const lockDay = res.lockDay || 25;
+    const isNextMonth = (Number(yS.value) > today.getFullYear()) || (Number(yS.value)===today.getFullYear() && Number(mS.value)>today.getMonth()+1);
+    
+    let info = "";
+    if (res.isManager) info = "👑 主管模式 (可任意編輯)";
+    else if (isNextMonth) {
+        if (today.getDate() <= lockDay) info = `🟢 下月排班開放中 (截止日: ${lockDay}號)`;
+        else info = `🔴 下月排班已截止 (截止日: ${lockDay}號)`;
+    } else {
+        info = "🔒 本月班表已鎖定 (僅供檢視)";
+    }
+    document.getElementById("statusInfo").innerText = info;
+
+    // 表格繪製
     const days = new Date(yS.value, mS.value, 0).getDate();
     let head = `<th>員工</th>`;
     for(let d=1; d<=days; d++) {
@@ -107,14 +120,13 @@
             const dateStr = `${yS.value}-${String(mS.value).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             
             if(cell.type === 'LEAVE') {
-                tds += `<td><span class="tag">${cell.value}</span></td>`;
+                tds += `<td><span class="tag" style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:4px;font-size:11px;">${cell.value}</span></td>`;
             } else {
                 let v = cell.value || '';
-                // 轉換 DB 值為 CSS class
                 let cls = '';
-                if(v === '早班' || v === 'EARLY') { v = '早班'; cls = 'bg-EARLY'; }
-                else if(v === '午班' || v === 'LATE') { v = '午班'; cls = 'bg-LATE'; }
-                else if(v === '休假' || v === 'OFF') { v = '休假'; cls = 'bg-OFF'; }
+                if(v==='早班'||v==='EARLY') { v='早班'; cls='bg-EARLY'; }
+                else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
+                else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
                 
                 tds += `<td><select class="shift-sel ${cls}" onchange="upd('${e.id}','${dateStr}',this)">
                   <option value="">-</option>
@@ -130,13 +142,18 @@
   }
 
   function upd(eid, d, el) {
-      // 立即變色
-      el.className = 'shift-sel'; // reset
-      if(el.value === '早班') el.classList.add('bg-EARLY');
-      if(el.value === '午班') el.classList.add('bg-LATE');
-      if(el.value === '休假') el.classList.add('bg-OFF');
+      el.className = 'shift-sel';
+      if(el.value==='早班') el.classList.add('bg-EARLY');
+      if(el.value==='午班') el.classList.add('bg-LATE');
+      if(el.value==='休假') el.classList.add('bg-OFF');
       
-      api("update_schedule", {empId:eid, date:d, shift:el.value});
+      api("update_schedule", {empId:eid, date:d, shift:el.value}).then(res => {
+          if(!res.ok) { 
+              alert(res.message); 
+              el.value = ""; // 還原
+              el.className = 'shift-sel'; 
+          }
+      });
   }
   load();
 </script>
