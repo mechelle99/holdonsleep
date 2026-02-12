@@ -47,7 +47,7 @@
         <option value="bereavement">喪假</option>
         <option value="menstrual">生理假</option>
         <option value="maternity">產假</option>
-        <option value="paternity">陪產假</option>
+        <option value="paternity">陪產檢及陪產假</option>
         <option value="family">家庭照顧假</option>
       </select>
     </div>
@@ -128,7 +128,7 @@
       calc();
   }
 
-  // ★ V86 核心修正：嚴格日期比對
+  // ★ V90: 分流計算邏輯
   function calc() {
       const cat = document.getElementById("cat").value;
       const sVal = document.getElementById("start").value;
@@ -143,24 +143,22 @@
 
       if (e <= s) { hInput.value = 0; return; }
 
-      // 嚴格比對年、月、日
-      const isSameDate = (
-          s.getFullYear() === e.getFullYear() &&
-          s.getMonth() === e.getMonth() &&
-          s.getDate() === e.getDate()
-      );
+      // 1. 如果是 OT (加班) 或 OUTING (外出)，實報實銷
+      if (cat === 'OT' || cat === 'OUTING') {
+          const diffHours = (e - s) / 3600000;
+          hInput.value = diffHours.toFixed(1);
+          return;
+      }
 
+      // 2. 如果是 LEAVE (請假)，維持天數 x 8 邏輯
+      const isSameDate = (s.toDateString() === e.toDateString());
       if (isSameDate) {
-          // 同日：計算實際時數差
-          const diffHours = (e - s) / (1000 * 60 * 60);
+          const diffHours = (e - s) / 3600000;
           hInput.value = diffHours.toFixed(1);
       } else {
-          // 跨日：(天數差 + 1) * 8
-          // 使用 UTC 時間計算純天數差，避免時區干擾
           const utc1 = Date.UTC(s.getFullYear(), s.getMonth(), s.getDate());
           const utc2 = Date.UTC(e.getFullYear(), e.getMonth(), e.getDate());
           const dayDiff = Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
-          
           hInput.value = (dayDiff + 1) * 8;
       }
   }
