@@ -1,61 +1,123 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>主管</title>
-<style>
-  body{font-family:sans-serif;padding:16px;background:#f4f6f8;}
-  .card{background:#fff;padding:16px;border-radius:12px;margin-bottom:10px;}
-  .btn{padding:5px 10px;border:none;border-radius:4px;color:#fff;margin-left:5px;}
-  .ok{background:#28a745} .no{background:#dc3545}
-</style>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>主管管理</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    button { padding: 8px 16px; background: #111; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    
+    h3 { color: #333; border-left: 4px solid #007aff; padding-left: 10px; margin-top: 30px; }
+
+    /* 團隊統計卡片容器 (Grid Layout) */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .stat-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; }
+    .stat-name { font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #333; }
+    .stat-row { font-size: 13px; color: #666; display: flex; justify-content: space-between; margin-top: 4px; }
+    .stat-val { font-weight: bold; color: #007aff; }
+
+    /* 待審核列表 */
+    .pending-list { display: flex; flex-direction: column; gap: 10px; }
+    .req-card { background: white; padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .req-info div { margin-bottom: 4px; font-size: 14px; }
+    .req-actions { display: flex; gap: 10px; }
+    .btn-ok { background: #34c759; }
+    .btn-no { background: #ff3b30; }
+  </style>
 </head>
 <body>
-  <button onclick="location.href='app.html'" style="padding:10px;margin-bottom:10px;">回首頁</button>
-  <div class="card">
-    <h3>待審核</h3>
-    <div id="list">載入中...</div>
-  </div>
-  <div class="card">
-    <h3>員工餘額</h3>
-    <div id="stats">...</div>
-  </div>
-  <script src="config.js"></script>
-  <script>
-    const uid=localStorage.getItem("employeeId");
-    function api(a,d={}){
-      return new Promise(r=>{
-        const s=document.createElement("script");
-        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid,webhookKey:window.CONFIG.WEBHOOK_KEY}))}&callback=cb${Date.now()}`;
-        window[`cb${Date.now()}`]=(res)=>{r(res);s.remove()};
-        document.body.appendChild(s);
-      });
-    }
-    async function load(){
-      const r = await api("get_pending");
-      const d = document.getElementById("list");
-      d.innerHTML = "";
-      if(r.ok && r.list.length) {
-        r.list.forEach(i => {
-          d.innerHTML += `<div style="border-bottom:1px solid #eee;padding:10px;">
-            <b>${i.empName}</b> ${i.category} (${i.leaveType||''})<br>
-            <small>${i.start.substring(5,16)} ~ ${i.end.substring(5,16)}</small><br>
-            <small>事由: ${i.reason||''}</small>
-            <div style="margin-top:5px;text-align:right;">
-              <button class="btn ok" onclick="rev('${i.reqId}','通過')">准</button>
-              <button class="btn no" onclick="rev('${i.reqId}','駁回')">駁</button>
-            </div>
-          </div>`;
-        });
-      } else { d.innerHTML="無待審核"; }
 
-      const s = await api("get_team_stats");
-      if(s.ok) {
-        let h = "<table width='100%'><tr><th>姓名</th><th>特休</th><th>補休</th></tr>";
-        s.list.forEach(x=> h+=`<tr><td align='center'>${x.name}</td><td align='center'>${x.annual}</td><td align='center'>${x.comp}</td></tr>`);
-        document.getElementById("stats").innerHTML = h+"</table>";
-      }
+<div class="header">
+  <h2>👨‍💼 主管專區</h2>
+  <button onclick="location.href='app.html'">返回首頁</button>
+</div>
+
+<h3>📊 團隊餘額概況</h3>
+<div id="teamStats" class="stats-grid">載入中...</div>
+
+<h3>
+  📝 待審核申請
+  <button onclick="approveAll()" style="font-size:12px; background:#007aff; margin-left:10px;">一鍵全准</button>
+</h3>
+<div id="pendingList" class="pending-list">載入中...</div>
+
+<script src="config.js"></script>
+<script>
+  const uid = localStorage.getItem("employeeId");
+
+  function api(action, payload={}) {
+    return new Promise(resolve => {
+      const s = document.createElement("script");
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${action}&payload=${encodeURIComponent(JSON.stringify({...payload, userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { resolve(res); s.remove(); };
+      document.body.appendChild(s);
+    });
+  }
+
+  async function loadData() {
+    // 1. 團隊統計
+    const stats = await api("get_team_stats");
+    const statsDiv = document.getElementById("teamStats");
+    if(stats && stats.ok && stats.list) {
+        let html = "";
+        stats.list.forEach(d => {
+            // 防呆：確保名字存在
+            const name = d.name || '未知';
+            html += `
+            <div class="stat-card">
+              <div class="stat-name">${name}</div>
+              <div class="stat-row"><span>特休剩</span> <span class="stat-val">${d.annual}</span></div>
+              <div class="stat-row"><span>補休剩</span> <span class="stat-val">${d.comp}</span></div>
+            </div>`;
+        });
+        statsDiv.innerHTML = html || "無資料";
+    } else {
+        statsDiv.innerHTML = "讀取失敗";
     }
-    async function rev(id,dec){ await api("review_request",{reqId:id,decision:dec}); load(); }
-    load();
-  </script>
+
+    // 2. 待審核
+    const pending = await api("get_pending");
+    const listDiv = document.getElementById("pendingList");
+    if(pending && pending.ok && pending.list) {
+        let html = "";
+        pending.list.forEach(r => {
+            let typeStr = r.leaveType; 
+            if(r.category === 'CORRECTION') typeStr = '補卡';
+            
+            html += `
+            <div class="req-card" id="card-${r.reqId}">
+              <div class="req-info">
+                <div style="font-weight:bold">${r.reqId}</div>
+                <div>${typeStr} | ${r.start.split('T')[0]}</div>
+                <div style="color:#666;font-size:12px">${r.reason||'無事由'}</div>
+              </div>
+              <div class="req-actions">
+                <button class="btn-ok" onclick="review('${r.reqId}', 'APPROVED')">准</button>
+                <button class="btn-no" onclick="review('${r.reqId}', 'REJECTED')">駁</button>
+              </div>
+            </div>`;
+        });
+        listDiv.innerHTML = html || "<div style='text-align:center;color:#999'>無待審核項目</div>";
+    }
+  }
+
+  async function review(reqId, decision) {
+      if(!confirm("確定嗎？")) return;
+      await api("review_request", { reqId, decision });
+      document.getElementById(`card-${reqId}`).style.display = 'none';
+  }
+
+  async function approveAll() {
+      if(!confirm("確定全部核准？")) return;
+      const now = new Date();
+      await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
+      alert("已處理");
+      loadData();
+  }
+
+  loadData();
+</script>
 </body>
 </html>
