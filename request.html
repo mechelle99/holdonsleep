@@ -16,20 +16,22 @@
     .input-group { margin-bottom: 20px; }
     label { display: block; font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 6px; }
     
-    select, input, textarea {
+    select, input[type="datetime-local"], input[type="number"], textarea {
       width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 12px;
       font-size: 16px; background: #F9FAFB; outline: none; -webkit-appearance: none;
     }
-    select:focus, input:focus, textarea:focus { border-color: var(--primary); background: #FFF; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+    
+    /* Checkbox 特殊樣式 */
+    .checkbox-group { display: flex; align-items: center; gap: 10px; background: #EEF2FF; padding: 12px; border-radius: 12px; margin-bottom: 20px; display: none; /* 預設隱藏 */ }
+    .checkbox-group input { width: 20px; height: 20px; margin: 0; }
+    .checkbox-group label { margin: 0; color: var(--primary); }
 
     .btn-submit {
       width: 100%; background: var(--primary); color: white; padding: 16px;
       border: none; border-radius: 16px; font-size: 16px; font-weight: 700;
-      cursor: pointer; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); margin-top: 10px;
+      cursor: pointer; margin-top: 10px;
     }
-    .btn-submit:active { transform: scale(0.98); }
 
-    /* 導航 (同上) */
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); }
@@ -47,7 +49,7 @@
         <option value="LEAVE">請假</option>
         <option value="OT">加班</option>
         <option value="CORRECTION">補卡</option>
-        <option value="OUTING">外出 (自動打卡)</option>
+        <option value="OUTING">外出申請</option>
       </select>
     </div>
 
@@ -56,18 +58,10 @@
       <select id="type">
         <option value="annual">特休</option>
         <option value="comp">補休</option>
-        <option value="personal">事假</option>
         <option value="sick">病假</option>
-        <option value="menstrual">生理假</option>
-        <option value="family">家庭照顧假</option>
-        <option value="marriage">婚假</option>
-        <option value="bereavement">喪假</option>
-        <option value="maternity">產假</option>
-        <option value="prenatal">產檢假</option>
-        <option value="paternity">陪產檢及陪產假</option>
-        <option value="injury">公傷病假</option>
+        <option value="personal">事假</option>
         <option value="official">公假</option>
-      </select>
+        </select>
     </div>
 
     <div class="input-group">
@@ -79,10 +73,15 @@
       <label>結束時間</label>
       <input type="datetime-local" id="end" onchange="calc()">
     </div>
-
+    
     <div class="input-group" id="hrsGrp">
       <label>時數 (自動計算)</label>
       <input type="number" id="hours" step="0.5" readonly style="color:#6B7280">
+    </div>
+
+    <div class="checkbox-group" id="autoClockGrp">
+      <input type="checkbox" id="autoClock">
+      <label for="autoClock">立即打卡 (外出)</label>
     </div>
 
     <div class="input-group">
@@ -113,24 +112,28 @@
       const endDiv = document.getElementById("endGrp");
       const hrsDiv = document.getElementById("hrsGrp");
       const lbl = document.getElementById("startLbl");
+      const clockDiv = document.getElementById("autoClockGrp");
 
       // 預設全開
       typeDiv.style.display = 'block';
       endDiv.style.display = 'block';
       hrsDiv.style.display = 'block';
+      clockDiv.style.display = 'none'; // 預設隱藏自動打卡
       lbl.innerText = '開始時間';
 
-      if (c === 'CORRECTION') { // 補卡
+      if (c === 'CORRECTION') { 
+          // 補卡
           endDiv.style.display = 'none';
           hrsDiv.style.display = 'none';
           lbl.innerText = '補卡時間';
           typeDiv.style.display = 'none';
-      } else if (c === 'OUTING') { // 外出
+      } else if (c === 'OUTING') { 
+          // 外出 (需要起訖時間，不需要假別，顯示自動打卡選項)
           typeDiv.style.display = 'none';
-          endDiv.style.display = 'none';
-          hrsDiv.style.display = 'none';
-          lbl.innerText = '外出時間 (預設現在)';
-      } else if (c === 'OT') { // 加班
+          lbl.innerText = '預計外出時間';
+          clockDiv.style.display = 'flex'; // 顯示勾選框
+      } else if (c === 'OT') { 
+          // 加班
           typeDiv.style.display = 'none';
       }
   }
@@ -155,25 +158,28 @@
   async function submit() {
       const cat = document.getElementById("cat").value;
       const start = document.getElementById("start").value;
+      const auto = document.getElementById("autoClock").checked;
       
-      if(cat !== 'OUTING' && !start) { alert("請填寫時間"); return; }
+      if(!start) { alert("請填寫時間"); return; }
 
       const btn = document.querySelector(".btn-submit");
       btn.innerText = "處理中..."; btn.disabled = true;
 
       const payload = {
           category: cat,
-          leaveType: document.getElementById("type").value, // 後端會自己判斷要不要存這個
+          leaveType: document.getElementById("type").value,
           start: start,
           end: document.getElementById("end").value || start,
           hours: document.getElementById("hours").value || 0,
-          reason: document.getElementById("reason").value
+          reason: document.getElementById("reason").value,
+          autoClock: auto // 傳送是否要自動打卡
       };
 
       const res = await api("submit_request", payload);
       alert(res.message);
       location.href = 'history.html';
   }
+  
   uiChange();
 </script>
 </body>
