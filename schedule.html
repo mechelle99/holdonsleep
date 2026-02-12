@@ -1,82 +1,117 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>排班</title>
-<style>
-  body{font-family:sans-serif;margin:0;display:flex;flex-direction:column;height:100vh;}
-  .header{padding:10px;background:#eee;}
-  table{border-collapse:collapse;min-width:100%;}
-  th,td{border:1px solid #ddd;text-align:center;min-width:40px;height:40px;font-size:12px;}
-  .bg-early{background:#e3f2fd} .bg-late{background:#fff3e0}
-  .info{font-size:13px;color:#c22;margin-top:5px;font-weight:bold;}
-  select.shift-sel {width:100%;height:100%;border:none;background:transparent;text-align-last:center;}
-</style>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>團隊排班</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+    button { padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; background: #333; color:white; }
+    select { padding: 8px; border-radius: 6px; border: 1px solid #ddd; }
+    
+    .table-container { overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; min-width: 800px; }
+    th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; white-space: nowrap; }
+    th { background: #f9f9f9; position: sticky; left: 0; }
+    td:first-child { position: sticky; left: 0; background: white; border-right: 2px solid #eee; font-weight: bold; }
+    
+    /* 班別選單 */
+    .shift-sel { padding: 5px; border-radius: 4px; border: 1px solid #ddd; width: 100%; }
+    .shift-sel.EARLY { border-left: 4px solid #34c759; }
+    .shift-sel.LATE { border-left: 4px solid #ff9500; }
+    .shift-sel.OFF { border-left: 4px solid #999; color: #999; }
+    
+    .leave-tag { padding: 4px 8px; background: #e3f2fd; color: #007aff; border-radius: 4px; font-size: 12px; display: block; }
+  </style>
 </head>
 <body>
-  <div class="header">
-    <button onclick="location.href='app.html'">返回</button>
-    <select id="y"></select><select id="m"></select>
-    <button onclick="load()">刷新</button>
-    <div id="hols" class="info"></div>
-  </div>
-  <div style="flex:1;overflow:auto;">
-    <table id="tbl"><thead><tr id="th"></tr></thead><tbody id="tb"></tbody></table>
-  </div>
-  <script src="config.js"></script>
-  <script>
-    const uid=localStorage.getItem("employeeId");
-    const yS=document.getElementById("y"), mS=document.getElementById("m");
-    for(let i=2024;i<=2026;i++) yS.add(new Option(i,i));
-    for(let i=1;i<=12;i++) mS.add(new Option(i,i));
-    const now=new Date(); yS.value=now.getFullYear(); mS.value=now.getMonth()+1;
 
-    function api(a,d={}){
-      return new Promise(r=>{
-        const s=document.createElement("script");
-        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid}))}&callback=cb${Date.now()}`;
-        window[`cb${Date.now()}`]=(res)=>{r(res);s.remove()};
-        document.body.appendChild(s);
-      });
+<div class="header">
+  <h2>📅 排班表</h2>
+  <div>
+    <select id="year"></select>
+    <select id="month"></select>
+    <button onclick="load()">查詢</button>
+    <button onclick="location.href='app.html'" style="margin-left:10px">返回</button>
+  </div>
+</div>
+
+<div class="table-container">
+  <table id="table">
+    <thead><tr id="headRow"><th>員工</th></tr></thead>
+    <tbody id="bodyRow"><tr><td colspan="5">載入中...</td></tr></tbody>
+  </table>
+</div>
+
+<script src="config.js"></script>
+<script>
+  const uid = localStorage.getItem("employeeId");
+  const ySel = document.getElementById("year");
+  const mSel = document.getElementById("month");
+  const now = new Date();
+
+  for(let i=2024; i<=2026; i++) ySel.add(new Option(i, i, i===now.getFullYear(), i===now.getFullYear()));
+  for(let i=1; i<=12; i++) mSel.add(new Option(i, i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
+
+  function api(act, d={}) {
+    return new Promise(r => {
+      const s = document.createElement("script");
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      document.body.appendChild(s);
+    });
+  }
+
+  async function load() {
+    const y = ySel.value;
+    const m = mSel.value;
+    const res = await api("get_roster_data", {year:y, month:m});
+    
+    if(!res.ok) { document.getElementById("bodyRow").innerHTML = `<tr><td colspan="5">${res.message}</td></tr>`; return; }
+
+    // 表頭
+    const days = new Date(y, m, 0).getDate();
+    let head = `<th>員工</th>`;
+    for(let d=1; d<=days; d++) {
+        const wk = ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
+        head += `<th>${d}<br><small>${wk}</small></th>`;
     }
-    async function load(){
-      const y=yS.value, m=mS.value;
-      const days = new Date(y,m,0).getDate();
-      let h="<th>員</th>"; for(let i=1;i<=days;i++) h+=`<th>${i}</th>`;
-      document.getElementById("th").innerHTML=h;
-      document.getElementById("tb").innerHTML="<tr><td colspan='32'>讀取中...</td></tr>";
-      
-      const r = await api("get_roster_data",{year:y,month:m});
-      if(r.ok){
-        if(r.holidayCount) {
-           document.getElementById("hols").innerText = `本月應休: ${r.holidayCount.total} 天 (週末:${r.holidayCount.weekends} + 國定:${r.holidayCount.national})`;
-        }
-        
-        let b="";
-        r.employees.forEach(e=>{
-          b+=`<tr><td>${e.name}</td>`;
-          for(let i=1;i<=days;i++){
-            const cell = (r.roster[e.id] && r.roster[e.id][i]) ? r.roster[e.id][i] : {};
-            const v = cell.val || 'OFF';
-            const cls = v==='EARLY'?'bg-early':(v==='LATE'?'bg-late':'');
-            const txt = v==='EARLY'?'早':(v==='LATE'?'午':'');
+    document.getElementById("headRow").innerHTML = head;
+
+    // 內容
+    let rows = "";
+    res.employees.forEach(e => {
+        let tds = `<td>${e.name}</td>`;
+        for(let d=1; d<=days; d++) {
+            const cell = (res.roster[e.id] && res.roster[e.id][d]) ? res.roster[e.id][d] : {};
+            const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             
-            // ★權限修正：依據後端判斷
-            if(r.canEdit) {
-               b+=`<td class="${cls}"><select class="shift-sel" onchange="save('${e.id}','${e.name}',${i},this.value)">
-               <option value="OFF" ${v==='OFF'?'selected':''}></option>
-               <option value="EARLY" ${v==='EARLY'?'selected':''}>早</option>
-               <option value="LATE" ${v==='LATE'?'selected':''}>午</option></select></td>`;
-            } else { b+=`<td class="${cls}">${txt}</td>`; }
-          }
-          b+="</tr>";
-        });
-        document.getElementById("tb").innerHTML=b;
-      }
-    }
-    async function save(eid,nm,d,v){
-      await api("update_schedule",{empId:eid,empName:nm,date:`${yS.value}-${mS.value}-${d}`,shift:v});
-      load(); 
-    }
-    load();
-  </script>
+            if(cell.type === 'LEAVE') {
+                tds += `<td><span class="leave-tag">${cell.value}</span></td>`;
+            } else {
+                const v = cell.value || '';
+                tds += `<td>
+                  <select class="shift-sel ${v}" onchange="upd('${e.id}','${dateStr}',this)">
+                    <option value="">-</option>
+                    <option value="早班" ${v==='早班'||v==='EARLY'?'selected':''}>早班</option>
+                    <option value="午班" ${v==='午班'||v==='LATE'?'selected':''}>午班</option>
+                    <option value="休假" ${v==='休假'||v==='OFF'?'selected':''}>休假</option>
+                  </select>
+                </td>`;
+            }
+        }
+        rows += `<tr>${tds}</tr>`;
+    });
+    document.getElementById("bodyRow").innerHTML = rows;
+  }
+
+  function upd(eid, d, el) {
+      el.className = `shift-sel ${el.value}`; // 變色
+      api("update_schedule", {empId:eid, date:d, shift:el.value});
+  }
+
+  load();
+</script>
 </body>
 </html>
