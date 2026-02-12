@@ -87,19 +87,17 @@
     const res = await api("get_roster_data", {year:yS.value, month:mS.value});
     if(!res.ok) { document.getElementById("tbRow").innerHTML = `<tr><td>${res.message}</td></tr>`; return; }
 
-    // 狀態提示
+    // 狀態判定
     const today = new Date();
     const lockDay = res.lockDay || 25;
+    // 是否為下個月
     const isNextMonth = (Number(yS.value) > today.getFullYear()) || (Number(yS.value)===today.getFullYear() && Number(mS.value)>today.getMonth()+1);
-    
+    const isLocked = !res.isManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
+
     let info = "";
     if (res.isManager) info = "👑 主管模式 (可任意編輯)";
-    else if (isNextMonth) {
-        if (today.getDate() <= lockDay) info = `🟢 下月排班開放中 (截止日: ${lockDay}號)`;
-        else info = `🔴 下月排班已截止 (截止日: ${lockDay}號)`;
-    } else {
-        info = "🔒 本月班表已鎖定 (僅供檢視)";
-    }
+    else if (!isLocked) info = `🟢 開放排班中 (每月${lockDay}號截止)`;
+    else info = "🔒 排班已鎖定 (僅供檢視)";
     document.getElementById("statusInfo").innerText = info;
 
     // 表格繪製
@@ -128,7 +126,10 @@
                 else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
                 else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
                 
-                tds += `<td><select class="shift-sel ${cls}" onchange="upd('${e.id}','${dateStr}',this)">
+                // ★ 關鍵：若鎖定 (isLocked) 則加上 disabled
+                const dis = isLocked ? 'disabled' : '';
+                
+                tds += `<td><select class="shift-sel ${cls}" ${dis} onchange="upd('${e.id}','${dateStr}',this)">
                   <option value="">-</option>
                   <option value="早班" ${v==='早班'?'selected':''}>早</option>
                   <option value="午班" ${v==='午班'?'selected':''}>午</option>
