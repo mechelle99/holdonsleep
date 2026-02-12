@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>申請作業</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+    button { padding: 8px 15px; background: #333; color: #fff; border: none; border-radius: 6px; }
+    .card { background: white; padding: 20px; border-radius: 12px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 6px; font-weight: bold; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size:16px; }
+    .btn-submit { width: 100%; background: #007aff; color: white; padding: 12px; font-size: 16px; border: none; border-radius: 8px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h2>📝 提出申請</h2>
+  <button onclick="location.href='app.html'">返回</button>
+</div>
+
+<div class="card">
+  <div class="form-group">
+    <label>申請類別</label>
+    <select id="cat" onchange="uiChange()">
+      <option value="LEAVE">請假</option>
+      <option value="OT">加班</option>
+      <option value="CORRECTION">補卡</option>
+      <option value="OUTING">外出 (自動打卡)</option>
+    </select>
+  </div>
+
+  <div class="form-group" id="typeGrp">
+    <label>假別</label>
+    <select id="type">
+      <option value="annual">特休</option>
+      <option value="comp">補休</option>
+      <option value="sick">病假</option>
+      <option value="personal">事假</option>
+      <option value="official">公假</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label id="startLbl">開始時間</label>
+    <input type="datetime-local" id="start">
+  </div>
+
+  <div class="form-group" id="endGrp">
+    <label>結束時間</label>
+    <input type="datetime-local" id="end" onchange="calcHours()">
+  </div>
+  
+  <div class="form-group" id="hrsGrp">
+    <label>時數</label>
+    <input type="number" id="hours" step="0.5" placeholder="自動計算">
+  </div>
+
+  <div class="form-group">
+    <label>說明</label>
+    <input type="text" id="reason">
+  </div>
+
+  <button class="btn-submit" onclick="submit()">送出</button>
+</div>
+
+<script src="config.js"></script>
+<script>
+  const uid = localStorage.getItem("employeeId");
+
+  function uiChange() {
+      const c = document.getElementById("cat").value;
+      const type = document.getElementById("type");
+      const end = document.getElementById("endGrp");
+      const hrs = document.getElementById("hrsGrp");
+      const lbl = document.getElementById("startLbl");
+      
+      // 重置
+      document.getElementById("typeGrp").style.display = 'block';
+      end.style.display = 'block';
+      hrs.style.display = 'block';
+      lbl.innerText = '開始時間';
+
+      if(c === 'CORRECTION') {
+          // 補卡：隱藏結束時間、時數
+          end.style.display = 'none';
+          hrs.style.display = 'none';
+          lbl.innerText = '補卡時間';
+          type.innerHTML = '<option value="IN">上班卡</option><option value="OUT">下班卡</option>';
+      } else if(c === 'OUTING') {
+          // 外出：隱藏假別、結束時間、時數
+          document.getElementById("typeGrp").style.display = 'none';
+          end.style.display = 'none';
+          hrs.style.display = 'none';
+          lbl.innerText = '外出時間 (預設現在)';
+      } else {
+          // 恢復假別
+          type.innerHTML = '<option value="annual">特休</option><option value="comp">補休</option><option value="sick">病假</option><option value="personal">事假</option>';
+      }
+  }
+
+  function calcHours() {
+      const s = new Date(document.getElementById("start").value);
+      const e = new Date(document.getElementById("end").value);
+      if(s && e && e > s) {
+          document.getElementById("hours").value = ((e - s) / 36e5).toFixed(1);
+      }
+  }
+
+  function api(act, d={}) {
+    return new Promise(r => {
+      const s = document.createElement("script");
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      document.body.appendChild(s);
+    });
+  }
+
+  async function submit() {
+      const cat = document.getElementById("cat").value;
+      const start = document.getElementById("start").value;
+      
+      if(cat !== 'OUTING' && !start) { alert("請填寫時間"); return; }
+
+      const btn = document.querySelector(".btn-submit");
+      btn.innerText = "處理中...";
+      btn.disabled = true;
+
+      const res = await api("submit_request", {
+          category: cat,
+          leaveType: document.getElementById("type").value,
+          start: start,
+          end: document.getElementById("end").value || start,
+          hours: document.getElementById("hours").value || 0,
+          reason: document.getElementById("reason").value
+      });
+      alert(res.message);
+      location.href='app.html';
+  }
+  
+  uiChange();
+</script>
+</body>
+</html>
