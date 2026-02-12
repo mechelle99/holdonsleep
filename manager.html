@@ -5,43 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>主管管理</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f4f8; margin: 0; padding: 20px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     button { padding: 8px 16px; background: #111; color: white; border: none; border-radius: 8px; cursor: pointer; }
     
-    h3 { color: #333; border-left: 4px solid #007aff; padding-left: 10px; margin-top: 30px; }
+    h3 { color: #333; border-left: 5px solid #007aff; padding-left: 10px; margin-top: 30px; margin-bottom: 15px; }
 
-    /* 團隊統計卡片容器 (Grid Layout) */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; margin-bottom: 20px; }
-    .stat-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; }
-    .stat-name { font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #333; }
-    .stat-row { font-size: 13px; color: #666; display: flex; justify-content: space-between; margin-top: 4px; }
+    /* ★ 修復重點：團隊統計改用 Grid 網格，避免跑版 */
+    .stats-grid { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); 
+        gap: 15px; 
+    }
+    .stat-card { 
+        background: white; 
+        padding: 15px; 
+        border-radius: 12px; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+        text-align: center; 
+        border: 1px solid #eee;
+    }
+    .stat-name { font-weight: bold; font-size: 16px; margin-bottom: 10px; color: #333; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; }
+    .stat-row { font-size: 13px; color: #666; display: flex; justify-content: space-between; margin-top: 5px; }
     .stat-val { font-weight: bold; color: #007aff; }
 
     /* 待審核列表 */
-    .pending-list { display: flex; flex-direction: column; gap: 10px; }
-    .req-card { background: white; padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .req-card { 
+        background: white; 
+        padding: 15px; 
+        border-radius: 12px; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+        margin-bottom: 10px;
+    }
     .req-info div { margin-bottom: 4px; font-size: 14px; }
-    .req-actions { display: flex; gap: 10px; }
-    .btn-ok { background: #34c759; }
-    .btn-no { background: #ff3b30; }
+    .req-tag { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .req-actions { display: flex; gap: 8px; }
+    .btn-ok { background: #34c759; padding: 6px 12px; font-size: 13px; }
+    .btn-no { background: #ff3b30; padding: 6px 12px; font-size: 13px; }
   </style>
 </head>
 <body>
 
 <div class="header">
   <h2>👨‍💼 主管專區</h2>
-  <button onclick="location.href='app.html'">返回首頁</button>
+  <button onclick="location.href='app.html'">返回</button>
 </div>
 
-<h3>📊 團隊餘額概況</h3>
+<h3>📊 團隊餘額</h3>
 <div id="teamStats" class="stats-grid">載入中...</div>
 
 <h3>
-  📝 待審核申請
+  📝 待審核
   <button onclick="approveAll()" style="font-size:12px; background:#007aff; margin-left:10px;">一鍵全准</button>
 </h3>
-<div id="pendingList" class="pending-list">載入中...</div>
+<div id="pendingList">載入中...</div>
 
 <script src="config.js"></script>
 <script>
@@ -57,22 +77,23 @@
   }
 
   async function loadData() {
-    // 1. 團隊統計
+    // 1. 團隊統計 (修復 undefined)
     const stats = await api("get_team_stats");
     const statsDiv = document.getElementById("teamStats");
+    
     if(stats && stats.ok && stats.list) {
         let html = "";
         stats.list.forEach(d => {
-            // 防呆：確保名字存在
-            const name = d.name || '未知';
+            // ★ 強力防呆：如果名字是 undefined，顯示 '未知' 或 ID
+            const safeName = (d.name && d.name !== 'undefined') ? d.name : '未知員工';
             html += `
             <div class="stat-card">
-              <div class="stat-name">${name}</div>
-              <div class="stat-row"><span>特休剩</span> <span class="stat-val">${d.annual}</span></div>
-              <div class="stat-row"><span>補休剩</span> <span class="stat-val">${d.comp}</span></div>
+              <div class="stat-name">${safeName}</div>
+              <div class="stat-row"><span>特休</span> <span class="stat-val">${d.annual}</span></div>
+              <div class="stat-row"><span>補休</span> <span class="stat-val">${d.comp}</span></div>
             </div>`;
         });
-        statsDiv.innerHTML = html || "無資料";
+        statsDiv.innerHTML = html || "<div style='grid-column:1/-1;text-align:center'>無資料</div>";
     } else {
         statsDiv.innerHTML = "讀取失敗";
     }
@@ -83,14 +104,15 @@
     if(pending && pending.ok && pending.list) {
         let html = "";
         pending.list.forEach(r => {
-            let typeStr = r.leaveType; 
-            if(r.category === 'CORRECTION') typeStr = '補卡';
+            let label = r.leaveType;
+            if(r.category === 'CORRECTION') label = "補卡 (" + r.leaveType + ")";
+            else if(r.category === 'OT') label = "加班";
             
             html += `
             <div class="req-card" id="card-${r.reqId}">
               <div class="req-info">
-                <div style="font-weight:bold">${r.reqId}</div>
-                <div>${typeStr} | ${r.start.split('T')[0]}</div>
+                <div style="font-weight:bold">${r.reqId} <span class="req-tag">${label}</span></div>
+                <div>${r.start.split('T')[0]} ${r.category!=='CORRECTION' ? '('+r.hours+'h)' : ''}</div>
                 <div style="color:#666;font-size:12px">${r.reason||'無事由'}</div>
               </div>
               <div class="req-actions">
@@ -99,22 +121,24 @@
               </div>
             </div>`;
         });
-        listDiv.innerHTML = html || "<div style='text-align:center;color:#999'>無待審核項目</div>";
+        listDiv.innerHTML = html || "<div style='text-align:center;padding:20px;color:#999'>目前無待審核項目</div>";
     }
   }
 
   async function review(reqId, decision) {
-      if(!confirm("確定嗎？")) return;
+      if(!confirm(decision==='APPROVED'?"確定核准？":"確定駁回？")) return;
       await api("review_request", { reqId, decision });
-      document.getElementById(`card-${reqId}`).style.display = 'none';
+      // 移除該卡片
+      const card = document.getElementById(`card-${reqId}`);
+      if(card) card.remove();
   }
 
   async function approveAll() {
-      if(!confirm("確定全部核准？")) return;
+      if(!confirm("確定全部核准本月申請？")) return;
       const now = new Date();
       await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
-      alert("已處理");
-      loadData();
+      alert("處理完成，請重新整理");
+      location.reload();
   }
 
   loadData();
