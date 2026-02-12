@@ -3,135 +3,98 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>HOLDON 出勤系統</title>
+  <title>員工系統</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; margin: 0; padding: 0; }
-    .header { background: #fff; padding: 15px; text-align: center; border-bottom: 1px solid #eee; position: relative; }
-    .header h1 { font-size: 18px; margin: 0; }
-    .logout { position: absolute; right: 15px; top: 15px; color: #ff3b30; font-size: 14px; text-decoration: none; }
-    .progress-bar { background: #0ca5ac; color: white; padding: 10px; text-align: center; font-size: 14px; margin: 10px; border-radius: 8px; }
-    .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; }
-    .bal-box { background: #fff; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
+    
+    /* 上方資訊卡 (餘額) */
+    .info-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .user-name { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
+    .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .bal-box { background: #f8f9fa; padding: 10px; border-radius: 8px; text-align: center; }
     .bal-label { font-size: 13px; color: #666; }
-    .bal-num { font-size: 24px; font-weight: bold; color: #000; }
-    .clock-section { padding: 10px; text-align: center; }
-    .clock-title { font-size: 16px; color: #666; margin-bottom: 10px; }
-    .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .btn-clock { padding: 15px; font-size: 18px; border: none; border-radius: 12px; color: white; cursor: pointer; font-weight: bold; }
-    .btn-in { background: #007aff; }
-    .btn-out { background: #ff9500; }
-    .request-section { background: #fff; padding: 15px; margin: 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .request-title { font-size: 16px; margin-bottom: 10px; }
-    .form-group { margin-bottom: 10px; }
-    .form-label { font-size: 14px; color: #333; margin-bottom: 5px; display: block; }
-    .form-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
-    .btn-submit { width: 100%; background: #34c759; color: white; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+    .bal-num { font-size: 20px; font-weight: bold; color: #007aff; }
+
+    /* 打卡按鈕 (只留上下班) */
+    .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+    .btn-clock { padding: 25px; font-size: 18px; border: none; border-radius: 12px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn-in { background: linear-gradient(135deg, #34c759, #30b753); }
+    .btn-out { background: linear-gradient(135deg, #ff9500, #e68600); }
+    
+    /* 下方選單 */
+    .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .btn-menu { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; font-weight: 500; font-size: 15px; }
+    
+    #gpsStatus { text-align: center; font-size: 12px; color: #999; margin-bottom: 10px; }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>HOLDON 出勤系統</h1>
-  <a href="logout.html" class="logout">登出</a>
-</div>
-
-<div class="progress-bar">
-  <span>📅 2025/10/17 進入排班表</span>
-</div>
-
-<div class="balance-grid">
-  <div class="bal-box">
-    <div class="bal-label">特休剩餘</div>
-    <div class="bal-num" id="annBal">28.0 天</div>
-  </div>
-  <div class="bal-box">
-    <div class="bal-label">補休剩餘</div>
-    <div class="bal-num" id="compBal">0.0 時</div>
+<div class="info-card">
+  <div class="user-name">Hi, <span id="uName">載入中...</span></div>
+  <div class="balance-grid">
+    <div class="bal-box">
+      <div class="bal-label">特休餘額</div>
+      <div class="bal-num" id="annBal">--</div>
+    </div>
+    <div class="bal-box">
+      <div class="bal-label">補休餘額</div>
+      <div class="bal-num" id="compBal">--</div>
+    </div>
   </div>
 </div>
 
-<div class="clock-section">
-  <div class="clock-title">📍 上下班打卡</div>
-  <div class="clock-grid">
-    <button class="btn-clock btn-in" onclick="clock('clock_in')">上班</button>
-    <button class="btn-clock btn-out" onclick="clock('clock_out')">下班</button>
-  </div>
+<div id="gpsStatus">📍 GPS 定位中...</div>
+
+<div class="clock-grid">
+  <button class="btn-clock btn-in" onclick="clock('clock_in')">上班打卡</button>
+  <button class="btn-clock btn-out" onclick="clock('clock_out')">下班打卡</button>
 </div>
 
-<div class="request-section">
-  <div class="request-title">🖋 提出申請</div>
-  <div class="form-group">
-    <label class="form-label">類型</label>
-    <select class="form-input" id="reqCategory">
-      <option>請假</option>
-    </select>
-  </div>
-  <div class="form-group">
-    <label class="form-label">假別</label>
-    <select class="form-input" id="leaveType">
-      <option>特休</option>
-    </select>
-  </div>
-  <div class="form-group">
-    <label class="form-label">開始時間</label>
-    <input type="datetime-local" class="form-input" id="startTime">
-  </div>
-  <div class="form-group">
-    <label class="form-label">結束時間</label>
-    <input type="datetime-local" class="form-input" id="endTime">
-  </div>
-  <button class="btn-submit" onclick="submitRequest()">送出申請</button>
+<div class="menu-grid">
+  <a href="request.html" class="btn-menu">📝 申請作業</a>
+  <a href="attendance.html" class="btn-menu">📅 出勤紀錄</a>
+  <a href="roster.html" class="btn-menu">📊 排班表</a>
+  <a href="manager.html" class="btn-menu" id="mgrBtn" style="display:none; color:#007aff;">👨‍💼 主管專區</a>
 </div>
 
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
-  if(!uid) location.href = 'index.html';
+  if(!uid) location.href='index.html';
 
-  let lat = '', lng = '';
+  let lat='', lng='';
   navigator.geolocation.getCurrentPosition(
-    p => { lat = p.coords.latitude; lng = p.coords.longitude; },
-    e => { alert('定位失敗'); }
+    p => { lat=p.coords.latitude; lng=p.coords.longitude; document.getElementById('gpsStatus').innerText='✅ GPS 已定位'; },
+    e => { document.getElementById('gpsStatus').innerText='⚠️ 定位失敗'; }
   );
 
-  async function init() {
-    const res = await api("get_me");
-    if(res.ok) {
-      document.querySelector('.header h1').innerText = res.emp.name + ' (' + res.emp.id + ')';
-      document.getElementById("annBal").innerText = res.balances.annual.left + ' 天';
-      document.getElementById("compBal").innerText = res.balances.comp.left + ' 時';
-    }
-  }
-
-  function api(act, data = {}) {
-    return new Promise(resolve => {
-      const cbName = `cb_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+  function api(act, data={}) {
+    return new Promise(r => {
       const s = document.createElement("script");
-      const payloadStr = JSON.stringify({ ...data, userId: uid });
-      window[cbName] = res => { resolve(res); delete window[cbName]; s.remove(); };
-      s.onerror = () => { resolve({ ok: false, message: "JSONP 失敗" }); delete window[cbName]; s.remove(); };
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payloadStr)}&callback=${cbName}`;
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...data, userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
       document.body.appendChild(s);
     });
   }
 
-  async function clock(type) {
-    if (!lat) return alert("請等待定位");
-    const res = await api(type, { lat, lng });
-    alert(res.message);
+  async function init() {
+      const res = await api("get_me");
+      if(res.ok) {
+          document.getElementById("uName").innerText = res.name;
+          document.getElementById("annBal").innerText = res.balances.annual.left;
+          document.getElementById("compBal").innerText = res.balances.comp.left;
+          if(res.isManager) document.getElementById("mgrBtn").style.display = 'block';
+      }
   }
 
-  async function submitRequest() {
-    const category = document.getElementById("reqCategory").value;
-    const leaveType = document.getElementById("leaveType").value;
-    const start = document.getElementById("startTime").value;
-    const end = document.getElementById("endTime").value;
-    if (!start || !end) return alert("請填時間");
-    const res = await api("submit_request", { category, leaveType, start, end });
-    alert(res.message);
+  async function clock(type) {
+      if(!lat) { alert("請等待定位"); return; }
+      const res = await api(type, {lat, lng});
+      alert(res.message);
   }
 
   init();
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9cca914229cf844e',t:'MTc3MDg4MzM4NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
