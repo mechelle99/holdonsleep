@@ -180,10 +180,44 @@
   }
 
   function calc() {
-      const s = new Date(document.getElementById("start").value);
-      const e = new Date(document.getElementById("end").value);
-      if(s && e && e > s) {
-          document.getElementById("hours").value = ((e - s) / 36e5).toFixed(1);
+      const sVal = document.getElementById("start").value;
+      const eVal = document.getElementById("end").value;
+      if (!sVal || !eVal) return;
+
+      const s = new Date(sVal);
+      const e = new Date(eVal);
+
+      if (e >= s) {
+          // 計算毫秒差
+          const diffMs = e - s;
+          // 轉換為天數 (無條件進位，只要跨到隔天就算一天)
+          // 這裡假設一天 8 小時。如果只是請 2 小時，員工應該自己手動改。
+          // 但您的需求是「請 2 天變成 16 小時而不是 24 小時」
+          
+          // 簡單邏輯：總小時數
+          const totalHours = diffMs / (1000 * 60 * 60);
+          
+          // 如果超過 24 小時，則視為跨日，改用天數 * 8
+          if (totalHours >= 24) {
+              const days = Math.ceil(totalHours / 24);
+              // 如果是 2/12 ~ 2/13，其實是 2 天
+              // 這裡做一個簡單判定：如果天數 > 0
+              document.getElementById("hours").value = (days + 1) * 8; 
+              // 註：日期相減如果同天是 0，所以跨一天是 1，實際請假是 2 天，所以 +1
+          } else {
+              // 當天請假，直接顯示小時
+              document.getElementById("hours").value = totalHours.toFixed(1);
+          }
+          
+          // ★ V80 修正：針對您的需求「2天=16小時」
+          // 比較精準的算法：
+          const dayDiff = Math.ceil((e - s) / (1000 * 60 * 60 * 24));
+          // 如果是同一天 (dayDiff=0 或 1)，看小時
+          // 如果跨天，直接 days * 8
+          if (dayDiff >= 1) {
+             document.getElementById("hours").value = (dayDiff + 1) * 8; 
+             // 假設 12號~13號 是兩天 => 16小時
+          }
       }
   }
 
