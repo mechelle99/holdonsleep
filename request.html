@@ -28,11 +28,11 @@
 <body>
 
   <h2>📝 填寫申請單</h2>
-  <p class="hint">請假：依「排班時段」計算（早班 10-18；午班 12-21；未排班預設早班）。加班/外出：依實際區間。</p>
+  <p class="hint">請假：依「排班時段」計算（早班 10-18；午班 12-20；未排班預設早班）。加班/外出：依實際區間。</p>
 
   <div class="form-group">
     <label>申請類型</label>
-    <select id="cat" onchange="toggleType()">
+    <select id="cat">
       <option value="LEAVE">請假</option>
       <option value="OT">加班</option>
       <option value="OUTING">外出</option>
@@ -42,19 +42,7 @@
 
   <div class="form-group" id="typeGroup">
     <label>假別</label>
-const leaveType = document.getElementById("type")?.value;
-if (cat === 'LEAVE' && leaveType === 'birthday'){
-  const sVal = document.getElementById("start").value;
-  const eVal = document.getElementById("end").value;
-  if (sVal && eVal){
-    const s = new Date(sVal), e = new Date(eVal);
-    if (s.toDateString() !== e.toDateString()){
-      // 直接拉齊，不讓你跨日造成錯覺
-      document.getElementById("end").value = sVal;
-    }
-  }
-}
-    <select id="type" onchange="calcHoursSmart()">
+    <select id="type">
       <option value="annual">特休</option>
       <option value="comp">補休</option>
       <option value="personal">事假</option>
@@ -72,18 +60,18 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
 
   <div class="form-group">
     <label>開始時間</label>
-    <input type="datetime-local" id="start" onchange="onTimeChange()">
+    <input type="datetime-local" id="start">
   </div>
 
   <div class="form-group" id="endGroup">
     <label>結束時間</label>
-    <input type="datetime-local" id="end" onchange="onTimeChange()">
+    <input type="datetime-local" id="end">
   </div>
 
   <div class="form-group" id="extraGroup" style="display:none;">
     <div class="row">
       <div class="chip">
-        <input type="checkbox" id="isTrip" onchange="calcHoursSmart()"/>
+        <input type="checkbox" id="isTrip"/>
         <label for="isTrip" style="margin:0;">出差（外出可超過 8 小時）</label>
       </div>
       <div class="chip">
@@ -118,7 +106,7 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  // ======== JSONP API (含 timeout，避免「送出中卡住」) ========
+  // ======== JSONP API ========
   function api(act, d={}) {
     return new Promise((resolve, reject) => {
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
@@ -143,7 +131,7 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
     });
   }
 
-  // ======== 班表/規則快取 ========
+  // ======== 班表快取 ========
   let RULES = null; // { scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF|...'} }
   async function ensureRules(){
     if (RULES) return RULES;
@@ -151,13 +139,11 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
     const eVal = document.getElementById("end").value || sVal;
     const res = await api("get_rules", { start: sVal, end: eVal });
     if (!res || !res.ok) throw new Error(res && res.message ? res.message : "get_rules failed");
-    RULES = {
-      scheduleMap: res.scheduleMap || {}
-    };
+    RULES = { scheduleMap: res.scheduleMap || {} };
     return RULES;
   }
 
-  // ======== 初始化時間：今天 10:00-18:00（你們預設） ========
+  // ======== 初始化時間：今天 10:00-18:00 ========
   const now = new Date();
   const ymd = now.toISOString().split('T')[0];
   document.getElementById("start").value = `${ymd}T10:00`;
@@ -213,41 +199,34 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
     calcHoursSmart();
   }
 
-  // ======== 工具：日期 ========
   function toYMD(d){
     const y = d.getFullYear();
     const m = String(d.getMonth()+1).padStart(2,'0');
     const day = String(d.getDate()).padStart(2,'0');
     return `${y}-${m}-${day}`;
   }
-  function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
   function overlapHours(aStart, aEnd, bStart, bEnd){
     const ms = Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
     return ms / (1000*60*60);
   }
-  function roundToHalf(h){
-    return Math.round(h * 2) / 2;
-  }
+  function roundToHalf(h){ return Math.round(h * 2) / 2; }
+  function sameDay_(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
 
-  // ======== 你們的班別規則 ========
+  // ======== 班別視窗（重點：午班也算 8 小時 → 12:00-20:00） ========
   // EARLY: 10:00-18:00 (8h)
-  // LATE : 12:00-21:00 (9h)
+  // LATE : 12:00-20:00 (8h)
   // 未排班 -> 預設 EARLY
   function shiftWindowForYMD(ymd, scheduleMap){
     const raw = (scheduleMap && scheduleMap[ymd]) ? String(scheduleMap[ymd]).toUpperCase().trim() : "";
     const isOff = raw.includes("OFF") || raw.includes("休");
     if (isOff) return { off:true };
 
-    // 判斷午班
     const isLate = raw.includes("LATE") || raw.includes("午") || raw.includes("12") || raw.includes("21");
-    // 其餘都當早班（含 EARLY / 空白 / 沒記錄）
     const startH = isLate ? 12 : 10;
-    const endH   = isLate ? 21 : 18;
-
+    const endH   = isLate ? 20 : 18; // ✅ 午班改 20（8小時）
     return { off:false, startH, endH };
   }
 
-  // ======== 核心：智能算時數（修正 LEAVE 重大錯誤） ========
   async function calcHoursSmart(){
     const cat = document.getElementById("cat").value;
     if (cat === 'CORRECTION') return;
@@ -259,20 +238,26 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
     const s = new Date(sVal);
     const e = new Date(eVal);
 
+    // ✅ 生日假防呆：不可跨日（前端只做 UX，真正擋要後端）
+    const leaveType = document.getElementById("type")?.value;
+    if (cat === 'LEAVE' && leaveType === 'birthday' && !sameDay_(s,e)){
+      document.getElementById("end").value = sVal;
+      document.getElementById("hours").value = "0.0";
+      return;
+    }
+
     if (e <= s){
-      document.getElementById("hours").value = 0;
+      document.getElementById("hours").value = "0.0";
       return;
     }
 
     try{
-      // ===== 請假：用「排班時段重疊」算 =====
+      // ===== 請假：請假區間 ∩ 當日班別區間 =====
       if (cat === 'LEAVE'){
         const rules = await ensureRules();
         const scheduleMap = rules.scheduleMap || {};
-
         let total = 0;
 
-        // 從 start 當天 00:00 到 end 當天 23:59:59 逐日算
         const cur = new Date(s); cur.setHours(0,0,0,0);
         const endDay = new Date(e); endDay.setHours(0,0,0,0);
 
@@ -283,11 +268,7 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
           if (!win.off){
             const dayShiftStart = new Date(cur); dayShiftStart.setHours(win.startH, 0, 0, 0);
             const dayShiftEnd   = new Date(cur); dayShiftEnd.setHours(win.endH,   0, 0, 0);
-
-            // 這天請假區間 = [max(請假start, 這天0:00), min(請假end, 次日0:00)]
-            // 但我們直接拿整體請假區間 [s,e] 與 班別 [dayShiftStart, dayShiftEnd] 做重疊即可
-            const h = overlapHours(s, e, dayShiftStart, dayShiftEnd);
-            total += h;
+            total += overlapHours(s, e, dayShiftStart, dayShiftEnd);
           }
 
           cur.setDate(cur.getDate()+1);
@@ -298,21 +279,19 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
         return;
       }
 
-      // ===== 加班：實際區間（你說自行休息，所以不固定扣午休）=====
+      // 加班：實際差（你說不固定扣休）
       if (cat === 'OT'){
-        let diff = (e - s) / (1000*60*60);
-        diff = Math.max(0, diff);
+        let diff = Math.max(0, (e - s) / (1000*60*60));
         diff = roundToHalf(diff);
         diff = Math.max(0.5, diff);
         document.getElementById("hours").value = diff.toFixed(1);
         return;
       }
 
-      // ===== 外出：實際區間；最小 0.5；最多 8（出差除外）=====
+      // 外出：實際差；最小 0.5；最多 8（出差除外）
       if (cat === 'OUTING'){
         const isTrip = document.getElementById("isTrip").checked;
-        let diff = (e - s) / (1000*60*60);
-        diff = Math.max(0, diff);
+        let diff = Math.max(0, (e - s) / (1000*60*60));
         diff = roundToHalf(diff);
         diff = Math.max(0.5, diff);
         if (!isTrip) diff = Math.min(8, diff);
@@ -320,7 +299,7 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
         return;
       }
     }catch(err){
-      // 退回保守：請假用預設早班 10-18 的重疊（不看班表）
+      // fallback：不看班表 → 預設早班 10-18 做重疊
       if (cat === 'LEAVE'){
         let total = 0;
         const cur = new Date(s); cur.setHours(0,0,0,0);
@@ -342,7 +321,6 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
     }
   }
 
-  // ======== 送出 ========
   async function submitReq(){
     const btn = document.getElementById("submitBtn");
     const cat = document.getElementById("cat").value;
@@ -367,8 +345,8 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
       start, end,
       hours,
       reason: document.getElementById("reason").value || "",
-      autoClock: (cat === 'OUTING') ? (document.getElementById("autoClock").checked ? true : false) : false,
-      isTrip: (cat === 'OUTING') ? (document.getElementById("isTrip").checked ? true : false) : false
+      autoClock: (cat === 'OUTING') ? !!document.getElementById("autoClock").checked : false,
+      isTrip: (cat === 'OUTING') ? !!document.getElementById("isTrip").checked : false
     };
 
     try{
@@ -388,7 +366,7 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
     }
   }
 
-  // ✅ 修 Safari/WebView：datetime-local 常不觸發 onchange → 用 input/change/blur 強制重算
+  // ✅ Safari/WebView 修正：datetime-local 常不觸發 onchange
   (function bindRecalcEvents(){
     const startEl = document.getElementById("start");
     const endEl   = document.getElementById("end");
@@ -397,10 +375,7 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
     const isTripEl= document.getElementById("isTrip");
     const autoClockEl= document.getElementById("autoClock");
 
-    const safeRecalc = () => {
-      RULES = null;
-      calcHoursSmart();
-    };
+    const safeRecalc = () => { RULES = null; calcHoursSmart(); };
 
     [startEl, endEl].forEach(el => {
       if (!el) return;
@@ -415,6 +390,11 @@ if (cat === 'LEAVE' && leaveType === 'birthday'){
       el.addEventListener("input", safeRecalc);
     });
   })();
+
+  document.getElementById("cat").addEventListener("change", toggleType);
+  document.getElementById("type").addEventListener("change", () => { RULES=null; calcHoursSmart(); });
+  document.getElementById("start").addEventListener("change", onTimeChange);
+  document.getElementById("end").addEventListener("change", onTimeChange);
 
   toggleType();
   calcHoursSmart();
