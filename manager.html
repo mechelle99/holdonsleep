@@ -23,7 +23,11 @@
     .btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
     .btn-approve { background: #10B981; color: white; }
     .btn-reject { background: #EF4444; color: white; }
+    
+    /* 加入 disabled 樣式 */
+    .btn:disabled, .btn-all:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(1); }
     .btn-all { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
+
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
@@ -43,7 +47,7 @@
 
   <div class="section-title">
     待審核申請
-    <button class="btn-all" onclick="approveAll()">一鍵全准</button>
+    <button id="btnApproveAll" class="btn-all" onclick="approveAll()">一鍵全准</button>
   </div>
   <div id="pendingList">
     <div style="text-align:center;color:#999;padding:20px;">載入中...</div>
@@ -62,7 +66,6 @@
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  // API 呼叫函式 (含 Timeout)
   function api(act, d = {}) {
     return new Promise((resolve, reject) => {
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
@@ -80,7 +83,8 @@
         try { s.remove(); } catch(e){}
       }
 
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}`;
+      // ★ Fix A: 加上 Cache Buster (&_=${Date.now()})
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
 
       window[cbName] = (res) => {
         cleanup();
@@ -98,7 +102,7 @@
 
   async function loadStats() {
       const el = document.getElementById("teamStats");
-      el.innerHTML = '<div style="text-align:center;color:#999;">載入中...</div>';
+      el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">更新中...</div>';
       
       try {
         const res = await api("get_team_stats");
@@ -107,8 +111,11 @@
             return;
         }
 
+        // ★ Fix C: 資料防爆 (檢查 res.list 是否為陣列)
+        const list = Array.isArray(res.list) ? res.list : [];
+        
         let h = "";
-        res.list.forEach(u => {
+        list.forEach(u => {
             h += `
             <div class="stat-row">
                 <div class="stat-name">${u.name}</div>
@@ -123,6 +130,8 @@
 
   async function loadPending() {
       const el = document.getElementById("pendingList");
+      el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">檢查中...</div>';
+
       try {
         const res = await api("get_pending");
         
@@ -131,15 +140,17 @@
             return;
         }
 
-        if(res.list.length === 0) {
+        // ★ Fix C: 資料防爆
+        const list = Array.isArray(res.list) ? res.list : [];
+
+        if(list.length === 0) {
             el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`;
             return;
         }
 
         let h = "";
-        res.list.forEach(r => {
-            // ★ 假別中文化 (完整對照表)
-            let typeName = r.leaveType || r.category;
+        list.forEach(r => {
+            let typeName = r.leaveType || r.category || '';
             const t = String(typeName).toLowerCase();
             
             if(r.category === 'OUTING') typeName = '外出';
@@ -157,12 +168,10 @@
                 else if(t.includes('maternity')) typeName = '產假';
                 else if(t.includes('paternity')) typeName = '陪產假';
                 else if(t.includes('family')) typeName = '家庭照顧假';
+                else if(t.includes('birthday')) typeName = '生日假';
             }
 
-            // ★ 顯示防呆：如果名字是空的，顯示 ID，如果 ID 也空，顯示「未知員工」
             const displayName = r.empName || r.name || r.empId || r.id || '未知員工';
-            
-            // 時間格式美化
             const dateStr = r.start ? r.start.replace('T', ' ').substring(0, 16) : '無日期';
 
             h += `
@@ -196,9 +205,12 @@
         const res = await api("review_request", { reqId, decision });
         if(res.ok) {
             document.getElementById(`card-${reqId}`).remove();
+            // 如果刪光了，顯示無案件
             if(document.querySelectorAll('.req-item').length === 0) {
                 document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
             }
+            // 成功後更新統計
+            if(decision === 'APPROVED') loadStats();
         } else {
             alert("操作失敗: " + (res.message || '未知錯誤'));
             document.getElementById(`card-${reqId}`).style.opacity = '1';
@@ -211,13 +223,24 @@
 
   async function approveAll() {
       if(!confirm("確定核准「本月所有」待審核單據？")) return;
+      
+      // ★ Fix B: 按鈕鎖定，防止連點
+      const btn = document.getElementById("btnApproveAll");
+      btn.disabled = true;
+      btn.innerText = "處理中...";
+
       const now = new Date();
       try {
         const res = await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
         alert(res.ok ? `已核准 ${res.count} 筆單據` : "操作失敗");
         loadPending();
+        loadStats(); 
       } catch (err) {
-        alert("操作失敗: 網絡錯誤");
+        alert("操作失敗: " + err.message);
+      } finally {
+        // 解鎖按鈕
+        btn.disabled = false;
+        btn.innerText = "一鍵全准";
       }
   }
 
