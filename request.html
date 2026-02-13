@@ -136,7 +136,6 @@
   let RULES = null; // { holidays:Set, scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF'} }
   async function ensureRules(){
     if (RULES) return RULES;
-    // 拉一個涵蓋區間：start~end 跨月也OK（後端會回傳該區間需要的資料）
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value || sVal;
     const res = await api("get_rules", { start: sVal, end: eVal });
@@ -162,7 +161,6 @@
     const endGroup = document.getElementById("endGroup");
     const extraGroup = document.getElementById("extraGroup");
 
-    // reset rules cache when type change (避免跨月資料不夠)
     RULES = null;
 
     if (cat === 'CORRECTION') {
@@ -195,7 +193,6 @@
   }
 
   function onTimeChange(){
-    // 結束時間不能小於開始時間：自動拉齊
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value;
     if (sVal && eVal) {
@@ -203,7 +200,7 @@
       const e = new Date(eVal);
       if (e < s) document.getElementById("end").value = sVal;
     }
-    RULES = null; // 時間變了，規則資料重新抓
+    RULES = null;
     calcHoursSmart();
   }
 
@@ -218,11 +215,8 @@
 
   // 扣午休：規則（你要改午休時段就改這裡）
   function breakDeductionHours(s, e){
-    // 午班休 1 小時（預設 12:00-13:00）
     const b1s = new Date(s); b1s.setHours(12,0,0,0);
     const b1e = new Date(s); b1e.setHours(13,0,0,0);
-
-    // 如果區間跨到休息時間，扣 1
     const overlap = Math.max(0, Math.min(e, b1e) - Math.max(s, b1s));
     return overlap > 0 ? 1 : 0;
   }
@@ -245,20 +239,31 @@
     }
 
     try{
-      // 請假：用工作日×8 / 排班表
+      // ✅✅✅ 修 BUG：請假用「日期」算天數，end=00:00 不多算一天
       if (cat === 'LEAVE'){
         const rules = await ensureRules();
 
         let total = 0;
-        // 逐日計算：每天最多 8 小時（符合你要的）
-        // 規則：當天若 OFF / 假日 / 週末 => 0；否則 => 8
-        const cur = new Date(s); cur.setHours(0,0,0,0);
-        const endDay = new Date(e); endDay.setHours(0,0,0,0);
 
-        while (cur <= endDay){
+        const s0 = new Date(s); s0.setHours(0,0,0,0);
+        const e0 = new Date(e); e0.setHours(0,0,0,0);
+
+        const endHasTime = !(e.getHours() === 0 && e.getMinutes() === 0 && e.getSeconds() === 0);
+        const lastDay = new Date(e0);
+        if (!endHasTime) {
+          lastDay.setDate(lastDay.getDate() - 1);
+        }
+
+        if (lastDay < s0){
+          document.getElementById("hours").value = (0).toFixed(1);
+          return;
+        }
+
+        const cur = new Date(s0);
+        while (cur <= lastDay){
           const ymd = toYMD(cur);
           const isHol = rules.holidays.has(ymd);
-          const shift = (rules.scheduleMap[ymd] || "").toUpperCase(); // EARLY / LATE / OFF
+          const shift = (rules.scheduleMap[ymd] || "").toUpperCase();
           const offBySch = (shift.includes("OFF") || shift.includes("休"));
           const off = isHol || isWeekend(cur) || offBySch;
 
@@ -276,7 +281,6 @@
         let diff = (e - s) / (1000*60*60);
         diff -= breakDeductionHours(s, e);
         diff = Math.max(0, diff);
-        // 最小 0.5
         diff = Math.max(0.5, Math.round(diff * 2) / 2);
         document.getElementById("hours").value = diff.toFixed(1);
         return;
@@ -289,7 +293,6 @@
         diff -= breakDeductionHours(s, e);
         diff = Math.max(0, diff);
 
-        // 0.5 小時為單位
         diff = Math.round(diff * 2) / 2;
         diff = Math.max(0.5, diff);
 
@@ -299,12 +302,24 @@
         return;
       }
     }catch(err){
-      // 拉規則失敗就退回保守：請假用工作日×8（不看班表/假日表），其他照實際差
+      // fallback（保守）
       if (cat === 'LEAVE'){
         let total = 0;
-        const cur = new Date(s); cur.setHours(0,0,0,0);
-        const endDay = new Date(e); endDay.setHours(0,0,0,0);
-        while(cur <= endDay){
+
+        const s0 = new Date(s); s0.setHours(0,0,0,0);
+        const e0 = new Date(e); e0.setHours(0,0,0,0);
+
+        const endHasTime = !(e.getHours() === 0 && e.getMinutes() === 0 && e.getSeconds() === 0);
+        const lastDay = new Date(e0);
+        if (!endHasTime) lastDay.setDate(lastDay.getDate() - 1);
+
+        if (lastDay < s0){
+          document.getElementById("hours").value = (0).toFixed(1);
+          return;
+        }
+
+        const cur = new Date(s0);
+        while(cur <= lastDay){
           if(!isWeekend(cur)) total += 8;
           cur.setDate(cur.getDate()+1);
         }
