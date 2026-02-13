@@ -8,18 +8,12 @@
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; --danger: #EF4444; }
     body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 80px 20px; color: var(--text); }
     h2 { margin: 0 0 20px 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    
     .section-title { font-size: 16px; font-weight: 700; color: var(--primary); margin: 20px 0 10px 0; display: flex; justify-content: space-between; align-items: center; }
-    
     .card { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); margin-bottom: 12px; }
-    
-    /* 團隊概況 */
     .stat-row { display: flex; justify-content: space-between; border-bottom: 1px solid #F3F4F6; padding: 10px 0; }
     .stat-row:last-child { border-bottom: none; }
     .stat-name { font-weight: 600; }
     .stat-val { font-size: 13px; color: #6B7280; }
-    
-    /* 待審核清單 */
     .req-item { border-left: 4px solid #F59E0B; background: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
     .req-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .req-user { font-weight: 700; font-size: 15px; }
@@ -29,9 +23,7 @@
     .btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
     .btn-approve { background: #10B981; color: white; }
     .btn-reject { background: #EF4444; color: white; }
-    
     .btn-all { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
-
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
@@ -67,113 +59,154 @@
 
 <script src="config.js"></script>
 <script>
+  // ★ 1. 統一 localStorage Key，避免各頁面不一致
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  function api(act, d={}) {
-    return new Promise(r => {
+  // ★ 2. 強壯的 API 呼叫 (含 Timeout 機制)
+  function api(act, d = {}) {
+    return new Promise((resolve, reject) => {
+      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      const payload = encodeURIComponent(JSON.stringify({ ...d, userId: uid }));
+      
+      // 設定 15 秒超時，避免無限轉圈
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timeout: 請求逾時"));
+      }, 15000);
+
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cbName]; } catch(e){}
+        try { s.remove(); } catch(e){}
+      }
+
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}`;
+
+      window[cbName] = (res) => {
+        cleanup();
+        resolve(res);
+      };
+
+      s.onerror = () => {
+        cleanup();
+        reject(new Error("Network Error: 連線失敗"));
+      };
+
       document.body.appendChild(s);
     });
   }
 
-  // 1. 載入團隊概況
   async function loadStats() {
       const el = document.getElementById("teamStats");
       el.innerHTML = '<div style="text-align:center;color:#999;">載入中...</div>';
       
-      const res = await api("get_team_stats");
-      if(!res.ok) {
-          el.innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
-          return;
-      }
+      try {
+        const res = await api("get_team_stats");
+        console.log("Stats Response:", res); // Debug 用
 
-      let h = "";
-      res.list.forEach(u => {
-          h += `
-          <div class="stat-row">
-            <div class="stat-name">${u.name}</div>
-            <div class="stat-val">特休:${u.annual}h / 補休:${u.comp}h</div>
-          </div>`;
-      });
-      el.innerHTML = h || '<div style="text-align:center;color:#999;">無資料</div>';
+        if(!res.ok) {
+            el.innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
+            return;
+        }
+
+        let h = "";
+        res.list.forEach(u => {
+            h += `
+            <div class="stat-row">
+                <div class="stat-name">${u.name}</div>
+                <div class="stat-val">特休:${u.annual}h / 補休:${u.comp}h</div>
+            </div>`;
+        });
+        el.innerHTML = h || '<div style="text-align:center;color:#999;">無資料</div>';
+      } catch (err) {
+        console.error(err);
+        el.innerHTML = `<div style="text-align:center;color:red;">${err.message}</div>`;
+      }
   }
 
-  // 2. 載入待審核
   async function loadPending() {
       const el = document.getElementById("pendingList");
-      const res = await api("get_pending"); // 後端會自動處理 isManagerView=true
-      
-      if(!res.ok) {
-          el.innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`;
-          return;
+      try {
+        const res = await api("get_pending");
+        console.log("Pending Response:", res); // Debug 用
+        
+        if(!res.ok) {
+            el.innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
+            return;
+        }
+
+        if(res.list.length === 0) {
+            el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`;
+            return;
+        }
+
+        let h = "";
+        res.list.forEach(r => {
+            let typeName = r.leaveType || r.category;
+            if(typeName==='annual') typeName='特休';
+            if(typeName==='comp') typeName='補休';
+            if(typeName==='OUTING') typeName='外出';
+            if(typeName==='CORRECTION') typeName='補卡';
+
+            h += `
+            <div class="req-item" id="card-${r.reqId}">
+                <div class="req-top">
+                <div class="req-user">${r.name || r.id}</div>
+                <div class="req-type">${typeName}</div>
+                </div>
+                <div class="req-info">
+                日期: ${r.start.replace('T',' ')}<br>
+                時數: ${r.hours}小時<br>
+                事由: ${r.reason || '無'}
+                </div>
+                <div class="req-actions">
+                <button class="btn btn-approve" onclick="decide('${r.reqId}', 'APPROVED')">核准</button>
+                <button class="btn btn-reject" onclick="decide('${r.reqId}', 'REJECTED')">駁回</button>
+                </div>
+            </div>`;
+        });
+        el.innerHTML = h;
+      } catch (err) {
+        console.error(err);
+        el.innerHTML = `<div style="text-align:center;color:red;">${err.message}</div>`;
       }
-
-      if(res.list.length === 0) {
-          el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`;
-          return;
-      }
-
-      let h = "";
-      res.list.forEach(r => {
-          let typeName = r.leaveType || r.category;
-          if(typeName==='annual') typeName='特休';
-          if(typeName==='comp') typeName='補休';
-          if(typeName==='OUTING') typeName='外出';
-          if(typeName==='CORRECTION') typeName='補卡';
-
-          h += `
-          <div class="req-item" id="card-${r.reqId}">
-            <div class="req-top">
-              <div class="req-user">${r.name || r.id}</div>
-              <div class="req-type">${typeName}</div>
-            </div>
-            <div class="req-info">
-              日期: ${r.start.replace('T',' ')}<br>
-              時數: ${r.hours}小時<br>
-              事由: ${r.reason || '無'}
-            </div>
-            <div class="req-actions">
-              <button class="btn btn-approve" onclick="decide('${r.reqId}', 'APPROVED')">核准</button>
-              <button class="btn btn-reject" onclick="decide('${r.reqId}', 'REJECTED')">駁回</button>
-            </div>
-          </div>`;
-      });
-      el.innerHTML = h;
   }
 
-  // 3. 審核動作
   async function decide(reqId, decision) {
       if(!confirm(decision==='APPROVED'?'確定核准？':'確定駁回？')) return;
-      
-      // UI 假動作 (立即隱藏)
       document.getElementById(`card-${reqId}`).style.opacity = '0.5';
       
-      const res = await api("review_request", { reqId, decision });
-      if(res.ok) {
-          document.getElementById(`card-${reqId}`).remove();
-          // 如果列表空了
-          if(document.querySelectorAll('.req-item').length === 0) {
-              document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
-          }
-      } else {
-          alert("操作失敗");
-          document.getElementById(`card-${reqId}`).style.opacity = '1';
+      try {
+        const res = await api("review_request", { reqId, decision });
+        if(res.ok) {
+            document.getElementById(`card-${reqId}`).remove();
+            if(document.querySelectorAll('.req-item').length === 0) {
+                document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
+            }
+        } else {
+            alert("操作失敗: " + (res.message || '未知錯誤'));
+            document.getElementById(`card-${reqId}`).style.opacity = '1';
+        }
+      } catch (err) {
+        alert("操作失敗: " + err.message);
+        document.getElementById(`card-${reqId}`).style.opacity = '1';
       }
   }
 
-  // 4. 一鍵全准 (當月)
   async function approveAll() {
       if(!confirm("確定核准「本月所有」待審核單據？")) return;
       const now = new Date();
-      const res = await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
-      alert(res.ok ? `已核准 ${res.count} 筆單據` : "操作失敗");
-      loadPending();
+      try {
+        const res = await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
+        alert(res.ok ? `已核准 ${res.count} 筆單據` : "操作失敗");
+        loadPending();
+      } catch (err) {
+        alert("操作失敗: " + err.message);
+      }
   }
 
-  // 初始化
   loadStats();
   loadPending();
 </script>
