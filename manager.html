@@ -16,10 +16,10 @@
     .stat-val { font-size: 13px; color: #6B7280; }
 
     .req-item { border-left: 4px solid #F59E0B; background: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-    .req-top { display: flex; justify-content: space-between; margin-bottom: 8px; gap: 10px; }
-    .req-user { font-weight: 700; font-size: 15px; flex: 1; min-width: 0; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .req-type { background: #EEF2FF; color: var(--primary); padding: 2px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
-    .req-info { font-size: 13px; color: #4B5563; margin-bottom: 10px; line-height: 1.5; word-break: break-word; }
+    .req-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .req-user { font-weight: 700; font-size: 15px; }
+    .req-type { background: #EEF2FF; color: var(--primary); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+    .req-info { font-size: 13px; color: #4B5563; margin-bottom: 10px; line-height: 1.5; }
     .req-actions { display: flex; gap: 10px; }
 
     .btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
@@ -72,33 +72,37 @@
   const uid = localStorage.getItem("empId") || localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  // ✅ 主管保護：前端先擋一次，避免非主管進來一直撞牆
+  // ✅ 主管保護：前端先擋一次
   const isMgr = localStorage.getItem("isManager") === "true";
   if(!isMgr){
     const g = document.getElementById("guard");
     g.style.display = "block";
     g.innerHTML = "你不是主管權限，無法進入此頁。<br>如果你確定你是主管：請回到首頁重新登入，或清除瀏覽器快取後再試一次。";
-    // 你想更硬就開這行：location.href='app.html';
   }
 
-  // ✅ 安全 DOM id：避免 encodeURIComponent 出現 % 導致 getElementById 怪怪的
-  function safeDomId_(v){
-    return String(v || "").replace(/[^a-zA-Z0-9_-]/g, "_");
-  }
-
-  // ✅ 時間顯示：兼容 Date 物件 / ISO 字串 / 一般字串
+  // ✅ 時間格式：正確處理 UTC/Z -> 台北時間顯示
   function toYMDHM_(v){
     if(!v) return "無日期";
-    if (v instanceof Date && !isNaN(v.getTime())) {
-      const y=v.getFullYear();
-      const m=String(v.getMonth()+1).padStart(2,'0');
-      const d=String(v.getDate()).padStart(2,'0');
-      const hh=String(v.getHours()).padStart(2,'0');
-      const mm=String(v.getMinutes()).padStart(2,'0');
-      return `${y}-${m}-${d} ${hh}:${mm}`;
+    if (v instanceof Date && !isNaN(v.getTime())) return fmt_(v);
+
+    const s = String(v).trim();
+    const looksISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s);
+    const hasTZ = /Z$|[+\-]\d{2}:\d{2}$/.test(s);
+
+    if (looksISO && hasTZ) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return fmt_(d);
     }
-    const s = String(v);
     return s.replace('T',' ').replace(/\.\d+Z$/,'').slice(0,16);
+
+    function fmt_(d){
+      const y=d.getFullYear();
+      const m=String(d.getMonth()+1).padStart(2,'0');
+      const dd=String(d.getDate()).padStart(2,'0');
+      const hh=String(d.getHours()).padStart(2,'0');
+      const mm=String(d.getMinutes()).padStart(2,'0');
+      return `${y}-${m}-${dd} ${hh}:${mm}`;
+    }
   }
 
   function api(act, d = {}) {
@@ -106,8 +110,9 @@
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
       const s = document.createElement("script");
       const payload = encodeURIComponent(JSON.stringify({ ...d, userId: uid }));
+      const bust = Date.now();
 
-      const timer = setTimeout(() => { cleanup(); reject(new Error("Timeout: 請求逾時")); }, 15000);
+      const timer = setTimeout(() => { cleanup(); reject(new Error("Timeout")); }, 15000);
 
       function cleanup() {
         clearTimeout(timer);
@@ -115,13 +120,10 @@
         try { s.remove(); } catch(e){}
       }
 
-      // ✅ Cache buster：避免 Safari/代理/弱網快取
-      const bust = Date.now();
       s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}&_=${bust}`;
 
       window[cbName] = (res) => { cleanup(); resolve(res); };
-      s.onerror = () => { cleanup(); reject(new Error("Network Error: 連線失敗")); };
-
+      s.onerror = () => { cleanup(); reject(new Error("Network Error")); };
       document.body.appendChild(s);
     });
   }
@@ -166,14 +168,13 @@
       list.forEach(u => {
         h += `
           <div class="stat-row">
-            <div class="stat-name">${u.name || u.empName || u.employeeName || u.displayName || u.empId || '未知'}</div>
+            <div class="stat-name">${u.name || u.empName || u.empId || '未知'}</div>
             <div class="stat-val">特休:${Number(u.annual||0)}h / 補休:${Number(u.comp||0)}h</div>
           </div>`;
       });
       el.innerHTML = h || '<div style="text-align:center;color:#999;">無資料</div>';
     } catch (err) {
-      console.error(err);
-      el.innerHTML = `<div style="text-align:center;color:red;">連線失敗：${err.message || ''}</div>`;
+      el.innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
     }
   }
 
@@ -197,10 +198,10 @@
       let h = "";
       list.forEach(r => {
         const typeName = typeLabel_(r);
-        const displayName = r.empName || r.employeeName || r.displayName || r.name || r.empId || r.userId || r.id || '未知員工';
-        const dateStr = toYMDHM_(r.start);
+        const displayName = r.empName || r.name || r.empId || r.id || '未知員工';
+        const dateStr = toYMDHM_(r.start); // ✅ 改這裡：不再 slice 字串
         const reqId = String(r.reqId || r.id || '');
-        const safeId = safeDomId_(reqId);
+        const safeId = encodeURIComponent(reqId);
 
         h += `
           <div class="req-item" id="card-${safeId}">
@@ -222,16 +223,12 @@
 
       el.innerHTML = h;
     } catch (err) {
-      console.error(err);
-      el.innerHTML = `<div style="text-align:center;color:red;">連線失敗：${err.message || ''}</div>`;
+      el.innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
     }
   }
 
   async function decide(safeId, reqId, decision) {
-    if(!isMgr){
-      alert("你不是主管權限，無法操作。");
-      return;
-    }
+    if(!isMgr){ alert("你不是主管權限，無法操作。"); return; }
     if(!confirm(decision==='APPROVED'?'確定核准？':'確定駁回？')) return;
 
     const card = document.getElementById(`card-${safeId}`);
@@ -254,40 +251,34 @@
         buttons.forEach(b => b.disabled = false);
       }
     } catch (err) {
-      alert("操作失敗: " + (err.message || "網絡錯誤"));
+      alert("操作失敗: 網絡錯誤");
       if(card) card.style.opacity = '1';
       buttons.forEach(b => b.disabled = false);
     }
   }
 
   async function approveAll() {
-    if(!isMgr){
-      alert("你不是主管權限，無法操作。");
-      return;
-    }
+    if(!isMgr){ alert("你不是主管權限，無法操作。"); return; }
     if(!confirm("確定核准「本月所有」待審核單據？")) return;
 
     const btnRefresh = document.getElementById("btnRefresh");
     const btnApproveAll = document.getElementById("btnApproveAll");
-    btnRefresh.disabled = true;
-    btnApproveAll.disabled = true;
+    btnRefresh.disabled = true; btnApproveAll.disabled = true;
 
     const now = new Date();
     try {
       const res = await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
       alert(res && res.ok ? `已核准 ${res.count} 筆單據` : ("操作失敗: " + ((res && res.message) || "")));
-
       await loadPending();
       await loadStats();
     } catch (err) {
-      alert("操作失敗: " + (err.message || "網絡錯誤"));
+      alert("操作失敗: 網絡錯誤");
     } finally {
       btnRefresh.disabled = false;
       btnApproveAll.disabled = false;
     }
   }
 
-  // init
   loadStats();
   loadPending();
 </script>
