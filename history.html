@@ -27,6 +27,21 @@
       padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px;
     }
 
+    .toast{
+      position: fixed;
+      left: 16px; right: 16px;
+      top: calc(16px + env(safe-area-inset-top));
+      background: #111827;
+      color:#fff;
+      padding: 12px 14px;
+      border-radius: 14px;
+      box-shadow: var(--shadow2);
+      display:none;
+      z-index: 9999;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
     .hero{
       background: linear-gradient(135deg, #4F46E5, #7C3AED);
       border-radius: 26px;
@@ -61,10 +76,10 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      margin: 12px 0 12px 0;
+      margin: 12px 0 14px 0;
       align-items:center;
     }
-    .filters input, .filters select{
+    .filters input{
       border:none;
       background:#fff;
       border-radius: 14px;
@@ -85,11 +100,81 @@
     }
     .filters button:active{ transform: scale(.99); }
 
+    /* ===== Tabs (mobile-first) ===== */
+    .seg{
+      background:#fff;
+      border-radius: 20px;
+      box-shadow: var(--shadow2);
+      padding: 8px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      margin-bottom: 14px;
+      position: sticky;
+      top: calc(10px + env(safe-area-inset-top));
+      z-index: 50;
+    }
+    .seg-btn{
+      flex:1;
+      border:none;
+      background: transparent;
+      border-radius: 16px;
+      padding: 12px 12px;
+      font-weight: 1000;
+      font-size: 16px;
+      cursor:pointer;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:10px;
+      color:#6B7280;
+      box-shadow: none;
+    }
+    .seg-btn .count{
+      background:#EEF2FF;
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 1000;
+      min-width: 44px;
+      text-align:center;
+    }
+    .seg-btn.active{
+      color: var(--primary);
+      background: rgba(79,70,229,.10);
+      border: 2px solid rgba(79,70,229,.55);
+    }
+
+    .grid{
+      display:block; /* mobile: one panel visible */
+    }
+    .panel{
+      display:none;
+    }
+    .panel.active{
+      display:block;
+    }
+
+    /* desktop: two columns */
+    @media (min-width: 900px){
+      .seg{ display:none; }
+      .grid{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items:start;
+      }
+      .panel{
+        display:block;
+      }
+    }
+
     .section-title{
       display:flex;
       justify-content:space-between;
       align-items:center;
-      margin: 16px 0 10px 0;
+      margin: 10px 0 10px 0;
     }
     .section-title h3{
       margin:0;
@@ -100,7 +185,7 @@
     .section-title .small{
       font-size: 12px;
       color: var(--muted);
-      font-weight: 700;
+      font-weight: 800;
     }
 
     .list{
@@ -136,126 +221,41 @@
       align-items:flex-start;
     }
     .title{
-      font-weight: 900;
-      font-size: 15px;
+      font-weight: 1000;
+      font-size: 18px;
       margin:0;
       line-height: 1.25;
+      letter-spacing: .2px;
     }
     .badge{
       font-size: 12px;
-      font-weight: 900;
-      padding: 4px 10px;
+      font-weight: 1000;
+      padding: 6px 12px;
       border-radius: 999px;
       background: #EEF2FF;
       color: var(--primary);
       white-space:nowrap;
+      height: fit-content;
     }
+    .badge.ok{ background: rgba(16,185,129,.14); color:#065F46; }
+    .badge.warn{ background: rgba(245,158,11,.16); color:#92400E; }
+    .badge.danger{ background: rgba(239,68,68,.16); color:#991B1B; }
+
     .meta{
-      font-size: 12px;
+      font-size: 13px;
       color: var(--muted);
       line-height: 1.6;
-      font-weight: 700;
+      font-weight: 800;
     }
 
     .empty{
       text-align:center;
       padding: 22px;
       color: #9CA3AF;
-      font-weight: 800;
-    }
-
-    .toast{
-      position: fixed;
-      left: 16px; right: 16px;
-      top: calc(16px + env(safe-area-inset-top));
-      background: #111827;
-      color:#fff;
-      padding: 12px 14px;
-      border-radius: 14px;
-      box-shadow: var(--shadow2);
-      display:none;
-      z-index: 9999;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    /* ===== Mobile tabs (real phone logic) ===== */
-    .tabs-wrap{
-      position: sticky;
-      top: calc(10px + env(safe-area-inset-top));
-      z-index: 50;
-      margin: 8px 0 10px 0;
-    }
-    .tabs{
-      background: rgba(255,255,255,.92);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(17,24,39,.08);
-      box-shadow: var(--shadow2);
+      font-weight: 900;
+      background: rgba(255,255,255,.65);
+      border: 1px dashed rgba(17,24,39,.12);
       border-radius: 16px;
-      padding: 6px;
-      display:flex;
-      gap:6px;
-      align-items:center;
-    }
-    .tab{
-      flex:1;
-      border:none;
-      border-radius: 14px;
-      padding: 10px 10px;
-      font-weight: 900;
-      font-size: 13px;
-      cursor:pointer;
-      color: var(--muted);
-      background: transparent;
-      display:flex;
-      justify-content:center;
-      gap:8px;
-      align-items:center;
-      user-select:none;
-    }
-    .tab strong{ color:inherit; font-weight: 900; }
-    .tab.active{
-      background: #EEF2FF;
-      color: var(--primary);
-    }
-    .tab .count{
-      font-size: 12px;
-      font-weight: 900;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(79,70,229,.10);
-      color: var(--primary);
-    }
-
-    /* ===== Desktop: side-by-side columns ===== */
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-    .panel{ background: transparent; }
-    .panel.hidden{ display:none; } /* used for mobile tab switching */
-
-    @media (min-width: 980px){
-      body{ max-width: 1200px; margin: 0 auto; }
-      .tabs-wrap{ display:none; }           /* desktop doesn't need tabs */
-      .grid{
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        align-items:start;
-      }
-      .panel.hidden{ display:block; }       /* ignore hidden on desktop */
-      .panel .section-title{ margin-top: 0; }
-      .panel .list{
-        max-height: calc(100vh - 330px);
-        overflow: auto;
-        padding-right: 6px;
-      }
-      .panel .list::-webkit-scrollbar{ width: 8px; }
-      .panel .list::-webkit-scrollbar-thumb{
-        background: rgba(17,24,39,.18);
-        border-radius: 999px;
-      }
     }
 
     .nav{
@@ -278,7 +278,7 @@
       display:flex; flex-direction:column; align-items:center;
       gap: 4px;
       font-size: 10px;
-      font-weight: 800;
+      font-weight: 900;
     }
     .nav-item.active{ color: var(--primary); }
     .nav-icon{ font-size: 22px; }
@@ -298,38 +298,33 @@
 
   <div class="filters">
     <input type="month" id="monthPick"/>
-    <select id="modePick">
-      <option value="all">全部</option>
-      <option value="att">只看打卡</option>
-      <option value="req">只看申請單</option>
-    </select>
     <button onclick="reload()">更新</button>
   </div>
 
-  <!-- ✅ 手機邏輯：分頁切換（不讓你滑到天荒地老） -->
-  <div class="tabs-wrap" id="tabsWrap">
-    <div class="tabs">
-      <button class="tab" id="tabAtt" onclick="setTab('att')">
-        <strong>打卡</strong><span class="count" id="tabAttCount">0</span>
-      </button>
-      <button class="tab" id="tabReq" onclick="setTab('req')">
-        <strong>申請</strong><span class="count" id="tabReqCount">0</span>
-      </button>
-    </div>
+  <!-- Mobile tabs -->
+  <div class="seg" role="tablist" aria-label="history tabs">
+    <button class="seg-btn active" id="tabAtt" onclick="showPanel('att')">
+      打卡 <span class="count" id="attCountTop">0</span>
+    </button>
+    <button class="seg-btn" id="tabReq" onclick="showPanel('req')">
+      申請 <span class="count" id="reqCountTop">0</span>
+    </button>
   </div>
 
   <div class="grid">
-    <section class="panel" id="panelAtt">
+    <!-- Attendance panel -->
+    <section class="panel active" id="panelAtt">
       <div class="section-title">
-        <h3>打卡紀錄（Attendance_Log）</h3>
+        <h3>打卡紀錄</h3>
         <div class="small" id="attCount">0 筆</div>
       </div>
       <div class="list" id="attList"></div>
     </section>
 
+    <!-- Requests panel -->
     <section class="panel" id="panelReq">
       <div class="section-title">
-        <h3>申請單（Requests）</h3>
+        <h3>申請單</h3>
         <div class="small" id="reqCount">0 筆</div>
       </div>
       <div class="list" id="reqList"></div>
@@ -361,6 +356,26 @@
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2200);
     }
 
+    function showPanel(which){
+      const tabAtt = document.getElementById("tabAtt");
+      const tabReq = document.getElementById("tabReq");
+      const pAtt = document.getElementById("panelAtt");
+      const pReq = document.getElementById("panelReq");
+
+      if(which === 'req'){
+        tabReq.classList.add("active");
+        tabAtt.classList.remove("active");
+        pReq.classList.add("active");
+        pAtt.classList.remove("active");
+      }else{
+        tabAtt.classList.add("active");
+        tabReq.classList.remove("active");
+        pAtt.classList.add("active");
+        pReq.classList.remove("active");
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
@@ -387,35 +402,51 @@
       });
     }
 
-    function formatDT(v){
-      if(!v) return '無';
+    // ===== 時間解析：修正 UTC -> 台北時間 & Safari 解析問題 =====
+    function pad2(n){ return String(n).padStart(2,'0'); }
+
+    function parseToDate(v){
+      if(!v) return null;
+
+      // Date object (rare in JSONP)
+      if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
+
       const s = String(v).trim();
-      let m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(\d{2}):(\d{2})/);
-      if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
+      if(!s) return null;
+
+      // ISO with Z (UTC) or timezone offset -> let Date parse & convert to local
+      if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      // yyyy/MM/dd HH:mm:ss or yyyy-MM-dd HH:mm:ss
+      let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if(m){
+        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
+      }
+
+      // yyyy-MM-ddTHH:mm (no timezone) -> treat as local
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-      if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
-      return s;
+      if(m){
+        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+      }
+
+      // fallback
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
     }
 
-    function inMonthByDateString(dateStr, year, month1to12){
-      if(!dateStr) return false;
-      const s = String(dateStr).trim();
-      const m1 = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
-      if(!m1) return false;
-      const y = Number(m1[1]);
-      const mo = Number(m1[2]);
-      return (y===year && mo===month1to12);
+    function formatDT(v){
+      const d = parseToDate(v);
+      if(!d) return String(v||'無');
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
-    function attTypeBadge(row){
-      const io = String(row.io||'').toUpperCase();
-      const outFlag = String(row.isOuting||'').toUpperCase();
-      if(outFlag.includes('CORRECTION')) return { label: '補卡寫入', cls:'warn' };
-      if(outFlag.includes('OUTING')) return { label: '外出', cls:'warn' };
-      if(io.includes('IN') || io.includes('上班')) return { label:'上班', cls:'ok' };
-      if(io.includes('OUT') || io.includes('下班')) return { label:'下班', cls:'warn' };
-      if(io.includes('每日彙總')) return { label:'每日彙總', cls:'warn' };
-      return { label: row.io || '打卡', cls:'ok' };
+    function isInMonth(v, y, m1to12){
+      const d = parseToDate(v);
+      if(!d) return false;
+      return d.getFullYear() === y && (d.getMonth()+1) === m1to12;
     }
 
     function reqTypeBadge(row){
@@ -431,56 +462,101 @@
       if(lt==='sick') return '病假';
       if(lt==='personal') return '事假';
       if(lt==='birthday') return '生日假';
+
       return row.leaveType || row.category || '申請';
     }
 
-    function statusColor(status){
+    function reqStatusBadge(status){
       const s = String(status||'').toUpperCase();
       if(s==='APPROVED') return { cls:'ok', label:'核准' };
       if(s==='REJECTED') return { cls:'danger', label:'駁回' };
       return { cls:'warn', label:'待審' };
     }
 
+    // 出勤狀態（來自 get_dashboard dailyData.tag）
+    function attStatusBadge(tag){
+      const t = String(tag||'').trim();
+      if(!t) return { cls:'warn', label:'—' };
+      if(t.includes('正常')) return { cls:'ok', label:t };
+      if(t.includes('休假')) return { cls:'warn', label:t };
+      if(t.includes('加班')) return { cls:'ok', label:t };
+      if(t.includes('遲到') || t.includes('早退')) return { cls:'warn', label:t };
+      if(t.includes('曠職') || t.includes('缺卡')) return { cls:'danger', label:t };
+      return { cls:'warn', label:t };
+    }
+
     function renderAtt(list){
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
-      document.getElementById("tabAttCount").textContent = String(list.length);
+      document.getElementById("attCountTop").textContent = `${list.length}`;
 
       if(list.length===0){
-        el.innerHTML = `<div class="empty">本範圍沒有打卡紀錄</div>`;
+        el.innerHTML = `<div class="empty">本範圍沒有打卡/出勤狀態</div>`;
         return;
       }
 
       el.innerHTML = list.map(r=>{
-        const b = attTypeBadge(r);
-        const when = formatDT(r.date);
-        const status = String(r.status||'').toUpperCase();
-        const cls = (status==='APPROVED') ? b.cls : 'warn';
-
-        const dist = (r.distOfficeM!==undefined && r.distOfficeM!==null && String(r.distOfficeM)!=='')
-          ? `｜距離 ${r.distOfficeM}m` : '';
-
-        const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-
-        return `
-          <div class="item ${cls}">
-            <div class="top">
-              <div>
-                <p class="title">${when}</p>
-                <div class="meta">類型：${b.label}${dist}</div>
-                <div class="meta">備註：${reason}</div>
+        // two possible shapes:
+        // A) raw attendance log row: {date, io, status, distOfficeM, reason, isOuting ...}
+        // B) dashboard daily summary: {dateKey, in, out, tag}
+        if(r.__type === 'DASH'){
+          const b = attStatusBadge(r.tag);
+          const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
+          const note = r.note || `狀態：${r.tag || '—'}`;
+          return `
+            <div class="item ${b.cls}">
+              <div class="top">
+                <div>
+                  <p class="title">${title}</p>
+                  <div class="meta">類型：每日彙總</div>
+                  <div class="meta">備註：${note}</div>
+                </div>
+                <span class="badge ${b.cls}">${b.label}</span>
               </div>
-              <span class="badge">${status || '—'}</span>
             </div>
-          </div>
-        `;
+          `;
+        }else{
+          // raw log
+          const when = formatDT(r.date);
+          const io = String(r.io || '打卡').trim();
+          const outFlag = String(r.isOuting||'').toUpperCase();
+          let typeLabel = io;
+
+          if(outFlag.includes('CORRECTION')) typeLabel = '補卡寫入';
+          else if(outFlag.includes('OUTING')) typeLabel = '外出';
+          else if(io.toUpperCase().includes('IN') || io.includes('上班')) typeLabel = '上班';
+          else if(io.toUpperCase().includes('OUT') || io.includes('下班')) typeLabel = '下班';
+
+          const st = String(r.status||'').toUpperCase();
+          const stBadge = (st==='APPROVED') ? {cls:'ok', label:'已寫入'} :
+                          (st==='REJECTED') ? {cls:'danger', label:'駁回'} :
+                          {cls:'warn', label: (st||'待處理')};
+
+          const dist = (r.distOfficeM!==undefined && r.distOfficeM!==null && String(r.distOfficeM)!=='')
+            ? `｜距離 ${r.distOfficeM}m` : '';
+
+          const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
+
+          return `
+            <div class="item ${stBadge.cls}">
+              <div class="top">
+                <div>
+                  <p class="title">${when}</p>
+                  <div class="meta">類型：${typeLabel}${dist}</div>
+                  <div class="meta">備註：${reason}</div>
+                </div>
+                <span class="badge ${stBadge.cls}">${stBadge.label}</span>
+              </div>
+            </div>
+          `;
+        }
       }).join("");
     }
 
     function renderReq(list){
       const el = document.getElementById("reqList");
       document.getElementById("reqCount").textContent = `${list.length} 筆`;
-      document.getElementById("tabReqCount").textContent = String(list.length);
+      document.getElementById("reqCountTop").textContent = `${list.length}`;
 
       if(list.length===0){
         el.innerHTML = `<div class="empty">本範圍沒有申請單</div>`;
@@ -489,7 +565,7 @@
 
       el.innerHTML = list.map(r=>{
         const badge = reqTypeBadge(r);
-        const sc = statusColor(r.status);
+        const sc = reqStatusBadge(r.status);
         const s = formatDT(r.start);
         const e = formatDT(r.end);
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
@@ -511,7 +587,7 @@
                 <div class="meta">事由：${reason}</div>
                 <div class="meta">送單時間：${created}</div>
               </div>
-              <span class="badge">${sc.label}</span>
+              <span class="badge ${sc.cls}">${sc.label}</span>
             </div>
           </div>
         `;
@@ -527,67 +603,8 @@
       return { y, m };
     }
 
-    // ===== Mobile tab logic =====
-    function isDesktop(){
-      return window.matchMedia("(min-width: 980px)").matches;
-    }
-
-    function setTab(which){
-      // If desktop, show both (ignore)
-      if(isDesktop()){
-        document.getElementById("panelAtt").classList.remove("hidden");
-        document.getElementById("panelReq").classList.remove("hidden");
-        document.getElementById("tabAtt").classList.add("active");
-        document.getElementById("tabReq").classList.add("active");
-        return;
-      }
-
-      localStorage.setItem("historyTab", which);
-
-      const pAtt = document.getElementById("panelAtt");
-      const pReq = document.getElementById("panelReq");
-      const tAtt = document.getElementById("tabAtt");
-      const tReq = document.getElementById("tabReq");
-
-      if(which === "att"){
-        pAtt.classList.remove("hidden");
-        pReq.classList.add("hidden");
-        tAtt.classList.add("active");
-        tReq.classList.remove("active");
-      }else{
-        pReq.classList.remove("hidden");
-        pAtt.classList.add("hidden");
-        tReq.classList.add("active");
-        tAtt.classList.remove("active");
-      }
-
-      // 對齊 UX：切換時回到頁面上方（不用卡在中段）
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-
-    function initTab(){
-      const saved = localStorage.getItem("historyTab") || "att";
-      if(isDesktop()){
-        // desktop: both visible
-        document.getElementById("panelAtt").classList.remove("hidden");
-        document.getElementById("panelReq").classList.remove("hidden");
-        document.getElementById("tabAtt").classList.add("active");
-        document.getElementById("tabReq").classList.add("active");
-      }else{
-        // mobile: one visible
-        setTab(saved);
-      }
-    }
-
-    window.addEventListener("resize", ()=>{
-      // when rotate / resize, re-apply logic
-      initTab();
-    });
-
     async function reload(){
       const monthStr = document.getElementById("monthPick").value;
-      const mode = document.getElementById("modePick").value;
-
       let y, m;
       if(monthStr){
         const parts = monthStr.split("-");
@@ -597,63 +614,63 @@
         const cur = pickCurrentMonth();
         y = cur.y; m = cur.m;
       }
-
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
 
-      const reqListEl = document.getElementById("reqList");
-      const attListEl = document.getElementById("attList");
-      reqListEl.innerHTML = `<div class="empty">載入中…</div>`;
-      attListEl.innerHTML = `<div class="empty">載入中…</div>`;
+      // loading
+      document.getElementById("reqList").innerHTML = `<div class="empty">載入中…</div>`;
+      document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
+      document.getElementById("attCount").textContent = `0 筆`;
+      document.getElementById("reqCount").textContent = `0 筆`;
+      document.getElementById("attCountTop").textContent = `0`;
+      document.getElementById("reqCountTop").textContent = `0`;
 
       try{
+        // 1) 申請單
         const reqRes = await api("list_requests", { isManagerView:false });
         const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
-        const reqFiltered = allReq.filter(r => inMonthByDateString(r.start, y, m));
+        const reqFiltered = allReq.filter(r => isInMonth(r.start, y, m));
 
-        const dashRes = await api("get_dashboard", { year:y, month:m });
-        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
+        // 2) 打卡：優先嘗試 list_attendance（如果你後端之後加了，這頁自動吃得到）
+        let attList = [];
+        try{
+          const attRes = await api("list_attendance", { year:y, month:m }); // optional API
+          if(attRes && attRes.ok && Array.isArray(attRes.list)){
+            // 直接用明細（含補卡 IN/OUT）
+            attList = attRes.list;
+          }
+        }catch(_){ /* ignore */ }
 
-        const attPseudo = daily.map(d => {
-          const mm = String(m).padStart(2,'0');
-          const dd = String(d.date).padStart(2,'0');
-          return {
-            date: `${y}-${mm}-${dd} ${d.in==='--'?'--:--':d.in} / ${d.out==='--'?'--:--':d.out}`,
-            io: '每日彙總',
-            isOuting: '',
-            distOfficeM: '',
-            reason: `狀態：${d.tag}`,
-            status: (d.cls==='miss') ? 'PENDING' : 'APPROVED'
-          };
-        });
+        // 3) 沒有明細就用 get_dashboard 的「出勤狀態」日彙總（狀態正確，不再 PENDING）
+        if(attList.length === 0){
+          const dashRes = await api("get_dashboard", { year:y, month:m });
+          const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
-        // mode filter
-        if(mode === 'req'){
-          renderAtt([]);
-          renderReq(reqFiltered);
-          // 手機：直接切到申請（符合直覺）
-          if(!isDesktop()) setTab('req');
-        }else if(mode === 'att'){
-          renderAtt(attPseudo);
-          renderReq([]);
-          if(!isDesktop()) setTab('att');
-        }else{
-          renderAtt(attPseudo);
-          renderReq(reqFiltered);
-          // 手機：維持使用者上次 tab，不強迫跳
-          initTab();
+          attList = daily.map(d => {
+            const mm = String(m).padStart(2,'0');
+            const dd = String(d.date).padStart(2,'0');
+            return {
+              __type: 'DASH',
+              dateKey: `${y}-${mm}-${dd}`,
+              in: d.in,
+              out: d.out,
+              tag: d.tag,
+              note: `狀態：${d.tag}`
+            };
+          });
         }
+
+        renderAtt(attList);
+        renderReq(reqFiltered);
 
       }catch(e){
         toast("載入失敗（GAS）");
         renderAtt([]);
         renderReq([]);
-        initTab();
       }
     }
 
     // init
     pickCurrentMonth();
-    initTab();
     reload();
   </script>
 </body>
