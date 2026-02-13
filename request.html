@@ -28,7 +28,7 @@
 <body>
 
   <h2>📝 填寫申請單</h2>
-  <p class="hint">請假：以「排班」為優先（含假日排班）；沒排班才用預設 10:00-18:00。加班/外出：用實際區間並扣午休。</p>
+  <p class="hint">請假：依「排班時段」計算（早班 10-18；午班 12-21；未排班預設早班）。加班/外出：依實際區間。</p>
 
   <div class="form-group">
     <label>申請類型</label>
@@ -111,7 +111,6 @@
     return new Promise((resolve, reject) => {
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
       const s = document.createElement("script");
-
       const payload = encodeURIComponent(JSON.stringify({...d, userId: uid}));
       s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
 
@@ -132,31 +131,26 @@
     });
   }
 
-  // ======== 規則資料快取 ========
-  let RULES = null; // { holidays:Set, scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF'} }
-
+  // ======== 班表/規則快取 ========
+  let RULES = null; // { scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF|...'} }
   async function ensureRules(){
     if (RULES) return RULES;
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value || sVal;
-
     const res = await api("get_rules", { start: sVal, end: eVal });
     if (!res || !res.ok) throw new Error(res && res.message ? res.message : "get_rules failed");
-
     RULES = {
-      holidays: new Set(res.holidays || []),
       scheduleMap: res.scheduleMap || {}
     };
     return RULES;
   }
 
-  // ======== 初始化時間：今天 10:00-18:00（符合你們預設） ========
+  // ======== 初始化時間：今天 10:00-18:00（你們預設） ========
   const now = new Date();
   const ymd = now.toISOString().split('T')[0];
   document.getElementById("start").value = `${ymd}T10:00`;
   document.getElementById("end").value   = `${ymd}T18:00`;
 
-  // ======== UI toggle ========
   function toggleType() {
     const cat = document.getElementById("cat").value;
     const typeGroup = document.getElementById("typeGroup");
@@ -164,7 +158,7 @@
     const endGroup = document.getElementById("endGroup");
     const extraGroup = document.getElementById("extraGroup");
 
-    RULES = null; // reset cache
+    RULES = null;
 
     if (cat === 'CORRECTION') {
       typeGroup.style.display = 'none';
@@ -207,55 +201,41 @@
     calcHoursSmart();
   }
 
-  // ======== 工具：日期/區間 ========
+  // ======== 工具：日期 ========
   function toYMD(d){
     const y = d.getFullYear();
     const m = String(d.getMonth()+1).padStart(2,'0');
     const day = String(d.getDate()).padStart(2,'0');
     return `${y}-${m}-${day}`;
   }
-  function isWeekend(d){ const w = d.getDay(); return w===0 || w===6; }
-
-  // 午休扣除（保留原邏輯：只有 OT/OUTING 才扣；LEAVE 不扣）
-  function breakDeductionHours(s, e){
-    const b1s = new Date(s); b1s.setHours(12,0,0,0);
-    const b1e = new Date(s); b1e.setHours(13,0,0,0);
-    const overlap = Math.max(0, Math.min(e, b1e) - Math.max(s, b1s));
-    return overlap > 0 ? 1 : 0;
+  function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+  function overlapHours(aStart, aEnd, bStart, bEnd){
+    const ms = Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+    return ms / (1000*60*60);
+  }
+  function roundToHalf(h){
+    return Math.round(h * 2) / 2;
   }
 
-  // ======== 班別時間窗：你們規則 ========
+  // ======== 你們的班別規則 ========
   // EARLY: 10:00-18:00 (8h)
-  // LATE : 12:00-21:00 (9h，這裡不扣休息，因為你說大家自己找時間休息；請假以排班時段為準)
-  // OFF  : 0h
-  function buildShiftWindow(dayDate, shiftRaw){
-    const s = String(shiftRaw || "").trim().toUpperCase();
-    const start = new Date(dayDate); start.setHours(10,0,0,0);
-    const end   = new Date(dayDate); end.setHours(18,0,0,0);
+  // LATE : 12:00-21:00 (9h)
+  // 未排班 -> 預設 EARLY
+  function shiftWindowForYMD(ymd, scheduleMap){
+    const raw = (scheduleMap && scheduleMap[ymd]) ? String(scheduleMap[ymd]).toUpperCase().trim() : "";
+    const isOff = raw.includes("OFF") || raw.includes("休");
+    if (isOff) return { off:true };
 
-    if (!s || s.includes("EARLY") || s.includes("早")) {
-      return { start, end, hours: 8 };
-    }
-    if (s.includes("LATE") || s.includes("午")) {
-      const ls = new Date(dayDate); ls.setHours(12,0,0,0);
-      const le = new Date(dayDate); le.setHours(21,0,0,0);
-      return { start: ls, end: le, hours: 9 };
-    }
-    if (s.includes("OFF") || s.includes("休")) {
-      return { start, end: start, hours: 0 };
-    }
-    // 其他未知值：保守用預設早班
-    return { start, end, hours: 8 };
+    // 判斷午班
+    const isLate = raw.includes("LATE") || raw.includes("午") || raw.includes("12") || raw.includes("21");
+    // 其餘都當早班（含 EARLY / 空白 / 沒記錄）
+    const startH = isLate ? 12 : 10;
+    const endH   = isLate ? 21 : 18;
+
+    return { off:false, startH, endH };
   }
 
-  function clampToDayWindow(s, e, win){
-    const ss = new Date(Math.max(s.getTime(), win.start.getTime()));
-    const ee = new Date(Math.min(e.getTime(), win.end.getTime()));
-    if (ee <= ss) return 0;
-    return (ee - ss) / (1000*60*60);
-  }
-
-  // ======== 核心：智能算時數 ========
+  // ======== 核心：智能算時數（修正 LEAVE 重大錯誤） ========
   async function calcHoursSmart(){
     const cat = document.getElementById("cat").value;
     if (cat === 'CORRECTION') return;
@@ -273,110 +253,78 @@
     }
 
     try{
-      // =========================
-      // ✅ 請假：排班優先（含假日排班）
-      // 規則：
-      // - 若當天有排班：照排班班別時間窗算（EARLY/LATE）
-      // - 若當天無排班：
-      //   - 平日：用預設 10:00-18:00 (8h)
-      //   - 假日/週末：0
-      // - 支援部分天：依 start/end 與班別時間窗交集算
-      // =========================
+      // ===== 請假：用「排班時段重疊」算 =====
       if (cat === 'LEAVE'){
         const rules = await ensureRules();
+        const scheduleMap = rules.scheduleMap || {};
 
+        let total = 0;
+
+        // 從 start 當天 00:00 到 end 當天 23:59:59 逐日算
+        const cur = new Date(s); cur.setHours(0,0,0,0);
+        const endDay = new Date(e); endDay.setHours(0,0,0,0);
+
+        while (cur <= endDay){
+          const ymd = toYMD(cur);
+          const win = shiftWindowForYMD(ymd, scheduleMap);
+
+          if (!win.off){
+            const dayShiftStart = new Date(cur); dayShiftStart.setHours(win.startH, 0, 0, 0);
+            const dayShiftEnd   = new Date(cur); dayShiftEnd.setHours(win.endH,   0, 0, 0);
+
+            // 這天請假區間 = [max(請假start, 這天0:00), min(請假end, 次日0:00)]
+            // 但我們直接拿整體請假區間 [s,e] 與 班別 [dayShiftStart, dayShiftEnd] 做重疊即可
+            const h = overlapHours(s, e, dayShiftStart, dayShiftEnd);
+            total += h;
+          }
+
+          cur.setDate(cur.getDate()+1);
+        }
+
+        total = roundToHalf(total);
+        document.getElementById("hours").value = total.toFixed(1);
+        return;
+      }
+
+      // ===== 加班：實際區間（你說自行休息，所以不固定扣午休）=====
+      if (cat === 'OT'){
+        let diff = (e - s) / (1000*60*60);
+        diff = Math.max(0, diff);
+        diff = roundToHalf(diff);
+        diff = Math.max(0.5, diff);
+        document.getElementById("hours").value = diff.toFixed(1);
+        return;
+      }
+
+      // ===== 外出：實際區間；最小 0.5；最多 8（出差除外）=====
+      if (cat === 'OUTING'){
+        const isTrip = document.getElementById("isTrip").checked;
+        let diff = (e - s) / (1000*60*60);
+        diff = Math.max(0, diff);
+        diff = roundToHalf(diff);
+        diff = Math.max(0.5, diff);
+        if (!isTrip) diff = Math.min(8, diff);
+        document.getElementById("hours").value = diff.toFixed(1);
+        return;
+      }
+    }catch(err){
+      // 退回保守：請假用預設早班 10-18 的重疊（不看班表）
+      if (cat === 'LEAVE'){
         let total = 0;
         const cur = new Date(s); cur.setHours(0,0,0,0);
         const endDay = new Date(e); endDay.setHours(0,0,0,0);
 
         while (cur <= endDay){
-          const ymdKey = toYMD(cur);
-
-          const shift = (rules.scheduleMap[ymdKey] || ""); // ✅ 可能空
-          const shiftStr = String(shift).trim();
-          const upper = shiftStr.toUpperCase();
-
-          const hasSchedule = shiftStr !== "" && !upper.includes("OFF") && !shiftStr.includes("休");
-          const isHol = rules.holidays.has(ymdKey);
-
-          // ✅ 假日也可能排班：假日/週末「沒排班」才算 0
-          if ((isWeekend(cur) || isHol) && !hasSchedule) {
-            cur.setDate(cur.getDate()+1);
-            continue;
-          }
-
-          const win = hasSchedule
-            ? buildShiftWindow(cur, shiftStr)
-            : buildShiftWindow(cur, "EARLY"); // 平日無排班 → 用預設早班
-
-          // 當天實際請假區間（切出當天 00:00~24:00 的交集）
-          const dayStart = new Date(cur); dayStart.setHours(0,0,0,0);
-          const dayEnd = new Date(cur); dayEnd.setHours(23,59,59,999);
-
-          const segS = new Date(Math.max(s.getTime(), dayStart.getTime()));
-          const segE = new Date(Math.min(e.getTime(), dayEnd.getTime()));
-
-          // 與班別時間窗交集
-          const hrs = clampToDayWindow(segS, segE, win);
-          total += hrs;
-
+          const dayShiftStart = new Date(cur); dayShiftStart.setHours(10,0,0,0);
+          const dayShiftEnd   = new Date(cur); dayShiftEnd.setHours(18,0,0,0);
+          total += overlapHours(s, e, dayShiftStart, dayShiftEnd);
           cur.setDate(cur.getDate()+1);
         }
 
-        // 你們不說 0.5 單位，我先不硬切；若要 0.5 單位再加
-        document.getElementById("hours").value = (Math.round(total * 10) / 10).toFixed(1);
-        return;
-      }
-
-      // 加班：實際區間 - 扣午休；最小 0.5
-      if (cat === 'OT'){
-        let diff = (e - s) / (1000*60*60);
-        diff -= breakDeductionHours(s, e);
-        diff = Math.max(0, diff);
-        diff = Math.max(0.5, Math.round(diff * 2) / 2);
-        document.getElementById("hours").value = diff.toFixed(1);
-        return;
-      }
-
-      // 外出：實際區間 - 扣午休；最小 0.5；最多 8（出差除外）
-      if (cat === 'OUTING'){
-        const isTrip = document.getElementById("isTrip").checked;
-        let diff = (e - s) / (1000*60*60);
-        diff -= breakDeductionHours(s, e);
-        diff = Math.max(0, diff);
-
-        diff = Math.round(diff * 2) / 2;
-        diff = Math.max(0.5, diff);
-
-        if (!isTrip) diff = Math.min(8, diff);
-
-        document.getElementById("hours").value = diff.toFixed(1);
-        return;
-      }
-    }catch(err){
-      // fallback：保守（不高估）
-      // ✅ 請假 fallback：平日用預設早班時間窗交集；假日/週末 0
-      if (cat === 'LEAVE'){
-        let total = 0;
-        const cur = new Date(s); cur.setHours(0,0,0,0);
-        const endDay = new Date(e); endDay.setHours(0,0,0,0);
-
-        while(cur <= endDay){
-          if (isWeekend(cur)) { cur.setDate(cur.getDate()+1); continue; }
-
-          const win = buildShiftWindow(cur, "EARLY"); // 10-18
-          const dayStart = new Date(cur); dayStart.setHours(0,0,0,0);
-          const dayEnd = new Date(cur); dayEnd.setHours(23,59,59,999);
-
-          const segS = new Date(Math.max(s.getTime(), dayStart.getTime()));
-          const segE = new Date(Math.min(e.getTime(), dayEnd.getTime()));
-
-          total += clampToDayWindow(segS, segE, win);
-          cur.setDate(cur.getDate()+1);
-        }
-        document.getElementById("hours").value = (Math.round(total * 10) / 10).toFixed(1);
+        total = roundToHalf(total);
+        document.getElementById("hours").value = total.toFixed(1);
       } else {
-        const diff = Math.max(0, (e - s) / (1000*60*60));
+        const diff = roundToHalf(Math.max(0, (e - s) / (1000*60*60)));
         document.getElementById("hours").value = diff.toFixed(1);
       }
     }
@@ -427,6 +375,34 @@
       btn.innerText = "送出申請";
     }
   }
+
+  // ✅ 修 Safari/WebView：datetime-local 常不觸發 onchange → 用 input/change/blur 強制重算
+  (function bindRecalcEvents(){
+    const startEl = document.getElementById("start");
+    const endEl   = document.getElementById("end");
+    const catEl   = document.getElementById("cat");
+    const typeEl  = document.getElementById("type");
+    const isTripEl= document.getElementById("isTrip");
+    const autoClockEl= document.getElementById("autoClock");
+
+    const safeRecalc = () => {
+      RULES = null;
+      calcHoursSmart();
+    };
+
+    [startEl, endEl].forEach(el => {
+      if (!el) return;
+      el.addEventListener("input", safeRecalc);
+      el.addEventListener("change", safeRecalc);
+      el.addEventListener("blur", safeRecalc);
+    });
+
+    [catEl, typeEl, isTripEl, autoClockEl].forEach(el => {
+      if (!el) return;
+      el.addEventListener("change", safeRecalc);
+      el.addEventListener("input", safeRecalc);
+    });
+  })();
 
   toggleType();
   calcHoursSmart();
