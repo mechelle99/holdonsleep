@@ -106,6 +106,54 @@
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
+  // ======== ✅ 修bug：穩健解析 datetime（Safari/不同格式都吃） ========
+  function parseLocalDateTime(str){
+    if (!str) return null;
+
+    // 1) 標準 datetime-local：YYYY-MM-DDTHH:mm
+    let m = str.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (m){
+      const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5], se = +(m[6]||0);
+      const dt = new Date(y, mo-1, d, h, mi, se, 0);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    // 2) 斜線格式：YYYY/MM/DD HH:mm 或 YYYY/MM/DDTHH:mm
+    m = str.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})[T\s](\d{1,2}):(\d{2})$/);
+    if (m){
+      const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5];
+      const dt = new Date(y, mo-1, d, h, mi, 0, 0);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    // 3) 中文上午/下午：YYYY/MM/DD 上午09:00
+    m = str.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s*(上午|下午)\s*(\d{1,2}):(\d{2})$/);
+    if (m){
+      const y = +m[1], mo = +m[2], d = +m[3];
+      const ap = m[4];
+      let h = +m[5];
+      const mi = +m[6];
+      if (ap === '下午' && h < 12) h += 12;
+      if (ap === '上午' && h === 12) h = 0;
+      const dt = new Date(y, mo-1, d, h, mi, 0, 0);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    // 4) 最後保底：把 / 換成 - 再試一次
+    const safe = str.replace(/\//g,'-').replace('上午','').replace('下午','');
+    const dt = new Date(safe);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function toDatetimeLocalValue(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    const h = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${y}-${m}-${day}T${h}:${mi}`;
+  }
+
   // ======== JSONP API (含 timeout，避免「送出中卡住」) ========
   function api(act, d={}) {
     return new Promise((resolve, reject) => {
@@ -148,10 +196,13 @@
   }
 
   // ======== 初始化時間：今天 09:00-18:00 ========
-  const now = new Date();
-  const ymd = now.toISOString().split('T')[0];
-  document.getElementById("start").value = `${ymd}T09:00`;
-  document.getElementById("end").value   = `${ymd}T18:00`;
+  (function initDefaultTime(){
+    const now = new Date();
+    const s = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+    const e = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0);
+    document.getElementById("start").value = toDatetimeLocalValue(s);
+    document.getElementById("end").value   = toDatetimeLocalValue(e);
+  })();
 
   // ======== UI toggle ========
   function toggleType() {
@@ -195,11 +246,14 @@
   function onTimeChange(){
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value;
-    if (sVal && eVal) {
-      const s = new Date(sVal);
-      const e = new Date(eVal);
-      if (e < s) document.getElementById("end").value = sVal;
+
+    const s = parseLocalDateTime(sVal);
+    const e = parseLocalDateTime(eVal);
+
+    if (s && e && e < s) {
+      document.getElementById("end").value = sVal;
     }
+
     RULES = null;
     calcHoursSmart();
   }
@@ -230,8 +284,14 @@
     const eVal = document.getElementById("end").value;
     if (!sVal || !eVal) return;
 
-    const s = new Date(sVal);
-    const e = new Date(eVal);
+    const s = parseLocalDateTime(sVal);
+    const e = parseLocalDateTime(eVal);
+
+    // ✅ 修bug：解析失敗就不要硬算，避免 0
+    if (!s || !e){
+      document.getElementById("hours").value = 0;
+      return;
+    }
 
     if (e <= s){
       document.getElementById("hours").value = 0;
@@ -239,28 +299,14 @@
     }
 
     try{
-      // ✅✅✅ 修 BUG：請假用「日期」算天數，end=00:00 不多算一天
       if (cat === 'LEAVE'){
         const rules = await ensureRules();
 
         let total = 0;
+        const cur = new Date(s); cur.setHours(0,0,0,0);
+        const endDay = new Date(e); endDay.setHours(0,0,0,0);
 
-        const s0 = new Date(s); s0.setHours(0,0,0,0);
-        const e0 = new Date(e); e0.setHours(0,0,0,0);
-
-        const endHasTime = !(e.getHours() === 0 && e.getMinutes() === 0 && e.getSeconds() === 0);
-        const lastDay = new Date(e0);
-        if (!endHasTime) {
-          lastDay.setDate(lastDay.getDate() - 1);
-        }
-
-        if (lastDay < s0){
-          document.getElementById("hours").value = (0).toFixed(1);
-          return;
-        }
-
-        const cur = new Date(s0);
-        while (cur <= lastDay){
+        while (cur <= endDay){
           const ymd = toYMD(cur);
           const isHol = rules.holidays.has(ymd);
           const shift = (rules.scheduleMap[ymd] || "").toUpperCase();
@@ -276,7 +322,6 @@
         return;
       }
 
-      // 加班：實際區間 - 扣午休
       if (cat === 'OT'){
         let diff = (e - s) / (1000*60*60);
         diff -= breakDeductionHours(s, e);
@@ -286,40 +331,23 @@
         return;
       }
 
-      // 外出：實際區間 - 扣午休；最小 0.5；最多 8（出差除外）
       if (cat === 'OUTING'){
         const isTrip = document.getElementById("isTrip").checked;
         let diff = (e - s) / (1000*60*60);
         diff -= breakDeductionHours(s, e);
         diff = Math.max(0, diff);
-
         diff = Math.round(diff * 2) / 2;
         diff = Math.max(0.5, diff);
-
         if (!isTrip) diff = Math.min(8, diff);
-
         document.getElementById("hours").value = diff.toFixed(1);
         return;
       }
     }catch(err){
-      // fallback（保守）
       if (cat === 'LEAVE'){
         let total = 0;
-
-        const s0 = new Date(s); s0.setHours(0,0,0,0);
-        const e0 = new Date(e); e0.setHours(0,0,0,0);
-
-        const endHasTime = !(e.getHours() === 0 && e.getMinutes() === 0 && e.getSeconds() === 0);
-        const lastDay = new Date(e0);
-        if (!endHasTime) lastDay.setDate(lastDay.getDate() - 1);
-
-        if (lastDay < s0){
-          document.getElementById("hours").value = (0).toFixed(1);
-          return;
-        }
-
-        const cur = new Date(s0);
-        while(cur <= lastDay){
+        const cur = new Date(s); cur.setHours(0,0,0,0);
+        const endDay = new Date(e); endDay.setHours(0,0,0,0);
+        while(cur <= endDay){
           if(!isWeekend(cur)) total += 8;
           cur.setDate(cur.getDate()+1);
         }
