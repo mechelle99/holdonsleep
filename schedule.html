@@ -23,7 +23,6 @@
     th:first-child { background: #F9FAFB; z-index: 20; }
 
     .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; text-align: center; font-weight: 700; }
-    /* 鎖定時樣式 */
     .shift-sel:disabled { background: #F3F4F6; color: #9CA3AF; border-color: #E5E7EB; opacity: 0.7; }
     
     .bg-EARLY { background-color: #D1FAE5 !important; color: #065F46 !important; border: 1px solid #10B981 !important; }
@@ -68,6 +67,8 @@
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
+  if(!uid) location.href='index.html'; // 補上未登入踢出
+
   const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) { document.getElementById("bottomNav").classList.add('is-manager'); }
 
@@ -77,88 +78,123 @@
   for(let i=2024; i<=2026; i++) yS.add(new Option(i,i,i===now.getFullYear(),i===now.getFullYear()));
   for(let i=1; i<=12; i++) mS.add(new Option(i,i,i===now.getMonth()+1,i===now.getMonth()+1));
 
-  function api(act, d={}) {
-    return new Promise(r => {
+  // ★ 核心修復：穩定的 API 呼叫 (V106)
+  function api(act, d = {}) {
+    return new Promise((resolve, reject) => {
+      // 1. 產生唯一的 callback 名稱 (只產生一次，存入變數)
+      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      const payload = encodeURIComponent(JSON.stringify({ ...d, userId: uid }));
+
+      // 15秒超時保護
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timeout: 請求逾時"));
+      }, 15000);
+
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cbName]; } catch (e) {}
+        try { s.remove(); } catch (e) {}
+      }
+
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}`;
+
+      window[cbName] = (res) => {
+        cleanup();
+        resolve(res);
+      };
+
+      s.onerror = () => {
+        cleanup();
+        reject(new Error("Network Error: 連線失敗"));
+      };
+
       document.body.appendChild(s);
     });
   }
 
+  // ★ 載入邏輯 (含錯誤處理)
   async function load() {
-    const res = await api("get_roster_data", {year:yS.value, month:mS.value});
-    if(!res.ok) { document.getElementById("tbRow").innerHTML = `<tr><td>${res.message}</td></tr>`; return; }
+    try {
+      document.getElementById("statusInfo").innerText = "載入中...";
+      // 清空舊資料，避免誤會
+      document.getElementById("tbRow").innerHTML = '<tr><td colspan="5" style="padding:30px;color:#999">資料讀取中...</td></tr>';
 
-    // ★ 狀態判定 (鎖定邏輯)
-    const today = new Date();
-    const lockDay = res.lockDay || 25;
-    const targetY = Number(yS.value);
-    const targetM = Number(mS.value);
-    
-    // 是否為下個月 (Target Month > Current Month)
-    // 簡單判斷：如果選的年份大於今年，或者是今年且月份大於下個月(因為getMonth是0-11，所以下個月是getMonth()+2)
-    // 這裡用絕對數值比較最穩：TargetValue > CurrentValue + 1
-    const currentVal = today.getFullYear() * 12 + (today.getMonth() + 1);
-    const targetVal = targetY * 12 + targetM;
-    
-    // 員工只能排下個月 (Current + 1)
-    const isNextMonth = (targetVal === currentVal + 1);
-    
-    // 鎖定條件：
-    // 1. 不是主管
-    // 2. 並且 (不是下個月 或者 (是下個月但今天已經超過25號))
-    const isLocked = !res.isManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
+      const res = await api("get_roster_data", {year: yS.value, month: mS.value});
+      
+      if(!res.ok) { 
+        document.getElementById("tbRow").innerHTML = `<tr><td style="color:red;padding:20px;">${res.message || '讀取失敗'}</td></tr>`; 
+        document.getElementById("statusInfo").innerText = "讀取失敗";
+        return; 
+      }
 
-    let info = "";
-    if (res.isManager) info = "👑 主管模式 (可任意編輯)";
-    else if (!isLocked) info = `🟢 開放排班中 (每月${lockDay}號截止)`;
-    else if (!isNextMonth) info = "🔒 本月/過期/未來班表已鎖定";
-    else info = `🔴 排班已截止 (截止日: ${lockDay}號)`;
-    
-    document.getElementById("statusInfo").innerText = info;
-    if(isLocked) document.getElementById("statusInfo").style.color = "#EF4444";
+      // ★ 狀態判定 (鎖定邏輯)
+      const today = new Date();
+      const lockDay = res.lockDay || 25;
+      const targetY = Number(yS.value);
+      const targetM = Number(mS.value);
+      
+      const currentVal = today.getFullYear() * 12 + (today.getMonth() + 1);
+      const targetVal = targetY * 12 + targetM;
+      const isNextMonth = (targetVal === currentVal + 1);
+      
+      const isLocked = !res.isManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
 
-    // 表格繪製
-    const days = new Date(yS.value, mS.value, 0).getDate();
-    let head = `<th>員工</th>`;
-    for(let d=1; d<=days; d++) {
-        const wk = ['日','一','二','三','四','五','六'][new Date(yS.value, mS.value-1, d).getDay()];
-        const color = (wk==='日'||wk==='六') ? 'color:#EF4444' : '';
-        head += `<th style="${color}">${d}<br><small>${wk}</small></th>`;
+      let info = "";
+      if (res.isManager) info = "👑 主管模式 (可任意編輯)";
+      else if (!isLocked) info = `🟢 開放排班中 (每月${lockDay}號截止)`;
+      else if (!isNextMonth) info = "🔒 本月/過期/未來班表已鎖定";
+      else info = `🔴 排班已截止 (截止日: ${lockDay}號)`;
+      
+      document.getElementById("statusInfo").innerText = info;
+      if(isLocked) document.getElementById("statusInfo").style.color = "#EF4444";
+
+      // 表格繪製
+      const days = new Date(yS.value, mS.value, 0).getDate();
+      let head = `<th>員工</th>`;
+      for(let d=1; d<=days; d++) {
+          const wk = ['日','一','二','三','四','五','六'][new Date(yS.value, mS.value-1, d).getDay()];
+          const color = (wk==='日'||wk==='六') ? 'color:#EF4444' : '';
+          head += `<th style="${color}">${d}<br><small>${wk}</small></th>`;
+      }
+      document.getElementById("thRow").innerHTML = head;
+
+      let rows = "";
+      res.employees.forEach(e => {
+          let tds = `<td>${e.name}</td>`;
+          for(let d=1; d<=days; d++) {
+              const cell = (res.roster[e.id] && res.roster[e.id][d]) ? res.roster[e.id][d] : {};
+              const dateStr = `${yS.value}-${String(mS.value).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+              
+              if(cell.type === 'LEAVE') {
+                  tds += `<td><span class="tag" style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:4px;font-size:11px;">${cell.value}</span></td>`;
+              } else {
+                  let v = cell.value || '';
+                  let cls = '';
+                  if(v==='早班'||v==='EARLY') { v='早班'; cls='bg-EARLY'; }
+                  else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
+                  else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
+                  
+                  const dis = isLocked ? 'disabled' : '';
+                  
+                  tds += `<td><select class="shift-sel ${cls}" ${dis} onchange="upd('${e.id}','${dateStr}',this)">
+                    <option value="">-</option>
+                    <option value="早班" ${v==='早班'?'selected':''}>早</option>
+                    <option value="午班" ${v==='午班'?'selected':''}>午</option>
+                    <option value="休假" ${v==='休假'?'selected':''}>休</option>
+                  </select></td>`;
+              }
+          }
+          rows += `<tr>${tds}</tr>`;
+      });
+      document.getElementById("tbRow").innerHTML = rows;
+
+    } catch (err) {
+      document.getElementById("tbRow").innerHTML = `<tr><td style="color:red;padding:20px;">${err.message}</td></tr>`;
+      document.getElementById("statusInfo").innerText = "連線異常";
     }
-    document.getElementById("thRow").innerHTML = head;
-
-    let rows = "";
-    res.employees.forEach(e => {
-        let tds = `<td>${e.name}</td>`;
-        for(let d=1; d<=days; d++) {
-            const cell = (res.roster[e.id] && res.roster[e.id][d]) ? res.roster[e.id][d] : {};
-            const dateStr = `${yS.value}-${String(mS.value).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            
-            if(cell.type === 'LEAVE') {
-                tds += `<td><span class="tag" style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:4px;font-size:11px;">${cell.value}</span></td>`;
-            } else {
-                let v = cell.value || '';
-                let cls = '';
-                if(v==='早班'||v==='EARLY') { v='早班'; cls='bg-EARLY'; }
-                else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
-                else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
-                
-                // ★ 關鍵：加上 disabled 屬性
-                const dis = isLocked ? 'disabled' : '';
-                
-                tds += `<td><select class="shift-sel ${cls}" ${dis} onchange="upd('${e.id}','${dateStr}',this)">
-                  <option value="">-</option>
-                  <option value="早班" ${v==='早班'?'selected':''}>早</option>
-                  <option value="午班" ${v==='午班'?'selected':''}>午</option>
-                  <option value="休假" ${v==='休假'?'selected':''}>休</option>
-                </select></td>`;
-            }
-        }
-        rows += `<tr>${tds}</tr>`;
-    });
-    document.getElementById("tbRow").innerHTML = rows;
   }
 
   function upd(eid, d, el) {
@@ -173,8 +209,11 @@
               el.value = ""; // 還原
               el.className = 'shift-sel'; 
           }
+      }).catch(err => {
+          alert("更新失敗: " + err.message);
       });
   }
+  
   load();
 </script>
 </body>
