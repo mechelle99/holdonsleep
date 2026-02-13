@@ -14,32 +14,37 @@
     .stat-row:last-child { border-bottom: none; }
     .stat-name { font-weight: 600; }
     .stat-val { font-size: 13px; color: #6B7280; }
+
     .req-item { border-left: 4px solid #F59E0B; background: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
     .req-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .req-user { font-weight: 700; font-size: 15px; }
     .req-type { background: #EEF2FF; color: var(--primary); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
     .req-info { font-size: 13px; color: #4B5563; margin-bottom: 10px; line-height: 1.5; }
     .req-actions { display: flex; gap: 10px; }
+
     .btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
     .btn-approve { background: #10B981; color: white; }
     .btn-reject { background: #EF4444; color: white; }
-    
-    /* 增加按鈕 Disabled 樣式 */
+
     .btn:disabled, .btn-all:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(1); }
     .btn-all { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
 
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
+
+    .ban { background:#FFF1F2; color:#9F1239; border:1px solid #FECDD3; padding:12px; border-radius:14px; margin: 0 0 12px 0; font-size: 13px; line-height: 1.6; }
   </style>
 </head>
 <body>
 
   <h2>👨‍💼 主管專區</h2>
 
+  <div id="guard" class="ban" style="display:none;"></div>
+
   <div class="section-title">
     團隊休假概況
-    <button class="btn-all" onclick="loadStats()">↻ 更新</button>
+    <button class="btn-all" id="btnRefresh" onclick="loadStats()">↻ 更新</button>
   </div>
   <div class="card" id="teamStats">
     <div style="text-align:center;color:#999;padding:20px;">載入中...</div>
@@ -47,7 +52,7 @@
 
   <div class="section-title">
     待審核申請
-    <button class="btn-all" onclick="approveAll()">一鍵全准</button>
+    <button class="btn-all" id="btnApproveAll" onclick="approveAll()">一鍵全准</button>
   </div>
   <div id="pendingList">
     <div style="text-align:center;color:#999;padding:20px;">載入中...</div>
@@ -63,8 +68,18 @@
 
 <script src="config.js"></script>
 <script>
-  const uid = localStorage.getItem("employeeId");
+  // ✅ 兼容：empId / employeeId
+  const uid = localStorage.getItem("empId") || localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
+
+  // ✅ 主管保護：前端先擋一次，避免非主管進來一直撞牆
+  const isMgr = localStorage.getItem("isManager") === "true";
+  if(!isMgr){
+    const g = document.getElementById("guard");
+    g.style.display = "block";
+    g.innerHTML = "你不是主管權限，無法進入此頁。<br>如果你確定你是主管：請回到首頁重新登入，或清除瀏覽器快取後再試一次。";
+    // 也可以直接踢回首頁（你若想更硬）：location.href='app.html';
+  }
 
   function api(act, d = {}) {
     return new Promise((resolve, reject) => {
@@ -72,10 +87,7 @@
       const s = document.createElement("script");
       const payload = encodeURIComponent(JSON.stringify({ ...d, userId: uid }));
 
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error("Timeout: 請求逾時"));
-      }, 15000);
+      const timer = setTimeout(() => { cleanup(); reject(new Error("Timeout: 請求逾時")); }, 15000);
 
       function cleanup() {
         clearTimeout(timer);
@@ -83,22 +95,39 @@
         try { s.remove(); } catch(e){}
       }
 
-      // ✅ 1) Cache Buster：避免 Safari/代理/弱網快取拿舊資料
+      // ✅ Cache buster：避免 Safari/代理/弱網快取
       const bust = Date.now();
       s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}&_=${bust}`;
 
-      window[cbName] = (res) => {
-        cleanup();
-        resolve(res);
-      };
-
-      s.onerror = () => {
-        cleanup();
-        reject(new Error("Network Error: 連線失敗"));
-      };
+      window[cbName] = (res) => { cleanup(); resolve(res); };
+      s.onerror = () => { cleanup(); reject(new Error("Network Error: 連線失敗")); };
 
       document.body.appendChild(s);
     });
+  }
+
+  function typeLabel_(r){
+    let typeName = r.leaveType || r.category || '';
+    const t = String(typeName).toLowerCase();
+
+    if(r.category === 'OUTING') return '外出';
+    if(r.category === 'CORRECTION') return '補卡';
+    if(r.category === 'OT') return '加班';
+
+    if(t.includes('annual')) return '特休';
+    if(t.includes('comp')) return '補休';
+    if(t.includes('sick')) return '病假';
+    if(t.includes('personal')) return '事假';
+    if(t.includes('official')) return '公假';
+    if(t.includes('marriage')) return '婚假';
+    if(t.includes('bereavement')) return '喪假';
+    if(t.includes('menstrual')) return '生理假';
+    if(t.includes('maternity')) return '產假';
+    if(t.includes('paternity')) return '陪產假';
+    if(t.includes('family')) return '家庭照顧假';
+    if(t.includes('birthday')) return '生日假';
+
+    return typeName || '申請';
   }
 
   async function loadStats() {
@@ -112,15 +141,13 @@
         return;
       }
 
-      // ✅ 2) 防呆：res.list 可能不存在
       const list = Array.isArray(res.list) ? res.list : [];
-
       let h = "";
       list.forEach(u => {
         h += `
           <div class="stat-row">
-            <div class="stat-name">${u.name}</div>
-            <div class="stat-val">特休:${u.annual}h / 補休:${u.comp}h</div>
+            <div class="stat-name">${u.name || u.empName || u.empId || '未知'}</div>
+            <div class="stat-val">特休:${Number(u.annual||0)}h / 補休:${Number(u.comp||0)}h</div>
           </div>`;
       });
       el.innerHTML = h || '<div style="text-align:center;color:#999;">無資料</div>';
@@ -135,15 +162,12 @@
 
     try {
       const res = await api("get_pending");
-
       if(!res || !res.ok) {
         el.innerHTML = `<div style="text-align:center;color:red;">${(res && res.message) || '讀取失敗'}</div>`;
         return;
       }
 
-      // ✅ 3) 防呆：res.list 可能 undefined
       const list = Array.isArray(res.list) ? res.list : [];
-
       if(list.length === 0) {
         el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`;
         return;
@@ -151,58 +175,47 @@
 
       let h = "";
       list.forEach(r => {
-        let typeName = r.leaveType || r.category || '';
-        const t = String(typeName).toLowerCase();
-
-        if(r.category === 'OUTING') typeName = '外出';
-        else if(r.category === 'CORRECTION') typeName = '補卡';
-        else if(r.category === 'OT') typeName = '加班';
-        else {
-          if(t.includes('annual')) typeName = '特休';
-          else if(t.includes('comp')) typeName = '補休';
-          else if(t.includes('sick')) typeName = '病假';
-          else if(t.includes('personal')) typeName = '事假';
-          else if(t.includes('official')) typeName = '公假';
-          else if(t.includes('marriage')) typeName = '婚假';
-          else if(t.includes('bereavement')) typeName = '喪假';
-          else if(t.includes('menstrual')) typeName = '生理假';
-          else if(t.includes('maternity')) typeName = '產假';
-          else if(t.includes('paternity')) typeName = '陪產假';
-          else if(t.includes('family')) typeName = '家庭照顧假';
-          else if(t.includes('birthday')) typeName = '生日假';
-        }
-
+        const typeName = typeLabel_(r);
         const displayName = r.empName || r.name || r.empId || r.id || '未知員工';
         const dateStr = r.start ? String(r.start).replace('T', ' ').substring(0, 16) : '無日期';
+        const reqId = String(r.reqId || r.id || '');
+        const safeId = encodeURIComponent(reqId);
 
         h += `
-          <div class="req-item" id="card-${r.reqId}">
+          <div class="req-item" id="card-${safeId}">
             <div class="req-top">
               <div class="req-user">${displayName}</div>
               <div class="req-type">${typeName}</div>
             </div>
             <div class="req-info">
               日期: ${dateStr}<br>
-              時數: ${r.hours}小時<br>
+              時數: ${Number(r.hours||0)} 小時<br>
               事由: ${r.reason || '無'}
             </div>
             <div class="req-actions">
-              <button class="btn btn-approve" onclick="decide('${r.reqId}', 'APPROVED')">核准</button>
-              <button class="btn btn-reject" onclick="decide('${r.reqId}', 'REJECTED')">駁回</button>
+              <button class="btn btn-approve" onclick="decide('${safeId}', '${reqId}', 'APPROVED')">核准</button>
+              <button class="btn btn-reject" onclick="decide('${safeId}', '${reqId}', 'REJECTED')">駁回</button>
             </div>
           </div>`;
       });
+
       el.innerHTML = h;
     } catch (err) {
       el.innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
     }
   }
 
-  async function decide(reqId, decision) {
+  async function decide(safeId, reqId, decision) {
+    if(!isMgr){
+      alert("你不是主管權限，無法操作。");
+      return;
+    }
     if(!confirm(decision==='APPROVED'?'確定核准？':'確定駁回？')) return;
 
-    const card = document.getElementById(`card-${reqId}`);
-    if(card) card.style.opacity = '0.5';
+    const card = document.getElementById(`card-${safeId}`);
+    const buttons = card ? card.querySelectorAll("button") : [];
+    if(card) card.style.opacity = '0.6';
+    buttons.forEach(b => b.disabled = true);
 
     try {
       const res = await api("review_request", { reqId, decision });
@@ -212,24 +225,30 @@
           document.getElementById("pendingList").innerHTML =
             `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
         }
-        // ✅ 核准/駁回後都更新統計
         loadStats();
       } else {
         alert("操作失敗: " + ((res && res.message) || '未知錯誤'));
         if(card) card.style.opacity = '1';
+        buttons.forEach(b => b.disabled = false);
       }
     } catch (err) {
       alert("操作失敗: 網絡錯誤");
       if(card) card.style.opacity = '1';
+      buttons.forEach(b => b.disabled = false);
     }
   }
 
   async function approveAll() {
+    if(!isMgr){
+      alert("你不是主管權限，無法操作。");
+      return;
+    }
     if(!confirm("確定核准「本月所有」待審核單據？")) return;
 
-    // ✅ 4) 防連點：避免主管狂點造成重複入帳
-    const btns = document.querySelectorAll(".btn-all");
-    btns.forEach(b => b.disabled = true);
+    const btnRefresh = document.getElementById("btnRefresh");
+    const btnApproveAll = document.getElementById("btnApproveAll");
+    btnRefresh.disabled = true;
+    btnApproveAll.disabled = true;
 
     const now = new Date();
     try {
@@ -241,10 +260,12 @@
     } catch (err) {
       alert("操作失敗: 網絡錯誤");
     } finally {
-      btns.forEach(b => b.disabled = false);
+      btnRefresh.disabled = false;
+      btnApproveAll.disabled = false;
     }
   }
 
+  // init
   loadStats();
   loadPending();
 </script>
