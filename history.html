@@ -61,7 +61,7 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      margin: 12px 0 16px 0;
+      margin: 12px 0 12px 0;
       align-items:center;
     }
     .filters input, .filters select{
@@ -179,6 +179,85 @@
       line-height: 1.4;
     }
 
+    /* ===== Mobile tabs (real phone logic) ===== */
+    .tabs-wrap{
+      position: sticky;
+      top: calc(10px + env(safe-area-inset-top));
+      z-index: 50;
+      margin: 8px 0 10px 0;
+    }
+    .tabs{
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(17,24,39,.08);
+      box-shadow: var(--shadow2);
+      border-radius: 16px;
+      padding: 6px;
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    .tab{
+      flex:1;
+      border:none;
+      border-radius: 14px;
+      padding: 10px 10px;
+      font-weight: 900;
+      font-size: 13px;
+      cursor:pointer;
+      color: var(--muted);
+      background: transparent;
+      display:flex;
+      justify-content:center;
+      gap:8px;
+      align-items:center;
+      user-select:none;
+    }
+    .tab strong{ color:inherit; font-weight: 900; }
+    .tab.active{
+      background: #EEF2FF;
+      color: var(--primary);
+    }
+    .tab .count{
+      font-size: 12px;
+      font-weight: 900;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(79,70,229,.10);
+      color: var(--primary);
+    }
+
+    /* ===== Desktop: side-by-side columns ===== */
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .panel{ background: transparent; }
+    .panel.hidden{ display:none; } /* used for mobile tab switching */
+
+    @media (min-width: 980px){
+      body{ max-width: 1200px; margin: 0 auto; }
+      .tabs-wrap{ display:none; }           /* desktop doesn't need tabs */
+      .grid{
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items:start;
+      }
+      .panel.hidden{ display:block; }       /* ignore hidden on desktop */
+      .panel .section-title{ margin-top: 0; }
+      .panel .list{
+        max-height: calc(100vh - 330px);
+        overflow: auto;
+        padding-right: 6px;
+      }
+      .panel .list::-webkit-scrollbar{ width: 8px; }
+      .panel .list::-webkit-scrollbar-thumb{
+        background: rgba(17,24,39,.18);
+        border-radius: 999px;
+      }
+    }
+
     .nav{
       position: fixed;
       left: 0; right: 0; bottom: 0;
@@ -203,37 +282,6 @@
     }
     .nav-item.active{ color: var(--primary); }
     .nav-icon{ font-size: 22px; }
-
-    /* ===== Layout upgrade: desktop side-by-side, mobile stacked ===== */
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-    .panel{ background: transparent; }
-
-    @media (min-width: 980px){
-      body{
-        max-width: 1200px;
-        margin: 0 auto;
-      }
-      .grid{
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        align-items:start;
-      }
-      .panel .section-title{ margin-top: 0; }
-      .panel .list{
-        max-height: calc(100vh - 330px);
-        overflow: auto;
-        padding-right: 6px;
-      }
-      .panel .list::-webkit-scrollbar{ width: 8px; }
-      .panel .list::-webkit-scrollbar-thumb{
-        background: rgba(17,24,39,.18);
-        border-radius: 999px;
-      }
-    }
   </style>
 </head>
 <body>
@@ -258,9 +306,20 @@
     <button onclick="reload()">更新</button>
   </div>
 
-  <!-- ✅ 桌機左右 / 手機上下 -->
+  <!-- ✅ 手機邏輯：分頁切換（不讓你滑到天荒地老） -->
+  <div class="tabs-wrap" id="tabsWrap">
+    <div class="tabs">
+      <button class="tab" id="tabAtt" onclick="setTab('att')">
+        <strong>打卡</strong><span class="count" id="tabAttCount">0</span>
+      </button>
+      <button class="tab" id="tabReq" onclick="setTab('req')">
+        <strong>申請</strong><span class="count" id="tabReqCount">0</span>
+      </button>
+    </div>
+  </div>
+
   <div class="grid">
-    <section class="panel">
+    <section class="panel" id="panelAtt">
       <div class="section-title">
         <h3>打卡紀錄（Attendance_Log）</h3>
         <div class="small" id="attCount">0 筆</div>
@@ -268,7 +327,7 @@
       <div class="list" id="attList"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="panelReq">
       <div class="section-title">
         <h3>申請單（Requests）</h3>
         <div class="small" id="reqCount">0 筆</div>
@@ -328,17 +387,13 @@
       });
     }
 
-    // ✅ 同 manager：時間顯示統一，避免亂跳
     function formatDT(v){
       if(!v) return '無';
       const s = String(v).trim();
-
       let m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(\d{2}):(\d{2})/);
       if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
-
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
-
       return s;
     }
 
@@ -355,11 +410,11 @@
     function attTypeBadge(row){
       const io = String(row.io||'').toUpperCase();
       const outFlag = String(row.isOuting||'').toUpperCase();
-
       if(outFlag.includes('CORRECTION')) return { label: '補卡寫入', cls:'warn' };
       if(outFlag.includes('OUTING')) return { label: '外出', cls:'warn' };
       if(io.includes('IN') || io.includes('上班')) return { label:'上班', cls:'ok' };
       if(io.includes('OUT') || io.includes('下班')) return { label:'下班', cls:'warn' };
+      if(io.includes('每日彙總')) return { label:'每日彙總', cls:'warn' };
       return { label: row.io || '打卡', cls:'ok' };
     }
 
@@ -376,7 +431,6 @@
       if(lt==='sick') return '病假';
       if(lt==='personal') return '事假';
       if(lt==='birthday') return '生日假';
-
       return row.leaveType || row.category || '申請';
     }
 
@@ -390,6 +444,7 @@
     function renderAtt(list){
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
+      document.getElementById("tabAttCount").textContent = String(list.length);
 
       if(list.length===0){
         el.innerHTML = `<div class="empty">本範圍沒有打卡紀錄</div>`;
@@ -406,13 +461,12 @@
           ? `｜距離 ${r.distOfficeM}m` : '';
 
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-        const hint = (String(r.io||'').includes('每日彙總')) ? `（每日彙總）` : '';
 
         return `
           <div class="item ${cls}">
             <div class="top">
               <div>
-                <p class="title">${when} ${hint}</p>
+                <p class="title">${when}</p>
                 <div class="meta">類型：${b.label}${dist}</div>
                 <div class="meta">備註：${reason}</div>
               </div>
@@ -426,6 +480,7 @@
     function renderReq(list){
       const el = document.getElementById("reqList");
       document.getElementById("reqCount").textContent = `${list.length} 筆`;
+      document.getElementById("tabReqCount").textContent = String(list.length);
 
       if(list.length===0){
         el.innerHTML = `<div class="empty">本範圍沒有申請單</div>`;
@@ -472,6 +527,63 @@
       return { y, m };
     }
 
+    // ===== Mobile tab logic =====
+    function isDesktop(){
+      return window.matchMedia("(min-width: 980px)").matches;
+    }
+
+    function setTab(which){
+      // If desktop, show both (ignore)
+      if(isDesktop()){
+        document.getElementById("panelAtt").classList.remove("hidden");
+        document.getElementById("panelReq").classList.remove("hidden");
+        document.getElementById("tabAtt").classList.add("active");
+        document.getElementById("tabReq").classList.add("active");
+        return;
+      }
+
+      localStorage.setItem("historyTab", which);
+
+      const pAtt = document.getElementById("panelAtt");
+      const pReq = document.getElementById("panelReq");
+      const tAtt = document.getElementById("tabAtt");
+      const tReq = document.getElementById("tabReq");
+
+      if(which === "att"){
+        pAtt.classList.remove("hidden");
+        pReq.classList.add("hidden");
+        tAtt.classList.add("active");
+        tReq.classList.remove("active");
+      }else{
+        pReq.classList.remove("hidden");
+        pAtt.classList.add("hidden");
+        tReq.classList.add("active");
+        tAtt.classList.remove("active");
+      }
+
+      // 對齊 UX：切換時回到頁面上方（不用卡在中段）
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function initTab(){
+      const saved = localStorage.getItem("historyTab") || "att";
+      if(isDesktop()){
+        // desktop: both visible
+        document.getElementById("panelAtt").classList.remove("hidden");
+        document.getElementById("panelReq").classList.remove("hidden");
+        document.getElementById("tabAtt").classList.add("active");
+        document.getElementById("tabReq").classList.add("active");
+      }else{
+        // mobile: one visible
+        setTab(saved);
+      }
+    }
+
+    window.addEventListener("resize", ()=>{
+      // when rotate / resize, re-apply logic
+      initTab();
+    });
+
     async function reload(){
       const monthStr = document.getElementById("monthPick").value;
       const mode = document.getElementById("modePick").value;
@@ -494,12 +606,10 @@
       attListEl.innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        // Requests
         const reqRes = await api("list_requests", { isManagerView:false });
         const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
         const reqFiltered = allReq.filter(r => inMonthByDateString(r.start, y, m));
 
-        // Attendance: 目前後端沒 list_attendance -> 用 get_dashboard 做「每日彙總」顯示
         const dashRes = await api("get_dashboard", { year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
@@ -516,25 +626,34 @@
           };
         });
 
+        // mode filter
         if(mode === 'req'){
           renderAtt([]);
           renderReq(reqFiltered);
+          // 手機：直接切到申請（符合直覺）
+          if(!isDesktop()) setTab('req');
         }else if(mode === 'att'){
           renderAtt(attPseudo);
           renderReq([]);
+          if(!isDesktop()) setTab('att');
         }else{
           renderAtt(attPseudo);
           renderReq(reqFiltered);
+          // 手機：維持使用者上次 tab，不強迫跳
+          initTab();
         }
 
       }catch(e){
         toast("載入失敗（GAS）");
         renderAtt([]);
         renderReq([]);
+        initTab();
       }
     }
 
+    // init
     pickCurrentMonth();
+    initTab();
     reload();
   </script>
 </body>
