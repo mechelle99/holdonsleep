@@ -10,10 +10,10 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
 
     .header-card { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; border-radius: 24px; padding: 24px; box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3); margin-bottom: 30px; position: relative; }
-    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px; }
     .user-name { font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
     .btn-logout { background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; backdrop-filter: blur(4px); white-space: nowrap; }
-    
+
     /* GPS 訊號燈 */
     .gps-indicator { position: absolute; top: 24px; right: 80px; width: 10px; height: 10px; border-radius: 50%; background: #EF4444; box-shadow: 0 0 5px rgba(0,0,0,0.2); transition: background 0.3s; }
     .gps-ready { background: #10B981; box-shadow: 0 0 8px #10B981; }
@@ -33,7 +33,7 @@
     .clock-out .btn-text { color: var(--warning); }
 
     /* 讀取動畫 */
-    .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; font-weight: bold; color: var(--primary); display: none; }
+    .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.82); display: flex; justify-content: center; align-items: center; font-weight: bold; color: var(--primary); display: none; }
 
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 10px 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
     .nav.is-manager { grid-template-columns: repeat(5, 1fr); }
@@ -47,7 +47,7 @@
   <div class="header-card">
     <div class="header-top">
       <div class="user-name">Hi, <span id="uName">...</span></div>
-      <div class="gps-indicator" id="gpsDot"></div>
+      <div class="gps-indicator" id="gpsDot" title="GPS"></div>
       <div class="btn-logout" onclick="logout()">登出</div>
     </div>
     <div class="balance-row">
@@ -83,81 +83,137 @@
 
 <script src="config.js"></script>
 <script>
-  const uid = localStorage.getItem("employeeId");
+  // ✅ uid 兼容（避免你 index.html 存的是 empId，結果 app/history 找不到）
+  const uid = localStorage.getItem("employeeId") || localStorage.getItem("empId");
   if(!uid) location.href='index.html';
 
-  const cachedMgr = localStorage.getItem("isManager") === "true";
-  if(cachedMgr) { document.getElementById("bottomNav").classList.add('is-manager'); }
+  const bottomNav = document.getElementById("bottomNav");
 
-  // ★ V91 加速核心：背景即時鎖定 GPS
+  // ✅ 主管 nav：先用快取（get_me 回來會再更新）
+  const cachedMgr = localStorage.getItem("isManager") === "true";
+  if(cachedMgr) bottomNav.classList.add('is-manager');
+
+  // ✅ GPS 背景鎖定
   let currentLat = null;
   let currentLng = null;
+  let currentAcc = null;
   const gpsDot = document.getElementById('gpsDot');
 
-  // 使用 watchPosition 取代 getCurrentPosition，隨時保持最新座標
-  navigator.geolocation.watchPosition(
-    (p) => {
+  // watchPosition 讓 GPS 隨時保持最新
+  let watchId = null;
+  if (navigator.geolocation) {
+    watchId = navigator.geolocation.watchPosition(
+      (p) => {
         currentLat = p.coords.latitude;
         currentLng = p.coords.longitude;
-        // 變綠燈，代表已鎖定，隨時可按
+        currentAcc = p.coords.accuracy;
         gpsDot.classList.add('gps-ready');
-    },
-    (e) => {
-        console.warn("GPS Error");
+      },
+      (e) => {
+        console.warn("GPS Error", e);
         gpsDot.classList.remove('gps-ready');
-    },
-    { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 }
-  );
+        currentLat = null; currentLng = null; currentAcc = null;
+      },
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 }
+    );
+  } else {
+    gpsDot.classList.remove('gps-ready');
+  }
 
-  function api(act, d={}) {
-    return new Promise(r => {
+  // ✅ 穩定 JSONP：cbName 一次生成、帶 timeout、帶 cache buster
+  function api(act, d = {}) {
+    return new Promise((resolve) => {
+      const cbName = `cb_${Date.now()}_${Math.floor(Math.random()*100000)}`;
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+
+      const payloadObj = { ...d, userId: uid };
+      const payloadStr = encodeURIComponent(JSON.stringify(payloadObj));
+      const bust = Date.now();
+
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payloadStr}&callback=${cbName}&_=${bust}`;
+
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve({ ok:false, message:"API timeout" });
+      }, 15000);
+
+      function cleanup(){
+        clearTimeout(timer);
+        try { delete window[cbName]; } catch(_){}
+        if (s && s.parentNode) s.parentNode.removeChild(s);
+      }
+
+      window[cbName] = (res) => {
+        cleanup();
+        resolve(res);
+      };
+
+      s.onerror = () => {
+        cleanup();
+        resolve({ ok:false, message:"API load error" });
+      };
+
       document.body.appendChild(s);
     });
   }
 
   async function init() {
-      // 讀取資料
-      const res = await api("get_me");
-      if(res.ok) {
-          document.getElementById("uName").innerText = res.name || res.empId;
-          document.getElementById("annBal").innerText = res.balances.annual.left;
-          document.getElementById("compBal").innerText = res.balances.comp.left;
-          
-          localStorage.setItem("isManager", res.isManager);
-          if(res.isManager) {
-              document.getElementById("bottomNav").classList.add('is-manager');
-          }
-      }
+    const res = await api("get_me");
+    if(res && res.ok) {
+      // ✅ 欄位對齊：empName / empId
+      document.getElementById("uName").innerText = res.empName || res.empId || uid;
+
+      // ✅ balances 兼容
+      const annualLeft = (res.balances && res.balances.annual && res.balances.annual.left != null) ? res.balances.annual.left : '--';
+      const compLeft   = (res.balances && res.balances.comp && res.balances.comp.left != null) ? res.balances.comp.left : '--';
+      document.getElementById("annBal").innerText  = annualLeft;
+      document.getElementById("compBal").innerText = compLeft;
+
+      // ✅ 主管狀態更新
+      localStorage.setItem("isManager", String(!!res.isManager));
+      if(res.isManager) bottomNav.classList.add('is-manager');
+      else bottomNav.classList.remove('is-manager');
+    } else {
+      // 不硬擋，讓打卡功能仍可用（避免 get_me 偶發失敗就整頁報廢）
+      console.warn("get_me failed:", res && res.message);
+      document.getElementById("uName").innerText = uid;
+    }
   }
 
+  // ✅ 打卡：防 GPS 未鎖、UI Loading、防連點、回應保護
   async function clock(type) {
-      // 如果還沒抓到 GPS，還是要擋一下，但理論上開 App 1秒後就抓到了
-      if(!currentLat) { 
-          alert("GPS 尚未鎖定，請等待右上角紅點變綠..."); 
-          return; 
-      }
+    if(!currentLat || !currentLng) {
+      alert("GPS 尚未鎖定，請等待右上角紅點變綠再打卡。");
+      return;
+    }
 
-      // UI 立即回饋：顯示 Loading 遮罩
-      const loader = type === 'clock_in' ? document.getElementById('loadIn') : document.getElementById('loadOut');
-      const btn = type === 'clock_in' ? document.getElementById('btnIn') : document.getElementById('btnOut');
-      
-      loader.style.display = 'flex'; // 顯示「打卡中」
-      btn.disabled = true; // 防止連點
+    const loader = type === 'clock_in' ? document.getElementById('loadIn') : document.getElementById('loadOut');
+    const btn    = type === 'clock_in' ? document.getElementById('btnIn')  : document.getElementById('btnOut');
 
-      // 直接使用 currentLat/currentLng，不需要再等定位
-      const res = await api(type, {lat: currentLat, lng: currentLng});
-      
-      // 恢復 UI
+    loader.style.display = 'flex';
+    btn.disabled = true;
+
+    try{
+      const res = await api(type, { lat: currentLat, lng: currentLng, acc: currentAcc });
+      alert((res && res.message) ? res.message : "打卡完成");
+      // 打卡後順便更新餘額（有些公司會用補休/加班）
+      init();
+    } catch(e){
+      alert("打卡失敗：網路錯誤");
+    } finally {
       loader.style.display = 'none';
       btn.disabled = false;
-      
-      alert(res.message);
+    }
   }
 
-  function logout() { if(confirm("登出？")){ localStorage.clear(); location.href="index.html"; } }
+  function logout() {
+    if(confirm("登出？")){
+      try { if (watchId != null) navigator.geolocation.clearWatch(watchId); } catch(_){}
+      localStorage.clear();
+      location.href = "index.html";
+    }
+  }
+
   init();
 </script>
 </body>
