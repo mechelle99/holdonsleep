@@ -4,6 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
   <title>HOLDON 出勤系統</title>
+
   <style>
     :root{
       --primary1:#4F46E5; --primary2:#7C3AED;
@@ -38,10 +39,18 @@
       background: rgba(255,255,255,.12);
       border-radius: 999px;
       filter: blur(0px);
+
+      /* ✅ 關鍵修復：不要擋點擊 */
+      pointer-events: none;
+      z-index: 0;
     }
     .hero-top{
       display:flex; align-items:center; justify-content:space-between;
       gap: 10px;
+
+      /* ✅ 關鍵修復：確保在裝飾圈上層 */
+      position: relative;
+      z-index: 1;
     }
     .hello{
       font-size: 34px;
@@ -60,6 +69,7 @@
       background: #FF3B30;
       box-shadow: 0 0 0 8px rgba(255,59,48,.18);
       margin-right: 10px;
+      flex: 0 0 auto;
     }
     .logout{
       display:flex; align-items:center; gap:10px;
@@ -70,6 +80,7 @@
       border-radius: 999px;
       cursor:pointer;
       font-weight: 700;
+      -webkit-tap-highlight-color: transparent;
     }
     .logout:active{ transform: scale(.98); }
 
@@ -79,6 +90,9 @@
       grid-template-columns: 1.2fr 1fr;
       gap: 14px;
       margin-top: 16px;
+
+      position: relative;
+      z-index: 1; /* ✅ 同樣在上層 */
     }
     .bal{
       background: rgba(255,255,255,.16);
@@ -118,12 +132,12 @@
       user-select:none;
       border: 1px solid rgba(17,24,39,.05);
       transition: transform .08s ease;
+      -webkit-tap-highlight-color: transparent;
     }
     .card:active{ transform: scale(.99); }
     .icon{ font-size: 34px; margin-bottom: 10px; }
     .title{ font-size: 20px; font-weight: 900; margin:0; }
     .hint{ font-size: 12px; color: var(--muted); margin-top: 6px; }
-
     .title.in{ color: var(--ok); }
     .title.out{ color: #F59E0B; }
 
@@ -165,6 +179,7 @@
       gap: 4px;
       font-size: 10px;
       font-weight: 700;
+      -webkit-tap-highlight-color: transparent;
     }
     .nav-item.active{ color: var(--primary1); }
     .nav-icon{ font-size: 22px; }
@@ -176,8 +191,8 @@
     }
   </style>
 </head>
-<body>
 
+<body>
   <div class="toast" id="toast"></div>
 
   <section class="hero">
@@ -186,7 +201,11 @@
         <h1 class="hello" id="hello">Hi, ...</h1>
         <div class="sub" id="subline">載入中…</div>
       </div>
-      <button class="logout" onclick="logout()"><span class="dot"></span>登出</button>
+
+      <!-- ✅ type="button" 避免任何 submit/怪行為 -->
+      <button type="button" class="logout" id="btnLogout">
+        <span class="dot"></span>登出
+      </button>
     </div>
 
     <div class="balances">
@@ -202,13 +221,13 @@
   </section>
 
   <div class="grid">
-    <div class="card" id="btnIn" onclick="clock('clock_in')">
+    <div class="card" id="btnIn">
       <div class="icon">☀️</div>
       <h3 class="title in">上班打卡</h3>
       <div class="hint" id="hintIn">點一下完成打卡</div>
     </div>
 
-    <div class="card" id="btnOut" onclick="clock('clock_out')">
+    <div class="card" id="btnOut">
       <div class="icon">🌙</div>
       <h3 class="title out">下班打卡</h3>
       <div class="hint" id="hintOut">點一下完成打卡</div>
@@ -223,7 +242,9 @@
     <a href="manager.html" class="nav-item"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
+  <!-- ✅ 你的 config.js -->
   <script src="config.js"></script>
+
   <script>
     // ====== Login guard ======
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId");
@@ -239,11 +260,30 @@
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2200);
     }
 
+    function assertConfig_(){
+      if(!window.CONFIG){
+        toast("config.js 未載入（找不到 CONFIG）");
+        return false;
+      }
+      if(!window.CONFIG.GAS_ENDPOINT){
+        toast("CONFIG.GAS_ENDPOINT 未設定");
+        return false;
+      }
+      return true;
+    }
+
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
+        if(!assertConfig_()){
+          reject(new Error("Missing CONFIG"));
+          return;
+        }
+
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
         const s = document.createElement("script");
-        const payload = encodeURIComponent(JSON.stringify(Object.assign({}, data, { empId })));
+
+        const payloadObj = Object.assign({}, data, { empId });
+        const payload = encodeURIComponent(JSON.stringify(payloadObj));
         const bust = Date.now();
 
         const timer = setTimeout(()=>{
@@ -273,19 +313,16 @@
           return;
         }
 
-        // ✅ 重點：顯示名字（empName），不是編號
         const name = (res.empName || "").trim() || empId;
         document.getElementById("hello").textContent = `Hi, ${name}`;
         document.getElementById("subline").textContent =
           `員工編號：${res.empId || empId}` + (res.isManager ? "｜主管" : "");
 
-        // balances
         const annual = res.balances && res.balances.annual ? Number(res.balances.annual.left||0) : 0;
         const comp   = res.balances && res.balances.comp   ? Number(res.balances.comp.left||0)   : 0;
         document.getElementById("annualLeft").textContent = String(Math.max(0, annual));
         document.getElementById("compLeft").textContent = String(Math.max(0, comp));
 
-        // save flags
         localStorage.setItem("empName", name);
         localStorage.setItem("isManager", res.isManager ? "true" : "false");
         localStorage.setItem("canSchedule", res.canSchedule ? "true" : "false");
@@ -295,16 +332,11 @@
     }
 
     async function clock(act){
-      // disable quickly to avoid double tap
       document.getElementById("btnIn").classList.add("disabled");
       document.getElementById("btnOut").classList.add("disabled");
 
       try{
-        // 這版先走「免 GPS」也能打卡（你後端 handleClock_ 若要求 GPS，這裡可再補 geolocation）
-        const res = await api(act, {
-          userAgent: navigator.userAgent || ""
-        });
-
+        const res = await api(act, { userAgent: navigator.userAgent || "" });
         if(res && res.ok){
           toast(res.message || "成功");
         }else{
@@ -329,6 +361,11 @@
       localStorage.removeItem("canSchedule");
       location.href = "index.html";
     }
+
+    // ====== Bind events (比 inline onclick 更穩) ======
+    document.getElementById("btnLogout").addEventListener("click", logout);
+    document.getElementById("btnIn").addEventListener("click", ()=>clock("clock_in"));
+    document.getElementById("btnOut").addEventListener("click", ()=>clock("clock_out"));
 
     // init
     loadMe();
