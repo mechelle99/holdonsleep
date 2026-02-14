@@ -26,6 +26,7 @@
       color:var(--text);
       padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px;
     }
+
     .toast{
       position: fixed;
       left: 16px; right: 16px;
@@ -40,6 +41,7 @@
       font-size: 13px;
       line-height: 1.4;
     }
+
     .hero{
       background: linear-gradient(135deg, #4F46E5, #7C3AED);
       border-radius: 26px;
@@ -61,6 +63,7 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
+      align-items:center;
     }
     .pill{
       background: rgba(255,255,255,.18);
@@ -77,7 +80,7 @@
       margin: 12px 0 14px 0;
       align-items:center;
     }
-    .filters input{
+    .filters input, .filters select{
       border:none;
       background:#fff;
       border-radius: 14px;
@@ -279,12 +282,20 @@
     <div class="sub">
       <span class="pill" id="who">載入中…</span>
       <span class="pill" id="rangeTag">篩選：本月</span>
+      <span class="pill" id="statusTag" style="display:none;">狀態：全部</span>
     </div>
   </section>
 
   <div class="filters">
     <input type="month" id="monthPick"/>
-    <button type="button" onclick="reload()">更新</button>
+    <!-- ✅ 新增：申請單狀態篩選 -->
+    <select id="reqStatusFilter" title="申請單狀態">
+      <option value="ALL">申請：全部狀態</option>
+      <option value="PENDING">申請：待審</option>
+      <option value="APPROVED">申請：核准</option>
+      <option value="REJECTED">申請：駁回</option>
+    </select>
+    <button type="button" onclick="reload(true)">更新</button>
   </div>
 
   <div class="seg" role="tablist" aria-label="history tabs">
@@ -360,7 +371,6 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    // ✅ 跟 app.html 同一套 JSONP：action 放 query param
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
         const ENDPOINT = window.CONFIG && window.CONFIG.GAS_ENDPOINT;
@@ -396,29 +406,24 @@
       });
     }
 
-    // ====== 時間：不再亂 +8（以本地時間解析）=====
     function pad2(n){ return String(n).padStart(2,'0'); }
 
     function parseToDate(v){
       if(!v) return null;
       if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
-
       const s = String(v).trim();
       if(!s) return null;
 
-      // 有時區的就直接交給 Date
       if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // 2026-02-14 02:00（當成本地時間，不要當 UTC）
       let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      // 2026/02/14 02:00
       m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
@@ -486,6 +491,18 @@
       return { cls:'warn', label:'待審' };
     }
 
+    // ✅ 狀態正規化：後端不管給 approved/APPROVED/核准 都能對上
+    function normalizeReqStatus(status){
+      const raw = String(status||'').trim();
+      const s = raw.toUpperCase();
+      if(!raw) return "PENDING";
+      if(s === "APPROVED" || raw.includes("核准")) return "APPROVED";
+      if(s === "REJECTED" || raw.includes("駁回")) return "REJECTED";
+      if(s === "PENDING" || raw.includes("待審") || raw.includes("審核中")) return "PENDING";
+      // 其它未知狀態，當待審處理比較符合操作直覺
+      return "PENDING";
+    }
+
     function renderAtt(list){
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
@@ -505,7 +522,7 @@
             <div class="top">
               <div>
                 <p class="title">${title}</p>
-                <div class="meta">${note}</div>
+                <div class="meta">備註：${note}</div>
               </div>
               <span class="badge ${b.cls}">${b.label}</span>
             </div>
@@ -520,16 +537,18 @@
       document.getElementById("reqCountTop").textContent = `${list.length}`;
 
       if(list.length===0){
-        el.innerHTML = `<div class="empty">本範圍沒有申請單</div>`;
+        el.innerHTML = `<div class="empty">本範圍沒有符合條件的申請單</div>`;
         return;
       }
 
       el.innerHTML = list.map(r=>{
         const badge = reqTypeBadge(r);
-        const sc = reqStatusBadge(r.status);
+        const statusNorm = normalizeReqStatus(r.status);
+        const sc = reqStatusBadge(statusNorm);
 
         const s = formatDT(r.start || r.start_full || r.startAt);
         const e = formatDT(r.end || r.end_full || r.endAt);
+
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
 
@@ -581,7 +600,37 @@
       return `${y}-${mm}-${dd}`;
     }
 
-    async function reload(){
+    // ====== 快取：避免你只是切狀態就狂打後端 ======
+    let __cacheReqAll = null;
+    let __cacheReqYM = { y:null, m:null };
+
+    function applyReqFilters(allReq, y, m){
+      // 1) 月份篩選（先照日期）
+      const monthReq = allReq.filter(r =>
+        overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m)
+      );
+
+      // 2) 狀態篩選（再照狀態）
+      const f = document.getElementById("reqStatusFilter").value;
+      if(f === "ALL") return monthReq;
+
+      return monthReq.filter(r => normalizeReqStatus(r.status) === f);
+    }
+
+    function updateStatusTag(){
+      const v = document.getElementById("reqStatusFilter").value;
+      const tag = document.getElementById("statusTag");
+      const map = {
+        ALL: "狀態：全部",
+        PENDING: "狀態：待審",
+        APPROVED: "狀態：核准",
+        REJECTED: "狀態：駁回"
+      };
+      tag.textContent = map[v] || "狀態：全部";
+      tag.style.display = "inline-flex";
+    }
+
+    async function reload(forceFetch){
       const monthStr = document.getElementById("monthPick").value;
       let y, m;
       if(monthStr){
@@ -593,30 +642,33 @@
         y = cur.y; m = cur.m;
       }
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
+      updateStatusTag();
 
       document.getElementById("reqList").innerHTML = `<div class="empty">載入中…</div>`;
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        // ✅ 申請單：用同一套 action query
-        const reqRes = await api("list_requests", { isManagerView:false, year:y, month:m });
-        const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
-        const reqFiltered = allReq.filter(r => overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m));
-
-        // ✅ 出勤 dashboard
+        // 出勤（每次按更新都抓最新）
         const dashRes = await api("get_dashboard", { year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
-
         let attList = daily.map(d => {
           const dateKey = buildDateKeyFromDaily(d, y, m);
           const inStr = d.in ? String(d.in) : '--:--';
           const outStr = d.out ? String(d.out) : '--:--';
           return { dateKey, in: inStr, out: outStr, tag: normalizeDailyTag(d.tag) };
         });
-
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
-
         renderAtt(attList);
+
+        // 申請單：如果只是切狀態，不用重抓
+        const needFetch = forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m;
+        if(needFetch){
+          const reqRes = await api("list_requests", { isManagerView:false });
+          __cacheReqAll = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
+          __cacheReqYM = { y, m };
+        }
+
+        const reqFiltered = applyReqFilters(__cacheReqAll || [], y, m);
         renderReq(reqFiltered);
 
       }catch(e){
@@ -626,8 +678,17 @@
       }
     }
 
+    // ====== 綁事件：切狀態立即套用（不重打後端）=====
+    document.getElementById("reqStatusFilter").addEventListener("change", ()=>{
+      // 只重新套 filter，不強迫抓後端
+      reload(false);
+      // 使用者在切狀態時通常想看申請單
+      showPanel('req');
+    });
+
     pickCurrentMonth();
-    reload();
+    updateStatusTag();
+    reload(true);
   </script>
 </body>
 </html>
