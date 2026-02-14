@@ -22,8 +22,6 @@
       color:var(--text);
       padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px;
     }
-
-    /* Header */
     .hero{
       background: linear-gradient(135deg, var(--primary1), var(--primary2));
       border-radius: 30px;
@@ -79,7 +77,6 @@
     }
     .logout:active{ transform: scale(.98); }
 
-    /* Balances row */
     .balances{
       display:grid;
       grid-template-columns: 1.2fr 1fr;
@@ -108,7 +105,6 @@
       font-weight: 700;
     }
 
-    /* Punch cards */
     .grid{
       display:grid;
       grid-template-columns: 1fr 1fr;
@@ -135,7 +131,6 @@
     .title.in{ color: var(--ok); }
     .title.out{ color: #F59E0B; }
 
-    /* Toast */
     .toast{
       position: fixed;
       left: 16px; right: 16px;
@@ -151,7 +146,6 @@
       line-height: 1.4;
     }
 
-    /* Bottom nav */
     .nav{
       position: fixed;
       left: 0; right: 0; bottom: 0;
@@ -235,7 +229,6 @@
     <a href="manager.html" class="nav-item"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
-  <!-- config.js -->
   <script src="config.js"></script>
 
   <script>
@@ -250,7 +243,7 @@
       el.textContent = msg;
       el.style.display = "block";
       clearTimeout(window.__toastTimer);
-      window.__toastTimer = setTimeout(()=> el.style.display="none", 2200);
+      window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
     function assertConfig_(){
@@ -265,6 +258,7 @@
       return true;
     }
 
+    // ====== JSONP API (固定用 action query param) ======
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
         if(!assertConfig_()){
@@ -275,14 +269,18 @@
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
         const s = document.createElement("script");
 
-        const payloadObj = Object.assign({}, data, { empId });
+        const payloadObj = Object.assign({}, data, {
+          empId,
+          webhookKey: window.CONFIG.WEBHOOK_KEY || ""
+        });
+
         const payload = encodeURIComponent(JSON.stringify(payloadObj));
         const bust = Date.now();
 
         const timer = setTimeout(()=>{
           cleanup();
           reject(new Error("Timeout"));
-        }, 15000);
+        }, 20000);
 
         function cleanup(){
           clearTimeout(timer);
@@ -296,57 +294,6 @@
         s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
         document.body.appendChild(s);
       });
-    }
-
-    // ====== GPS (這就是你原本缺的) ======
-    function getGps_(opts={}){
-      return new Promise((resolve, reject)=>{
-        if(!("geolocation" in navigator)){
-          reject(new Error("NO_GEO"));
-          return;
-        }
-        const options = {
-          enableHighAccuracy: true,
-          timeout: opts.timeoutMs || 12000,
-          maximumAge: opts.maxAgeMs || 0
-        };
-        navigator.geolocation.getCurrentPosition(
-          (pos)=>{
-            const c = pos && pos.coords ? pos.coords : {};
-            const lat = Number(c.latitude);
-            const lng = Number(c.longitude);
-            const acc = Number(c.accuracy || 0);
-            if(!isFinite(lat) || !isFinite(lng)){
-              reject(new Error("BAD_COORD"));
-              return;
-            }
-            resolve({
-              lat,
-              lng,
-              accuracy: acc,
-              timestamp: Number(pos.timestamp || Date.now())
-            });
-          },
-          (err)=>{
-            const code = err && err.code ? err.code : 0;
-            const msg =
-              code === 1 ? "PERMISSION_DENIED" :
-              code === 2 ? "POSITION_UNAVAILABLE" :
-              code === 3 ? "TIMEOUT" : "GEO_ERROR";
-            reject(new Error(msg));
-          },
-          options
-        );
-      });
-    }
-
-    function geoErrToMsg_(e){
-      const m = String((e && e.message) ? e.message : e);
-      if(m.includes("PERMISSION_DENIED")) return "定位權限被拒絕：請到瀏覽器/手機設定允許定位";
-      if(m.includes("POSITION_UNAVAILABLE")) return "定位失敗：請開啟定位服務，並到戶外或靠窗再試";
-      if(m.includes("TIMEOUT")) return "定位逾時：訊號不佳，請換個地方再試";
-      if(m.includes("NO_GEO")) return "此裝置不支援定位";
-      return "定位失敗：請稍後再試";
     }
 
     async function loadMe(){
@@ -375,40 +322,72 @@
       }
     }
 
+    // ====== GPS (真正取定位) ======
+    function getGeo(){
+      return new Promise((resolve, reject)=>{
+        if(!navigator.geolocation){
+          reject(new Error("這個瀏覽器不支援定位"));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos)=>{
+            const lat = Number(pos.coords.latitude);
+            const lng = Number(pos.coords.longitude); // ✅ 固定叫 lng，不准 ing
+            const accuracy = Number(pos.coords.accuracy);
+
+            if(!isFinite(lat) || !isFinite(lng)){
+              reject(new Error("定位座標格式錯誤"));
+              return;
+            }
+            resolve({ lat, lng, accuracy });
+          },
+          (err)=>{
+            // 更精準提示（不再虎爛）
+            if(err && err.code === 1) reject(new Error("你拒絕了定位權限（請到瀏覽器/LINE 設定開啟定位）"));
+            else if(err && err.code === 2) reject(new Error("定位不可用（請開啟 GPS / 允許定位服務）"));
+            else if(err && err.code === 3) reject(new Error("定位逾時（到戶外/窗邊再試一次）"));
+            else reject(new Error("定位失敗"));
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
     async function clock(act){
-      const btnIn  = document.getElementById("btnIn");
+      const btnIn = document.getElementById("btnIn");
       const btnOut = document.getElementById("btnOut");
       btnIn.classList.add("disabled");
       btnOut.classList.add("disabled");
 
       try{
-        toast("取得定位中…");
-        const geo = await getGps_({ timeoutMs: 12000, maxAgeMs: 0 });
+        toast("正在取得定位…");
+        const geo = await getGeo();
 
-        // ✅ 不改後端：一次送 lat + (lng/lon/long 全兼容)
+        // 你後端若驗證半徑/精準度，這三個欄位就夠了
         const res = await api(act, {
           lat: geo.lat,
           lng: geo.lng,
-          lon: geo.lng,
-          long: geo.lng,
           accuracy: geo.accuracy,
-          ts: geo.timestamp,
           userAgent: navigator.userAgent || ""
         });
 
         if(res && res.ok){
-          toast(res.message || "成功");
+          toast(res.message || "打卡成功");
         }else{
-          toast((res && res.message) ? res.message : "失敗");
+          toast((res && res.message) ? res.message : "打卡失敗");
         }
       }catch(e){
-        // 若是定位錯誤 -> 給人話
-        toast(geoErrToMsg_(e));
+        toast(e && e.message ? e.message : "連線/定位失敗");
       }finally{
         setTimeout(()=>{
           btnIn.classList.remove("disabled");
           btnOut.classList.remove("disabled");
-        }, 600);
+        }, 650);
       }
     }
 
@@ -421,12 +400,10 @@
       location.href = "index.html";
     }
 
-    // ====== Bind events ======
     document.getElementById("btnLogout").addEventListener("click", logout);
     document.getElementById("btnIn").addEventListener("click", ()=>clock("clock_in"));
     document.getElementById("btnOut").addEventListener("click", ()=>clock("clock_out"));
 
-    // init
     loadMe();
   </script>
 </body>
