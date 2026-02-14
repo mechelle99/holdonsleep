@@ -100,6 +100,7 @@
     }
     .filters button:active{ transform: scale(.99); }
 
+    /* ===== Tabs (mobile-first) ===== */
     .seg{
       background:#fff;
       border-radius: 20px;
@@ -291,6 +292,7 @@
     <button onclick="reload()">更新</button>
   </div>
 
+  <!-- Mobile tabs -->
   <div class="seg" role="tablist" aria-label="history tabs">
     <button class="seg-btn active" id="tabAtt" onclick="showPanel('att')">
       打卡 <span class="count" id="attCountTop">0</span>
@@ -301,6 +303,7 @@
   </div>
 
   <div class="grid">
+    <!-- Attendance panel -->
     <section class="panel active" id="panelAtt">
       <div class="section-title">
         <h3>打卡紀錄</h3>
@@ -309,6 +312,7 @@
       <div class="list" id="attList"></div>
     </section>
 
+    <!-- Requests panel -->
     <section class="panel" id="panelReq">
       <div class="section-title">
         <h3>申請單</h3>
@@ -328,6 +332,12 @@
 
   <script src="config.js"></script>
   <script>
+    // =========================================================
+    // ✅ 你這次的核心修正
+    // 1) history 打卡狀態一律吃 get_dashboard.dailyData.tag（正常/缺卡/曠職）
+    // 2) 時間全部做 +8 小時校正（可在 config.js 設 TIME_SHIFT_HOURS=0 關掉）
+    // =========================================================
+
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId");
     if(!empId) location.href="index.html";
 
@@ -335,10 +345,9 @@
     const meLabel = empNameLS ? `${empNameLS}（${empId}）` : `員工：${empId}`;
     document.getElementById("who").textContent = meLabel;
 
-    // ===== 時區策略（救命用）=====
-    const TZ_OFFSET_HOURS = Number((window.CONFIG && window.CONFIG.TZ_OFFSET_HOURS) ?? 8); // 台北=8
-    const NAIVE_IS_UTC = !!((window.CONFIG && window.CONFIG.NAIVE_IS_UTC) ?? true);        // "2026-02-20 02:00" 當 UTC 來補 +8
-    const DASH_HHMM_IS_UTC = !!((window.CONFIG && window.CONFIG.DASH_HHMM_IS_UTC) ?? true);// dailyData.in/out="01:17" 當 UTC 來補 +8
+    // ⏱ 時差校正（預設 +8），你也可以在 config.js 放：
+    // window.CONFIG.TIME_SHIFT_HOURS = 0; // 若後端已經是台北時間
+    const TIME_SHIFT_HOURS = Number((window.CONFIG && window.CONFIG.TIME_SHIFT_HOURS)!=null ? window.CONFIG.TIME_SHIFT_HOURS : 8);
 
     function toast(msg){
       const el = document.getElementById("toast");
@@ -395,21 +404,20 @@
     }
 
     function pad2(n){ return String(n).padStart(2,'0'); }
-
-    // 把 "HH:mm" 當 UTC 轉成台北時間（+8）
-    function fixHHMM(hhmm){
-      const s = String(hhmm||'').trim();
-      const m = s.match(/^(\d{1,2}):(\d{2})$/);
-      if(!m) return s || '--:--';
-      let hh = Number(m[1]);
-      const mm = Number(m[2]);
-      if(DASH_HHMM_IS_UTC){
-        hh = (hh + TZ_OFFSET_HOURS) % 24;
-      }
-      return `${pad2(hh)}:${pad2(mm)}`;
+    function addHours(d, h){
+      return new Date(d.getTime() + h*3600*1000);
     }
 
-    // 解析時間：同時修 Safari + 無時區字串 + 可能是UTC的 naive
+    // ---- 解析 yyyy-MM-dd HH:mm[:ss] 這種「沒有時區」的字串：視為 UTC，再 +8 轉台北 ----
+    function parseUTCStringToLocalDate(str){
+      const m = String(str).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if(!m) return null;
+      const ms = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
+      const d = new Date(ms);
+      return TIME_SHIFT_HOURS ? addHours(d, TIME_SHIFT_HOURS) : d;
+    }
+
+    // ---- 解析各種日期值：優先處理 ISO/Z，其次處理「無時區字串當 UTC」 ----
     function parseToDate(v){
       if(!v) return null;
 
@@ -418,34 +426,24 @@
       const s = String(v).trim();
       if(!s) return null;
 
-      // ISO with Z / offset
+      // ISO with Z / offset => JS 會自動轉本地
       if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // yyyy/MM/dd HH:mm:ss or yyyy-MM-dd HH:mm:ss (naive)
-      let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-      if(m){
-        const Y=+m[1], Mo=+m[2]-1, D=+m[3], H=+m[4], Mi=+m[5], S=+(m[6]||0);
-        if(NAIVE_IS_UTC){
-          // 當 UTC 解析，再補成本地（+8）
-          const utcMs = Date.UTC(Y, Mo, D, H, Mi, S, 0);
-          const d = new Date(utcMs + TZ_OFFSET_HOURS*3600*1000);
-          return isNaN(d.getTime()) ? null : d;
-        }
-        return new Date(Y, Mo, D, H, Mi, S, 0);
-      }
+      // yyyy-MM-dd HH:mm(:ss) => 你的後端很可能用 GMT 格式化輸出，這裡要當 UTC 再 +8
+      const d2 = parseUTCStringToLocalDate(s);
+      if(d2) return d2;
 
-      // yyyy-MM-ddTHH:mm (no timezone)
+      // yyyy/MM/dd HH:mm:ss or yyyy-MM-ddTHH:mm (當作本地)
+      let m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if(m){
+        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
+      }
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if(m){
-        const Y=+m[1], Mo=+m[2]-1, D=+m[3], H=+m[4], Mi=+m[5];
-        if(NAIVE_IS_UTC){
-          const utcMs = Date.UTC(Y, Mo, D, H, Mi, 0, 0);
-          return new Date(utcMs + TZ_OFFSET_HOURS*3600*1000);
-        }
-        return new Date(Y, Mo, D, H, Mi, 0, 0);
+        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
       }
 
       const d = new Date(s);
@@ -464,6 +462,30 @@
       return d.getFullYear() === y && (d.getMonth()+1) === m1to12;
     }
 
+    // ---- HH:mm 類時間校正（後端常把 09:17 變 01:17）----
+    function shiftHHMM(t){
+      const s = String(t||'').trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})$/);
+      if(!m) return s || '--:--';
+      let hh = (+m[1] + (TIME_SHIFT_HOURS||0)) % 24;
+      if(hh < 0) hh += 24;
+      return `${pad2(hh)}:${m[2]}`;
+    }
+
+    function normalizeLeaveLabel(x){
+      const s = String(x||'').trim().toLowerCase();
+      if(!s) return '';
+      if(s==='annual') return '特休';
+      if(s==='sick') return '病假';
+      if(s==='personal') return '事假';
+      if(s==='birthday') return '生日假';
+      if(s==='comp') return '補休';
+      if(s==='ot') return '加班';
+      if(s==='outing') return '外出';
+      if(s==='correction') return '補卡';
+      return String(x);
+    }
+
     function reqTypeBadge(row){
       const cat = String(row.category||'').toUpperCase();
       const lt = String(row.leaveType||'').toLowerCase();
@@ -472,13 +494,7 @@
       if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) return '外出';
       if(cat==='OT' || lt==='ot' || lt.includes('加班')) return '加班';
 
-      if(lt==='annual') return '特休';
-      if(lt==='comp') return '補休';
-      if(lt==='sick') return '病假';
-      if(lt==='personal') return '事假';
-      if(lt==='birthday') return '生日假';
-
-      return row.leaveType || row.category || '申請';
+      return normalizeLeaveLabel(row.leaveType || row.category || '申請');
     }
 
     function reqStatusBadge(status){
@@ -488,17 +504,41 @@
       return { cls:'warn', label:'待審' };
     }
 
-    function attStatusBadge(tag){
+    // ✅ 後端 dailyData.tag 可能是中文或代碼：這裡統一轉中文
+    function normalizeDailyTag(tag){
       const t = String(tag||'').trim();
-      if(!t) return { cls:'warn', label:'—' };
-      // 你後端 tag 可能是：正常 / 缺卡 / 遲到 / 早退 / 曠職 / 休假 / 加班 / 外出...
-      if(t.includes('正常')) return { cls:'ok', label:t };
-      if(t.includes('休假')) return { cls:'warn', label:t };
-      if(t.includes('外出')) return { cls:'warn', label:t };
-      if(t.includes('加班')) return { cls:'ok', label:t };
-      if(t.includes('遲到') || t.includes('早退') || t.includes('缺卡')) return { cls:'warn', label:t };
-      if(t.includes('曠職')) return { cls:'danger', label:t };
-      return { cls:'warn', label:t };
+      const low = t.toLowerCase();
+
+      // 常見代碼
+      if(low==='annual') return '特休';
+      if(low==='sick') return '病假';
+      if(low==='personal') return '事假';
+      if(low==='birthday') return '生日假';
+      if(low==='comp') return '補休';
+      if(low==='outing') return '外出';
+      if(low==='ot') return '加班';
+      if(low==='correction') return '補卡';
+
+      return t || '—';
+    }
+
+    function attStatusBadge(tag){
+      const t0 = normalizeDailyTag(tag);
+      if(!t0 || t0==='—') return { cls:'warn', label:'—' };
+
+      if(t0.includes('正常')) return { cls:'ok', label:t0 };
+      if(t0.includes('休假') || t0.includes('特休') || t0.includes('病假') || t0.includes('事假') || t0.includes('生日假') || t0.includes('補休') || t0.includes('外出'))
+        return { cls:'warn', label:t0 };
+
+      if(t0.includes('加班')) return { cls:'ok', label:t0 };
+
+      if(t0.includes('遲到') || t0.includes('早退')) return { cls:'warn', label:t0 };
+
+      if(t0.includes('曠職') || t0.includes('缺卡') || t0.includes('缺勤') || t0.includes('未打卡'))
+        return { cls:'danger', label:t0 };
+
+      // fallback
+      return { cls:'warn', label:t0 };
     }
 
     function renderAtt(list){
@@ -507,14 +547,14 @@
       document.getElementById("attCountTop").textContent = `${list.length}`;
 
       if(list.length===0){
-        el.innerHTML = `<div class="empty">本範圍沒有出勤彙總</div>`;
+        el.innerHTML = `<div class="empty">本範圍沒有出勤資料</div>`;
         return;
       }
 
       el.innerHTML = list.map(r=>{
         const b = attStatusBadge(r.tag);
         const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
-        const note = `狀態：${r.tag || '—'}`;
+        const note = `狀態：${normalizeDailyTag(r.tag)}`;
         return `
           <div class="item ${b.cls}">
             <div class="top">
@@ -542,8 +582,11 @@
       el.innerHTML = list.map(r=>{
         const badge = reqTypeBadge(r);
         const sc = reqStatusBadge(r.status);
+
+        // ✅ 申請單時間也做 UTC->+8 的修正（因為你 manager 截圖就是少 8 小時）
         const s = formatDT(r.start);
         const e = formatDT(r.end);
+
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
         const created = r.createdAt ? formatDT(r.createdAt) : '—';
@@ -600,25 +643,30 @@
       document.getElementById("reqCountTop").textContent = `0`;
 
       try{
-        // ===== 1) 出勤彙總（永遠以 dashboard 為主：這裡才有 正常/缺卡/曠職/...）=====
+        // 1) 申請單
+        const reqRes = await api("list_requests", { isManagerView:false });
+        const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
+        const reqFiltered = allReq.filter(r => isInMonth(r.start, y, m));
+
+        // 2) ✅ 打卡/狀態：一律使用 get_dashboard.dailyData（這裡才有 正常/缺卡/曠職）
         const dashRes = await api("get_dashboard", { year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
         const mm = String(m).padStart(2,'0');
         const attList = daily.map(d => {
           const dd = String(d.date).padStart(2,'0');
+
+          // ⏱ in/out 如果是 "01:17" 這種，做 +8 校正
+          const inStr = d.in ? shiftHHMM(d.in) : '--:--';
+          const outStr = d.out ? shiftHHMM(d.out) : '--:--';
+
           return {
             dateKey: `${y}-${mm}-${dd}`,
-            in: d.in ? fixHHMM(d.in) : '--:--',
-            out: d.out ? fixHHMM(d.out) : '--:--',
-            tag: d.tag || ''
+            in: inStr,
+            out: outStr,
+            tag: normalizeDailyTag(d.tag)
           };
         });
-
-        // ===== 2) 申請單 =====
-        const reqRes = await api("list_requests", { isManagerView:false });
-        const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
-        const reqFiltered = allReq.filter(r => isInMonth(r.start, y, m));
 
         renderAtt(attList);
         renderReq(reqFiltered);
