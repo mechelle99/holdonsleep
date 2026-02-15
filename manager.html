@@ -124,44 +124,35 @@
     return typeName || '申請';
   }
 
-  // ✅ 統一時間顯示（不再亂 replace / substring）
   function formatDT(v){
-  if(v === null || v === undefined || v === '') return '無';
+    if(v === null || v === undefined || v === '') return '無';
 
-  // 1) 如果後端丟的是 Date 物件（少見，但保險）
-  if(v instanceof Date && !isNaN(v.getTime())){
-    return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')} ` +
-           `${String(v.getHours()).padStart(2,'0')}:${String(v.getMinutes()).padStart(2,'0')}`;
-  }
-
-  const s = String(v).trim();
-
-  // 2) 只給日期（yyyy-mm-dd 或 yyyy/mm/dd）→ 不顯示時間
-  let m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
-  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
-
-  // 3) ISO 且含時區資訊（Z 或 +08:00 這種）→ 用 Date 做時區換算成「本機時間」
-  //    這就是你現在「日期跑掉/02:00」最常見的根因
-  if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
-    const d = new Date(s);
-    if(!isNaN(d.getTime())){
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ` +
-             `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    if(v instanceof Date && !isNaN(v.getTime())){
+      return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')} ` +
+             `${String(v.getHours()).padStart(2,'0')}:${String(v.getMinutes()).padStart(2,'0')}`;
     }
+
+    const s = String(v).trim();
+
+    let m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+    if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+    if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
+      const d = new Date(s);
+      if(!isNaN(d.getTime())){
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ` +
+               `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      }
+    }
+
+    m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(\d{2}):(\d{2})/);
+    if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
+
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
+
+    return s;
   }
-
-  // 4) 一般字串時間（yyyy/MM/dd HH:mm:ss 或 yyyy-MM-dd HH:mm:ss）
-  m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(\d{2}):(\d{2})/);
-  if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
-
-  // 5) ISO 但沒 Z（yyyy-MM-ddTHH:mm 或 yyyy-MM-ddTHH:mm:ss）
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
-
-  // fallback：原樣顯示
-  return s;
-}
-
 
   async function loadStats() {
     const el = document.getElementById("teamStats");
@@ -210,10 +201,28 @@
       list.forEach(r => {
         const typeName = typeLabel_(r);
         const displayName = (r.empName || r.name || "").trim() || (r.empId || r.id || "未知員工");
-        const dateStr = formatDT(r.start);
+
+        const startShow = formatDT(r.startStr || r.startIso || r.start);
+        const endShow   = formatDT(r.endStr   || r.endIso   || r.end);
+
+        const cat = String(r.category || '').toUpperCase();
+        const lt  = String(r.leaveType || '').toLowerCase();
 
         const reqId = String(r.reqId || r.id || '');
         const safeId = encodeURIComponent(reqId);
+
+        let timeLine = '';
+        if (cat === 'OUTING' || cat === 'LEAVE' || lt.includes('annual') || lt.includes('comp') || lt.includes('sick') || lt.includes('personal') || lt.includes('birthday')) {
+          timeLine = `時間: ${startShow} ～ ${endShow}<br>`;
+        } else {
+          timeLine = `日期: ${startShow}<br>`;
+        }
+
+        let extraLine = '';
+        if (cat === 'CORRECTION') {
+          const label = r.clockTypeLabel || r.correctionType || '';
+          extraLine = label ? `補卡類型: ${label}<br>` : '';
+        }
 
         h += `
           <div class="req-item" id="card-${safeId}">
@@ -222,13 +231,14 @@
               <div class="req-type">${typeName}</div>
             </div>
             <div class="req-info">
-              日期: ${dateStr}<br>
+              ${timeLine}
+              ${extraLine}
               時數: ${Number(r.hours||0)} 小時<br>
               事由: ${r.reason || '無'}
             </div>
             <div class="req-actions">
-              <button class="btn btn-approve btn-approve" onclick="decide('${safeId}', '${reqId}', 'APPROVED')">核准</button>
-              <button class="btn btn-reject btn-reject" onclick="decide('${safeId}', '${reqId}', 'REJECTED')">駁回</button>
+              <button class="btn btn-approve" onclick="decide('${safeId}', '${reqId}', 'APPROVED')">核准</button>
+              <button class="btn btn-reject" onclick="decide('${safeId}', '${reqId}', 'REJECTED')">駁回</button>
             </div>
           </div>`;
       });
