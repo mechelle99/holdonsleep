@@ -2,234 +2,634 @@
 <html lang="zh-TW">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>排班表</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
+  <title>團隊排班</title>
   <style>
-    :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
-    body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
+    :root{
+      --primary:#4F46E5;
+      --bg:#F3F4F6;
+      --card:#FFFFFF;
+      --text:#111827;
+      --muted:#6B7280;
 
-    .header { margin-bottom: 15px; }
-    .status-bar { font-size: 13px; color: #6B7280; margin-top: 5px; background: #EEF2FF; padding: 8px; border-radius: 8px; display: inline-block; }
-    .controls { display: flex; gap: 8px; margin-top: 10px; }
-    select, button { padding: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
-    button { background: var(--text); color: white; border: none; }
+      --ok:#10B981;
+      --warn:#F59E0B;
+      --danger:#EF4444;
 
-    .table-wrapper { background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    .table-scroll { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 800px; }
-    th, td { padding: 12px; text-align: center; border-bottom: 1px solid #F3F4F6; font-size: 13px; white-space: nowrap; }
-    th { background: #F9FAFB; font-weight: 700; height: 40px; }
-    th:first-child, td:first-child { position: sticky; left: 0; background: var(--card); z-index: 10; border-right: 2px solid #F3F4F6; font-weight: 700; color: var(--primary); }
-    th:first-child { background: #F9FAFB; z-index: 20; }
+      --shadow: 0 10px 26px rgba(17,24,39,.10);
+      --shadow2: 0 6px 16px rgba(17,24,39,.06);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px;
+    }
 
-    .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; text-align: center; font-weight: 700; }
-    .shift-sel:disabled { background: #F3F4F6; color: #9CA3AF; border-color: #E5E7EB; opacity: 0.7; }
+    /* toast */
+    .toast{
+      position: fixed;
+      left: 16px; right: 16px;
+      top: calc(16px + env(safe-area-inset-top));
+      background: #111827;
+      color:#fff;
+      padding: 12px 14px;
+      border-radius: 14px;
+      box-shadow: var(--shadow2);
+      display:none;
+      z-index: 9999;
+      font-size: 13px;
+      line-height: 1.4;
+    }
 
-    .bg-EARLY { background-color: #D1FAE5 !important; color: #065F46 !important; border: 1px solid #10B981 !important; }
-    .bg-LATE  { background-color: #FEF3C7 !important; color: #92400E !important; border: 1px solid #F59E0B !important; }
-    .bg-OFF   { background-color: #F3F4F6 !important; color: #9CA3AF !important; border: 1px solid #E5E7EB !important; }
+    /* hero */
+    .hero{
+      background: linear-gradient(135deg, #4F46E5, #7C3AED);
+      border-radius: 26px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      color:#fff;
+      margin-bottom: 14px;
+    }
+    .hero h2{
+      margin:0;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: .2px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .hero .sub{
+      margin-top: 8px;
+      font-size: 13px;
+      opacity: .9;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .pill{
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.22);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 800;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
 
-    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 10px 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
-    .nav.is-manager { grid-template-columns: repeat(5, 1fr); }
-    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; width: 100%; }
-    .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
-    #mgrBtn { display: none; } .nav.is-manager #mgrBtn { display: flex; }
+    /* controls */
+    .controls{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      margin: 12px 0 14px 0;
+    }
+    .controls select{
+      border:none;
+      background:#fff;
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: var(--shadow2);
+      font-size: 13px;
+      outline:none;
+      font-weight: 900;
+      color: var(--text);
+      -webkit-appearance:none;
+    }
+    .controls button{
+      border:none;
+      background: var(--primary);
+      color:#fff;
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 1000;
+      cursor:pointer;
+      box-shadow: var(--shadow2);
+    }
+    .controls button:active{ transform: scale(.99); }
+
+    /* card */
+    .card{
+      background: var(--card);
+      border-radius: 20px;
+      box-shadow: var(--shadow2);
+      border: 1px solid rgba(17,24,39,.06);
+      overflow:hidden;
+    }
+    .card-head{
+      padding: 14px 14px 12px 14px;
+      border-bottom: 1px solid rgba(17,24,39,.06);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .card-head .title{
+      font-size: 14px;
+      font-weight: 1000;
+      color: var(--primary);
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .card-head .small{
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    /* table */
+    .table-scroll{
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table{
+      width:100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 920px;
+    }
+    thead th{
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #F9FAFB;
+      font-weight: 1000;
+      color:#374151;
+      border-bottom: 1px solid rgba(17,24,39,.06);
+    }
+    th, td{
+      padding: 10px 10px;
+      text-align:center;
+      font-size: 12px;
+      white-space: nowrap;
+      border-bottom: 1px solid rgba(17,24,39,.06);
+      background:#fff;
+    }
+
+    /* sticky first col */
+    th:first-child, td:first-child{
+      position: sticky;
+      left: 0;
+      z-index: 6;
+      background:#fff;
+      border-right: 1px solid rgba(17,24,39,.08);
+      text-align:left;
+      padding-left: 12px;
+      font-weight: 1000;
+      color: var(--primary);
+      min-width: 150px;
+    }
+    thead th:first-child{
+      z-index: 10;
+      background:#F9FAFB;
+      color:#374151;
+    }
+
+    .wk-red{ color: var(--danger) !important; }
+    .dayHead{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      align-items:center;
+      line-height: 1.1;
+    }
+    .dayHead small{
+      font-size: 11px;
+      font-weight: 900;
+      opacity: .9;
+    }
+
+    /* shift select */
+    .shift-sel{
+      width: 56px;
+      max-width: 100%;
+      border: 1px solid rgba(17,24,39,.12);
+      border-radius: 12px;
+      padding: 8px 8px;
+      font-size: 12px;
+      font-weight: 1000;
+      outline:none;
+      background:#fff;
+      color:#111827;
+      -webkit-appearance:none;
+      text-align:center;
+      cursor:pointer;
+    }
+    .shift-sel:disabled{
+      cursor:not-allowed;
+      opacity:.55;
+      background:#F3F4F6;
+    }
+
+    .bg-EARLY{ background: rgba(16,185,129,.14) !important; border-color: rgba(16,185,129,.55) !important; color:#065F46 !important; }
+    .bg-LATE { background: rgba(245,158,11,.16) !important; border-color: rgba(245,158,11,.55) !important; color:#92400E !important; }
+    .bg-OFF  { background: rgba(156,163,175,.16) !important; border-color: rgba(156,163,175,.45) !important; color:#4B5563 !important; }
+
+    /* leave pill */
+    .leave-pill{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 1000;
+      background: #EEF2FF;
+      color: var(--primary);
+      border: 1px solid rgba(79,70,229,.22);
+      min-width: 56px;
+    }
+
+    .mutedRow{
+      padding: 22px;
+      text-align:center;
+      color:#9CA3AF;
+      font-weight: 1000;
+    }
+
+    /* bottom nav */
+    .nav{
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 12px 18px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-top-left-radius: 26px;
+      border-top-right-radius: 26px;
+      box-shadow: 0 -10px 30px rgba(17,24,39,.08);
+      display:flex;
+      justify-content: space-around;
+      z-index: 1000;
+    }
+    .nav-item{
+      text-decoration:none;
+      color:#9CA3AF;
+      display:flex; flex-direction:column; align-items:center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 900;
+    }
+    .nav-item.active{ color: var(--primary); }
+    .nav-icon{ font-size: 22px; }
+    #mgrBtn{ display:none; }
+    .showMgr #mgrBtn{ display:flex; }
   </style>
 </head>
-<body>
 
-  <div class="header">
-    <h2 style="margin:0;font-size:20px;">📅 團隊排班</h2>
-    <div id="statusInfo" class="status-bar">載入中...</div>
-    <div class="controls">
-      <select id="y"></select><select id="m"></select>
-      <button onclick="load()">查詢</button>
+<body>
+  <div class="toast" id="toast"></div>
+
+  <section class="hero">
+    <h2>📅 團隊排班</h2>
+    <div class="sub">
+      <span class="pill" id="modeTag">載入中…</span>
+      <span class="pill" id="ymTag">—</span>
     </div>
+  </section>
+
+  <div class="controls">
+    <select id="y"></select>
+    <select id="m"></select>
+    <button type="button" id="btnLoad">查詢</button>
   </div>
 
-  <div class="table-wrapper">
+  <section class="card">
+    <div class="card-head">
+      <div class="title">📌 排班總覽</div>
+      <div class="small" id="hintRight">—</div>
+    </div>
+
     <div class="table-scroll">
       <table id="tbl">
-        <thead><tr id="thRow"><th>員工</th></tr></thead>
-        <tbody id="tbRow"><tr><td colspan="10" style="padding:30px;color:#999">載入中...</td></tr></tbody>
+        <thead>
+          <tr id="thRow">
+            <th>員工</th>
+          </tr>
+        </thead>
+        <tbody id="tbRow">
+          <tr><td class="mutedRow" colspan="10">載入中…</td></tr>
+        </tbody>
       </table>
     </div>
-  </div>
+  </section>
 
   <nav class="nav" id="bottomNav">
-    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span><span>首頁</span></a>
-    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span><span>申請</span></a>
-    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span><span>紀錄</span></a>
-    <a href="schedule.html" class="nav-item active"><span class="nav-icon">📅</span><span>排班</span></a>
-    <a href="manager.html" class="nav-item" id="mgrBtn"><span class="nav-icon">👑</span><span>主管</span></a>
+    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
+    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
+    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
+    <a href="schedule.html" class="nav-item active"><span class="nav-icon">📅</span>排班</a>
+    <a href="manager.html" class="nav-item" id="mgrBtn"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
-<script src="config.js"></script>
-<script>
-  // ✅ 兼容：你舊版用 employeeId，新版用 empId
-  const uid = localStorage.getItem("empId") || localStorage.getItem("employeeId");
-  if(!uid) location.href='index.html';
+  <script src="config.js"></script>
+  <script>
+    /* ==============================
+     * 0) 身份與模式
+     * ============================== */
+    const uid =
+      localStorage.getItem("empId") ||
+      localStorage.getItem("employeeId") ||
+      "";
 
-  const isMgr = localStorage.getItem("isManager") === "true";
-  if(isMgr) document.getElementById("bottomNav").classList.add('is-manager');
+    const isMgr = (localStorage.getItem("isManager") === "true");
 
-  const yS = document.getElementById("y");
-  const mS = document.getElementById("m");
-  const now = new Date();
-  for(let i=2024; i<=2026; i++) yS.add(new Option(i,i,i===now.getFullYear(),i===now.getFullYear()));
-  for(let i=1; i<=12; i++) mS.add(new Option(i,i,i===now.getMonth()+1,i===now.getMonth()+1));
+    if(!uid) location.href = "index.html";
+    if(isMgr) document.getElementById("bottomNav").classList.add("showMgr");
 
-  // ✅ JSONP API：固定把操作者帶 userId（不要再用 empId 當操作者）
-  function api(act, d = {}) {
-    return new Promise((resolve, reject) => {
-      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
-      const s = document.createElement("script");
+    function toast(msg){
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.style.display = "block";
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
+    }
 
-      const payload = encodeURIComponent(JSON.stringify({ ...d, userId: uid }));
+    /* ==============================
+     * 1) JSONP API（統一格式）
+     * ============================== */
+    function api(action, data = {}) {
+      return new Promise((resolve, reject) => {
+        const ENDPOINT = window.CONFIG && window.CONFIG.GAS_ENDPOINT;
+        if(!ENDPOINT) return reject(new Error("缺少 CONFIG.GAS_ENDPOINT"));
 
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error("Timeout: 請求逾時"));
-      }, 15000);
+        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+        const s = document.createElement("script");
 
-      function cleanup() {
-        clearTimeout(timer);
-        try { delete window[cbName]; } catch (e) {}
-        try { s.remove(); } catch (e) {}
-      }
+        const payloadObj = Object.assign({}, data, {
+          userId: uid
+        });
 
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}`;
+        if(window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
+          payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
+        }
 
-      window[cbName] = (res) => { cleanup(); resolve(res); };
-      s.onerror = () => { cleanup(); reject(new Error("Network Error: 連線失敗")); };
+        const payload = encodeURIComponent(JSON.stringify(payloadObj));
+        const bust = Date.now();
 
-      document.body.appendChild(s);
-    });
-  }
+        const timer = setTimeout(() => {
+          cleanup();
+          reject(new Error("請求逾時"));
+        }, 20000);
 
-  async function load() {
-    try {
-      const statusEl = document.getElementById("statusInfo");
-      statusEl.style.color = "#6B7280";
-      statusEl.innerText = "載入中...";
+        function cleanup(){
+          clearTimeout(timer);
+          try { delete window[cbName]; } catch(e){}
+          try { s.remove(); } catch(e){}
+        }
 
-      document.getElementById("tbRow").innerHTML =
-        '<tr><td colspan="10" style="padding:30px;color:#999">資料讀取中...</td></tr>';
+        window[cbName] = (res) => { cleanup(); resolve(res); };
+        s.onerror = () => { cleanup(); reject(new Error("網路連線失敗")); };
 
-      const res = await api("get_roster_data", { year: yS.value, month: mS.value });
+        s.src = `${ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
+        document.body.appendChild(s);
+      });
+    }
 
-      if(!res.ok) {
-        document.getElementById("tbRow").innerHTML =
-          `<tr><td style="color:red;padding:20px;">${res.message || '讀取失敗'}</td></tr>`;
-        statusEl.innerText = "讀取失敗";
-        statusEl.style.color = "#EF4444";
+    /* ==============================
+     * 2) 年月下拉初始化
+     * ============================== */
+    const yS = document.getElementById("y");
+    const mS = document.getElementById("m");
+    const now = new Date();
+
+    const yStart = 2024;
+    const yEnd   = 2026;
+
+    for(let y=yStart; y<=yEnd; y++){
+      const opt = new Option(String(y), String(y));
+      if(y === now.getFullYear()) opt.selected = true;
+      yS.appendChild(opt);
+    }
+    for(let m=1; m<=12; m++){
+      const opt = new Option(String(m), String(m));
+      if(m === (now.getMonth()+1)) opt.selected = true;
+      mS.appendChild(opt);
+    }
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function ymtag(y,m){
+      return `${y}-${pad2(m)}`;
+    }
+    function weekdayOf(y,m,d){
+      return ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
+    }
+
+    /* ==============================
+     * 3) 畫表
+     * ============================== */
+    function setModeTag(isLocked, lockDay, isNextMonth, y, m){
+      const modeTag = document.getElementById("modeTag");
+      const hintRight = document.getElementById("hintRight");
+
+      if(isMgr){
+        modeTag.textContent = "👑 主管模式（可任意編輯）";
+        hintRight.textContent = "主管可直接調整";
         return;
       }
 
-      // ===== 鎖定判定 =====
-      const today = new Date();
-      const lockDay = res.lockDay || 25;
-      const targetY = Number(yS.value);
-      const targetM = Number(mS.value);
+      if(!isLocked){
+        modeTag.textContent = `🟢 開放排班中（每月 ${lockDay} 號截止）`;
+        hintRight.textContent = `可編輯：${ymtag(y,m)}（截止日：${lockDay}號）`;
+      }else{
+        if(!isNextMonth){
+          modeTag.textContent = "🔒 已鎖定（僅可查看）";
+          hintRight.textContent = "本月/過期/遠期班表不可編輯";
+        }else{
+          modeTag.textContent = `🔴 排班已截止（${lockDay}號後鎖定）`;
+          hintRight.textContent = "已截止，僅可查看";
+        }
+      }
+    }
 
-      const currentVal = today.getFullYear() * 12 + (today.getMonth() + 1);
-      const targetVal  = targetY * 12 + targetM;
-      const isNextMonth = (targetVal === currentVal + 1);
+    function normalizeShiftForUI(v){
+      const s = String(v||'').trim();
+      const low = s.toLowerCase();
+      if(s === "早班" || low === "early") return { val:"早班", cls:"bg-EARLY", short:"早" };
+      if(s === "午班" || low === "late")  return { val:"午班", cls:"bg-LATE",  short:"午" };
+      if(s === "休假" || low === "off")   return { val:"休假", cls:"bg-OFF",   short:"休" };
+      return { val:"", cls:"", short:"-" };
+    }
 
-      const isLocked = !res.isManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
-
-      let info = "";
-      if (res.isManager) info = "👑 主管模式（可任意編輯）";
-      else if (!isLocked) info = `🟢 開放排班中（每月${lockDay}號截止）`;
-      else if (!isNextMonth) info = "🔒 本月/過期/未來班表已鎖定";
-      else info = `🔴 排班已截止（截止日：${lockDay}號）`;
-
-      statusEl.innerText = info;
-      if (isLocked) statusEl.style.color = "#EF4444";
-
-      // ===== 畫表頭 =====
-      const days = new Date(Number(yS.value), Number(mS.value), 0).getDate();
+    function buildHeader(y,m,days){
       let head = `<th>員工</th>`;
-      for(let d=1; d<=days; d++) {
-        const wk = ['日','一','二','三','四','五','六'][new Date(yS.value, mS.value-1, d).getDay()];
-        const color = (wk==='日'||wk==='六') ? 'color:#EF4444' : '';
-        head += `<th style="${color}">${d}<br><small>${wk}</small></th>`;
+      for(let d=1; d<=days; d++){
+        const wk = weekdayOf(y,m,d);
+        const isWeekend = (wk === '六' || wk === '日');
+        head += `
+          <th class="${isWeekend ? 'wk-red' : ''}">
+            <div class="dayHead">
+              <div>${d}</div>
+              <small>${wk}</small>
+            </div>
+          </th>`;
       }
       document.getElementById("thRow").innerHTML = head;
+    }
 
-      // ===== 畫資料列 =====
-      const employees = Array.isArray(res.employees) ? res.employees : [];
-      const roster = res.roster || {};
+    function buildBody(y,m,days, employees, roster, isLocked){
+      const tb = document.getElementById("tbRow");
+      if(!employees || employees.length === 0){
+        tb.innerHTML = `<tr><td class="mutedRow" colspan="${days+1}">沒有可排班的人員</td></tr>`;
+        return;
+      }
 
       let rows = "";
-      employees.forEach(e => {
+      employees.forEach(e=>{
         const empId = e.empId || e.id || "";
         const empName = e.empName || e.name || empId;
 
-        let tds = `<td>${empName}</td>`;
+        let tds = `<td>${escapeHtml(empName)}</td>`;
 
-        for(let d=1; d<=days; d++) {
-          const cell = (roster[empId] && roster[empId][d]) ? roster[empId][d] : {};
-          const dateStr = `${yS.value}-${String(mS.value).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        for(let d=1; d<=days; d++){
+          const cell = (roster && roster[empId] && roster[empId][d]) ? roster[empId][d] : {};
+          const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
 
-          if(cell.type === 'LEAVE') {
-            tds += `<td><span style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:4px;font-size:11px;">${cell.value}</span></td>`;
-          } else {
-            let v = cell.value || '';
-            let cls = '';
-            if(v==='早班'||v==='EARLY') { v='早班'; cls='bg-EARLY'; }
-            else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
-            else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
-
-            const dis = isLocked ? 'disabled' : '';
-
-            // ✅ 重要：送 targetEmpId（被排班的人），操作者由 api() 自動塞 userId
-            tds += `<td>
-              <select class="shift-sel ${cls}" ${dis}
-                      onchange="upd('${empId}','${dateStr}',this)">
-                <option value="">-</option>
-                <option value="早班" ${v==='早班'?'selected':''}>早</option>
-                <option value="午班" ${v==='午班'?'selected':''}>午</option>
-                <option value="休假" ${v==='休假'?'selected':''}>休</option>
-              </select>
-            </td>`;
+          if(cell && String(cell.type||'').toUpperCase() === 'LEAVE'){
+            const txt = String(cell.value||'').trim() || '假';
+            tds += `<td><span class="leave-pill">${escapeHtml(txt)}</span></td>`;
+            continue;
           }
+
+          const ui = normalizeShiftForUI(cell && cell.value);
+          const dis = (isLocked && !isMgr) ? "disabled" : "";
+
+          tds += `<td>
+            <select class="shift-sel ${ui.cls}" ${dis}
+              data-prev="${ui.val}"
+              onchange="upd('${escapeAttr(empId)}','${dateStr}',this)">
+              <option value="" ${ui.val===""?'selected':''}>-</option>
+              <option value="早班" ${ui.val==="早班"?'selected':''}>早</option>
+              <option value="午班" ${ui.val==="午班"?'selected':''}>午</option>
+              <option value="休假" ${ui.val==="休假"?'selected':''}>休</option>
+            </select>
+          </td>`;
         }
 
         rows += `<tr>${tds}</tr>`;
       });
 
-      document.getElementById("tbRow").innerHTML = rows || `<tr><td colspan="${days+1}" style="padding:30px;color:#999">沒有可排班的人員</td></tr>`;
-
-    } catch (err) {
-      document.getElementById("tbRow").innerHTML = `<tr><td style="color:red;padding:20px;">${err.message}</td></tr>`;
-      const statusEl = document.getElementById("statusInfo");
-      statusEl.innerText = "連線異常";
-      statusEl.style.color = "#EF4444";
+      tb.innerHTML = rows;
     }
-  }
 
-  function upd(targetEmpId, dateStr, el) {
-    // UI 上色
-    el.className = 'shift-sel';
-    if(el.value==='早班') el.classList.add('bg-EARLY');
-    if(el.value==='午班') el.classList.add('bg-LATE');
-    if(el.value==='休假') el.classList.add('bg-OFF');
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, c=>({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+    function escapeAttr(s){
+      return String(s||'').replace(/['"]/g, '');
+    }
 
-    api("update_schedule", { targetEmpId, date: dateStr, shift: el.value })
-      .then(res => {
-        if(!res.ok) {
-          alert(res.message || "更新失敗");
-          el.value = "";
-          el.className = 'shift-sel';
+    /* ==============================
+     * 4) 更新排班（含失敗回復）
+     * ============================== */
+    async function upd(targetEmpId, dateStr, el){
+      // 先記住舊值，失敗要回復
+      const prev = el.getAttribute("data-prev") || "";
+
+      // UI 上色
+      paintShift(el);
+
+      try{
+        const res = await api("update_schedule", {
+          targetEmpId,
+          date: dateStr,
+          shift: el.value
+        });
+
+        if(!res || !res.ok){
+          // 回復
+          el.value = prev;
+          paintShift(el);
+          toast(res && res.message ? res.message : "更新失敗");
+          return;
         }
-      })
-      .catch(err => {
-        alert("更新失敗: " + err.message);
-      });
-  }
 
-  load();
-</script>
+        // 成功：更新 prev
+        el.setAttribute("data-prev", el.value || "");
+        toast("已更新 ✅");
+
+      }catch(e){
+        el.value = prev;
+        paintShift(el);
+        toast("更新失敗（連線/逾時）");
+      }
+    }
+
+    function paintShift(el){
+      el.classList.remove("bg-EARLY","bg-LATE","bg-OFF");
+      if(el.value === "早班") el.classList.add("bg-EARLY");
+      if(el.value === "午班") el.classList.add("bg-LATE");
+      if(el.value === "休假") el.classList.add("bg-OFF");
+    }
+
+    window.upd = upd; // 給 inline onchange 用
+
+    /* ==============================
+     * 5) 主流程：load roster
+     * ============================== */
+    async function load(){
+      const y = Number(yS.value);
+      const m = Number(mS.value);
+      document.getElementById("ymTag").textContent = `篩選：${ymtag(y,m)}`;
+
+      document.getElementById("tbRow").innerHTML =
+        `<tr><td class="mutedRow" colspan="10">資料讀取中…</td></tr>`;
+
+      try{
+        const res = await api("get_roster_data", { year:y, month:m });
+        if(!res || !res.ok){
+          document.getElementById("tbRow").innerHTML =
+            `<tr><td class="mutedRow" colspan="10" style="color:#EF4444">讀取失敗：${escapeHtml(res && res.message ? res.message : "unknown")}</td></tr>`;
+          document.getElementById("modeTag").textContent = "⚠️ 讀取失敗";
+          return;
+        }
+
+        // ===== 鎖定判定（維持你原本規則，但更清楚）=====
+        const today = new Date();
+        const lockDay = Number(res.lockDay || 25);
+
+        const currentVal = today.getFullYear()*12 + (today.getMonth()+1);
+        const targetVal  = y*12 + m;
+        const isNextMonth = (targetVal === currentVal + 1);
+
+        // res.isManager：後端判定，isMgr：前端本地判定
+        const isManagerFromServer = !!res.isManager;
+        const canEditAsManager = isMgr || isManagerFromServer;
+
+        // 非主管：只開放「下個月」且 <= lockDay
+        const isLocked = !canEditAsManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
+
+        setModeTag(isLocked, lockDay, isNextMonth, y, m);
+
+        // ===== 畫表 =====
+        const days = new Date(y, m, 0).getDate();
+        buildHeader(y,m,days);
+
+        const employees = Array.isArray(res.employees) ? res.employees : [];
+        const roster = res.roster || {};
+        buildBody(y,m,days, employees, roster, isLocked);
+
+      }catch(e){
+        document.getElementById("tbRow").innerHTML =
+          `<tr><td class="mutedRow" colspan="10" style="color:#EF4444">連線異常：${escapeHtml(e.message || "error")}</td></tr>`;
+        document.getElementById("modeTag").textContent = "⚠️ 連線異常";
+      }
+    }
+
+    document.getElementById("btnLoad").addEventListener("click", load);
+
+    // init
+    load();
+  </script>
 </body>
 </html>
