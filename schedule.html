@@ -12,40 +12,25 @@
       --text:#111827;
       --muted:#6B7280;
 
+      --shadow: 0 10px 26px rgba(17,24,39,.10);
+      --shadow2: 0 6px 16px rgba(17,24,39,.06);
+
       --ok:#10B981;
       --warn:#F59E0B;
       --danger:#EF4444;
 
-      --shadow: 0 10px 26px rgba(17,24,39,.10);
-      --shadow2: 0 6px 16px rgba(17,24,39,.06);
-      --radius: 18px;
+      --radius:18px;
     }
-    *{box-sizing:border-box}
+    *{ box-sizing:border-box; }
     body{
       margin:0;
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
       background:var(--bg);
       color:var(--text);
-      padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px;
+      padding: 18px 18px calc(96px + env(safe-area-inset-bottom)) 18px;
     }
 
-    /* toast */
-    .toast{
-      position: fixed;
-      left: 16px; right: 16px;
-      top: calc(16px + env(safe-area-inset-top));
-      background: #111827;
-      color:#fff;
-      padding: 12px 14px;
-      border-radius: 14px;
-      box-shadow: var(--shadow2);
-      display:none;
-      z-index: 9999;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    /* hero */
+    /* ====== HERO（跟 history 同一套語感）====== */
     .hero{
       background: linear-gradient(135deg, #4F46E5, #7C3AED);
       border-radius: 26px;
@@ -59,14 +44,11 @@
       font-size: 22px;
       font-weight: 900;
       letter-spacing: .2px;
-      display:flex;
-      align-items:center;
-      gap:10px;
     }
     .hero .sub{
       margin-top: 8px;
       font-size: 13px;
-      opacity: .9;
+      opacity: .90;
       display:flex;
       gap:10px;
       flex-wrap:wrap;
@@ -83,13 +65,13 @@
       gap:8px;
     }
 
-    /* controls */
+    /* ====== Controls ====== */
     .controls{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      align-items:center;
       margin: 12px 0 14px 0;
+      align-items:center;
     }
     .controls select{
       border:none;
@@ -99,9 +81,7 @@
       box-shadow: var(--shadow2);
       font-size: 13px;
       outline:none;
-      font-weight: 900;
-      color: var(--text);
-      -webkit-appearance:none;
+      min-width: 88px;
     }
     .controls button{
       border:none;
@@ -109,153 +89,156 @@
       color:#fff;
       border-radius: 14px;
       padding: 10px 14px;
-      font-weight: 1000;
+      font-weight: 900;
       cursor:pointer;
       box-shadow: var(--shadow2);
     }
     .controls button:active{ transform: scale(.99); }
 
-    /* card */
+    /* ====== Table Card ====== */
     .card{
-      background: var(--card);
-      border-radius: 20px;
+      background:var(--card);
+      border-radius: 22px;
       box-shadow: var(--shadow2);
-      border: 1px solid rgba(17,24,39,.06);
       overflow:hidden;
+      border: 1px solid rgba(17,24,39,.06);
     }
-    .card-head{
-      padding: 14px 14px 12px 14px;
+    .table-scroll{ overflow-x:auto; }
+    table{ width:100%; border-collapse:collapse; min-width: 900px; }
+    th, td{
+      padding: 12px 10px;
+      text-align:center;
       border-bottom: 1px solid rgba(17,24,39,.06);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
-    .card-head .title{
-      font-size: 14px;
-      font-weight: 1000;
-      color: var(--primary);
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-    .card-head .small{
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 900;
-    }
-
-    /* table */
-    .table-scroll{
-      overflow:auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    table{
-      width:100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      min-width: 920px;
+      font-size: 13px;
+      white-space: nowrap;
     }
     thead th{
-      position: sticky;
-      top: 0;
-      z-index: 5;
-      background: #F9FAFB;
-      font-weight: 1000;
-      color:#374151;
-      border-bottom: 1px solid rgba(17,24,39,.06);
+      background:#F9FAFB;
+      font-weight: 900;
     }
-    th, td{
-      padding: 10px 10px;
-      text-align:center;
-      font-size: 12px;
-      white-space: nowrap;
-      border-bottom: 1px solid rgba(17,24,39,.06);
-      background:#fff;
-    }
-
-    /* sticky first col */
     th:first-child, td:first-child{
       position: sticky;
       left: 0;
-      z-index: 6;
-      background:#fff;
-      border-right: 1px solid rgba(17,24,39,.08);
-      text-align:left;
-      padding-left: 12px;
-      font-weight: 1000;
+      z-index: 10;
+      background: #fff;
+      border-right: 2px solid rgba(17,24,39,.06);
+      font-weight: 900;
       color: var(--primary);
-      min-width: 150px;
+      text-align:left;
+      padding-left: 14px;
+      min-width: 140px;
     }
     thead th:first-child{
-      z-index: 10;
+      z-index: 20;
       background:#F9FAFB;
-      color:#374151;
     }
 
-    .wk-red{ color: var(--danger) !important; }
     .dayHead{
-      display:flex;
-      flex-direction:column;
-      gap:2px;
-      align-items:center;
-      line-height: 1.1;
+      line-height:1.15;
+      font-weight: 900;
     }
     .dayHead small{
-      font-size: 11px;
+      display:block;
+      margin-top: 4px;
       font-weight: 900;
-      opacity: .9;
+      opacity: .72;
     }
 
-    /* shift select */
-    .shift-sel{
-      width: 56px;
-      max-width: 100%;
-      border: 1px solid rgba(17,24,39,.12);
-      border-radius: 12px;
-      padding: 8px 8px;
-      font-size: 12px;
-      font-weight: 1000;
-      outline:none;
-      background:#fff;
-      color:#111827;
-      -webkit-appearance:none;
-      text-align:center;
-      cursor:pointer;
-    }
-    .shift-sel:disabled{
-      cursor:not-allowed;
-      opacity:.55;
-      background:#F3F4F6;
-    }
-
-    .bg-EARLY{ background: rgba(16,185,129,.14) !important; border-color: rgba(16,185,129,.55) !important; color:#065F46 !important; }
-    .bg-LATE { background: rgba(245,158,11,.16) !important; border-color: rgba(245,158,11,.55) !important; color:#92400E !important; }
-    .bg-OFF  { background: rgba(156,163,175,.16) !important; border-color: rgba(156,163,175,.45) !important; color:#4B5563 !important; }
-
-    /* leave pill */
-    .leave-pill{
+    /* ====== Badge（顯示模式）====== */
+    .badge{
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 1000;
-      background: #EEF2FF;
-      color: var(--primary);
-      border: 1px solid rgba(79,70,229,.22);
-      min-width: 56px;
+      min-width: 44px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      font-weight: 900;
+      border: 1px solid rgba(17,24,39,.10);
+      background:#fff;
+      color:#111827;
+    }
+    .badge-early{
+      background: rgba(16,185,129,.14);
+      border-color: rgba(16,185,129,.45);
+      color:#065F46;
+    }
+    .badge-late{
+      background: rgba(245,158,11,.16);
+      border-color: rgba(245,158,11,.50);
+      color:#92400E;
+    }
+    .badge-off{
+      background: rgba(156,163,175,.16);
+      border-color: rgba(156,163,175,.35);
+      color:#6B7280;
+    }
+    .badge-leave{
+      background: rgba(59,130,246,.14);
+      border-color: rgba(59,130,246,.45);
+      color:#1E40AF;
+      min-width: 70px;
+      padding: 8px 12px;
+      border-radius: 14px;
     }
 
-    .mutedRow{
-      padding: 22px;
+    /* ====== Select（主管可編輯模式：看起來跟 badge 同一個家族）====== */
+    .shift-sel{
+      width: 64px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(17,24,39,.10);
+      background:#fff;
+      font-weight: 900;
       text-align:center;
-      color:#9CA3AF;
-      font-weight: 1000;
+      outline:none;
+      box-shadow: none;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor:pointer;
+    }
+    .shift-sel.badge-early{
+      background: rgba(16,185,129,.14);
+      border-color: rgba(16,185,129,.45);
+      color:#065F46;
+    }
+    .shift-sel.badge-late{
+      background: rgba(245,158,11,.16);
+      border-color: rgba(245,158,11,.50);
+      color:#92400E;
+    }
+    .shift-sel.badge-off{
+      background: rgba(156,163,175,.16);
+      border-color: rgba(156,163,175,.35);
+      color:#6B7280;
+    }
+    .shift-sel:disabled{
+      opacity:.55;
+      cursor:not-allowed;
     }
 
-    /* bottom nav */
+    /* ====== Empty / Toast ====== */
+    .empty{
+      text-align:center;
+      padding: 26px 18px;
+      color: #9CA3AF;
+      font-weight: 900;
+    }
+    .toast{
+      position: fixed;
+      left: 16px; right: 16px;
+      top: calc(16px + env(safe-area-inset-top));
+      background: #111827;
+      color:#fff;
+      padding: 12px 14px;
+      border-radius: 14px;
+      box-shadow: var(--shadow2);
+      display:none;
+      z-index: 9999;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* ====== Bottom Nav（沿用你既有的）====== */
     .nav{
       position: fixed;
       left: 0; right: 0; bottom: 0;
@@ -281,7 +264,6 @@
     .nav-item.active{ color: var(--primary); }
     .nav-icon{ font-size: 22px; }
     #mgrBtn{ display:none; }
-    .showMgr #mgrBtn{ display:flex; }
   </style>
 </head>
 
@@ -292,7 +274,8 @@
     <h2>📅 團隊排班</h2>
     <div class="sub">
       <span class="pill" id="modeTag">載入中…</span>
-      <span class="pill" id="ymTag">—</span>
+      <span class="pill" id="rangeTag">篩選：—</span>
+      <span class="pill" id="lockTag" style="display:none;">—</span>
     </div>
   </section>
 
@@ -302,25 +285,20 @@
     <button type="button" id="btnLoad">查詢</button>
   </div>
 
-  <section class="card">
-    <div class="card-head">
-      <div class="title">📌 排班總覽</div>
-      <div class="small" id="hintRight">—</div>
-    </div>
-
+  <div class="card">
     <div class="table-scroll">
-      <table id="tbl">
+      <table>
         <thead>
           <tr id="thRow">
             <th>員工</th>
           </tr>
         </thead>
         <tbody id="tbRow">
-          <tr><td class="mutedRow" colspan="10">載入中…</td></tr>
+          <tr><td class="empty" colspan="10">載入中…</td></tr>
         </tbody>
       </table>
     </div>
-  </section>
+  </div>
 
   <nav class="nav" id="bottomNav">
     <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
@@ -333,17 +311,20 @@
   <script src="config.js"></script>
   <script>
     /* ==============================
-     * 0) 身份與模式
+     * 0) 身份 & 小工具
      * ============================== */
     const uid =
       localStorage.getItem("empId") ||
       localStorage.getItem("employeeId") ||
       "";
 
-    const isMgr = (localStorage.getItem("isManager") === "true");
+    const isMgrLocal = (localStorage.getItem("isManager") === "true");
 
-    if(!uid) location.href = "index.html";
-    if(isMgr) document.getElementById("bottomNav").classList.add("showMgr");
+    if(!uid) location.href="index.html";
+
+    if(isMgrLocal){
+      document.getElementById("mgrBtn").style.display = "flex";
+    }
 
     function toast(msg){
       const el = document.getElementById("toast");
@@ -353,20 +334,21 @@
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
+    function pad2(n){ return String(n).padStart(2,'0'); }
+
     /* ==============================
-     * 1) JSONP API（統一格式）
+     * 1) JSONP API（統一 action + payload）
      * ============================== */
     function api(action, data = {}) {
       return new Promise((resolve, reject) => {
-        const ENDPOINT = window.CONFIG && window.CONFIG.GAS_ENDPOINT;
-        if(!ENDPOINT) return reject(new Error("缺少 CONFIG.GAS_ENDPOINT"));
-
+        if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
+          reject(new Error("Missing CONFIG.GAS_ENDPOINT"));
+          return;
+        }
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
         const s = document.createElement("script");
 
-        const payloadObj = Object.assign({}, data, {
-          userId: uid
-        });
+        const payloadObj = Object.assign({}, data, { userId: uid });
 
         if(window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
           payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
@@ -377,7 +359,7 @@
 
         const timer = setTimeout(() => {
           cleanup();
-          reject(new Error("請求逾時"));
+          reject(new Error("timeout"));
         }, 20000);
 
         function cleanup(){
@@ -387,248 +369,212 @@
         }
 
         window[cbName] = (res) => { cleanup(); resolve(res); };
-        s.onerror = () => { cleanup(); reject(new Error("網路連線失敗")); };
+        s.onerror = () => { cleanup(); reject(new Error("Network Error")); };
 
-        s.src = `${ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
+        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
         document.body.appendChild(s);
       });
     }
 
     /* ==============================
-     * 2) 年月下拉初始化
+     * 2) 年月選單
      * ============================== */
     const yS = document.getElementById("y");
     const mS = document.getElementById("m");
     const now = new Date();
 
-    const yStart = 2024;
-    const yEnd   = 2026;
-
-    for(let y=yStart; y<=yEnd; y++){
-      const opt = new Option(String(y), String(y));
-      if(y === now.getFullYear()) opt.selected = true;
-      yS.appendChild(opt);
+    // 年份：你要更長也行
+    for(let y=2024; y<=2027; y++){
+      yS.add(new Option(y, y, y===now.getFullYear(), y===now.getFullYear()));
     }
     for(let m=1; m<=12; m++){
-      const opt = new Option(String(m), String(m));
-      if(m === (now.getMonth()+1)) opt.selected = true;
-      mS.appendChild(opt);
-    }
-
-    function pad2(n){ return String(n).padStart(2,'0'); }
-    function ymtag(y,m){
-      return `${y}-${pad2(m)}`;
-    }
-    function weekdayOf(y,m,d){
-      return ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
+      mS.add(new Option(m, m, m===now.getMonth()+1, m===now.getMonth()+1));
     }
 
     /* ==============================
-     * 3) 畫表
+     * 3) Shift/Leave 呈現統一
      * ============================== */
-    function setModeTag(isLocked, lockDay, isNextMonth, y, m){
-      const modeTag = document.getElementById("modeTag");
-      const hintRight = document.getElementById("hintRight");
+    function classifyShift(v){
+      const raw = String(v||'').trim();
+      const low = raw.toLowerCase();
+      if(!raw || raw==='-') return { label:'-', cls:'badge-off', value:'' };
 
-      if(isMgr){
-        modeTag.textContent = "👑 主管模式（可任意編輯）";
-        hintRight.textContent = "主管可直接調整";
-        return;
-      }
+      if(raw==='早班' || low==='early' || raw==='早') return { label:'早', cls:'badge-early', value:'早班' };
+      if(raw==='午班' || low==='late'  || raw==='午') return { label:'午', cls:'badge-late',  value:'午班' };
+      if(raw==='休假' || low==='off'   || raw==='休') return { label:'休', cls:'badge-off',   value:'休假' };
 
-      if(!isLocked){
-        modeTag.textContent = `🟢 開放排班中（每月 ${lockDay} 號截止）`;
-        hintRight.textContent = `可編輯：${ymtag(y,m)}（截止日：${lockDay}號）`;
-      }else{
-        if(!isNextMonth){
-          modeTag.textContent = "🔒 已鎖定（僅可查看）";
-          hintRight.textContent = "本月/過期/遠期班表不可編輯";
-        }else{
-          modeTag.textContent = `🔴 排班已截止（${lockDay}號後鎖定）`;
-          hintRight.textContent = "已截止，僅可查看";
-        }
-      }
-    }
-
-    function normalizeShiftForUI(v){
-      const s = String(v||'').trim();
-      const low = s.toLowerCase();
-      if(s === "早班" || low === "early") return { val:"早班", cls:"bg-EARLY", short:"早" };
-      if(s === "午班" || low === "late")  return { val:"午班", cls:"bg-LATE",  short:"午" };
-      if(s === "休假" || low === "off")   return { val:"休假", cls:"bg-OFF",   short:"休" };
-      return { val:"", cls:"", short:"-" };
-    }
-
-    function buildHeader(y,m,days){
-      let head = `<th>員工</th>`;
-      for(let d=1; d<=days; d++){
-        const wk = weekdayOf(y,m,d);
-        const isWeekend = (wk === '六' || wk === '日');
-        head += `
-          <th class="${isWeekend ? 'wk-red' : ''}">
-            <div class="dayHead">
-              <div>${d}</div>
-              <small>${wk}</small>
-            </div>
-          </th>`;
-      }
-      document.getElementById("thRow").innerHTML = head;
-    }
-
-    function buildBody(y,m,days, employees, roster, isLocked){
-      const tb = document.getElementById("tbRow");
-      if(!employees || employees.length === 0){
-        tb.innerHTML = `<tr><td class="mutedRow" colspan="${days+1}">沒有可排班的人員</td></tr>`;
-        return;
-      }
-
-      let rows = "";
-      employees.forEach(e=>{
-        const empId = e.empId || e.id || "";
-        const empName = e.empName || e.name || empId;
-
-        let tds = `<td>${escapeHtml(empName)}</td>`;
-
-        for(let d=1; d<=days; d++){
-          const cell = (roster && roster[empId] && roster[empId][d]) ? roster[empId][d] : {};
-          const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
-
-          if(cell && String(cell.type||'').toUpperCase() === 'LEAVE'){
-            const txt = String(cell.value||'').trim() || '假';
-            tds += `<td><span class="leave-pill">${escapeHtml(txt)}</span></td>`;
-            continue;
-          }
-
-          const ui = normalizeShiftForUI(cell && cell.value);
-          const dis = (isLocked && !isMgr) ? "disabled" : "";
-
-          tds += `<td>
-            <select class="shift-sel ${ui.cls}" ${dis}
-              data-prev="${ui.val}"
-              onchange="upd('${escapeAttr(empId)}','${dateStr}',this)">
-              <option value="" ${ui.val===""?'selected':''}>-</option>
-              <option value="早班" ${ui.val==="早班"?'selected':''}>早</option>
-              <option value="午班" ${ui.val==="午班"?'selected':''}>午</option>
-              <option value="休假" ${ui.val==="休假"?'selected':''}>休</option>
-            </select>
-          </td>`;
-        }
-
-        rows += `<tr>${tds}</tr>`;
-      });
-
-      tb.innerHTML = rows;
-    }
-
-    function escapeHtml(s){
-      return String(s||'').replace(/[&<>"']/g, c=>({
-        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-      }[c]));
-    }
-    function escapeAttr(s){
-      return String(s||'').replace(/['"]/g, '');
+      // 未知：保留顯示但當 off 色
+      return { label: raw, cls:'badge-off', value: raw };
     }
 
     /* ==============================
-     * 4) 更新排班（含失敗回復）
+     * 4) 鎖定邏輯（沿用你原本的規則）
      * ============================== */
-    async function upd(targetEmpId, dateStr, el){
-      // 先記住舊值，失敗要回復
-      const prev = el.getAttribute("data-prev") || "";
+    function computeLock(res, targetY, targetM){
+      const today = new Date();
+      const lockDay = Number(res.lockDay || 25);
 
-      // UI 上色
-      paintShift(el);
+      const currentVal = today.getFullYear()*12 + (today.getMonth()+1);
+      const targetVal  = targetY*12 + targetM;
 
-      try{
-        const res = await api("update_schedule", {
-          targetEmpId,
-          date: dateStr,
-          shift: el.value
-        });
+      const isNextMonth = (targetVal === currentVal + 1);
 
-        if(!res || !res.ok){
-          // 回復
-          el.value = prev;
-          paintShift(el);
-          toast(res && res.message ? res.message : "更新失敗");
-          return;
-        }
+      // 後端回 res.isManager 才是真正權限（比 localStorage 更可信）
+      const isManager = !!res.isManager;
 
-        // 成功：更新 prev
-        el.setAttribute("data-prev", el.value || "");
-        toast("已更新 ✅");
+      // 非主管：只能排「下個月」且在 lockDay 之前
+      const isLocked = (!isManager) && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
 
-      }catch(e){
-        el.value = prev;
-        paintShift(el);
-        toast("更新失敗（連線/逾時）");
-      }
+      return { isManager, isLocked, lockDay, isNextMonth };
     }
-
-    function paintShift(el){
-      el.classList.remove("bg-EARLY","bg-LATE","bg-OFF");
-      if(el.value === "早班") el.classList.add("bg-EARLY");
-      if(el.value === "午班") el.classList.add("bg-LATE");
-      if(el.value === "休假") el.classList.add("bg-OFF");
-    }
-
-    window.upd = upd; // 給 inline onchange 用
 
     /* ==============================
-     * 5) 主流程：load roster
+     * 5) 主流程：load
      * ============================== */
     async function load(){
       const y = Number(yS.value);
       const m = Number(mS.value);
-      document.getElementById("ymTag").textContent = `篩選：${ymtag(y,m)}`;
 
+      document.getElementById("rangeTag").textContent = `篩選：${y}-${pad2(m)}`;
+
+      const modeTag = document.getElementById("modeTag");
+      const lockTag = document.getElementById("lockTag");
+      lockTag.style.display = "none";
+
+      modeTag.textContent = "載入中…";
       document.getElementById("tbRow").innerHTML =
-        `<tr><td class="mutedRow" colspan="10">資料讀取中…</td></tr>`;
+        `<tr><td class="empty" colspan="10">資料讀取中…</td></tr>`;
 
       try{
         const res = await api("get_roster_data", { year:y, month:m });
+
         if(!res || !res.ok){
+          modeTag.textContent = "讀取失敗";
+          toast(res && res.message ? res.message : "讀取失敗");
           document.getElementById("tbRow").innerHTML =
-            `<tr><td class="mutedRow" colspan="10" style="color:#EF4444">讀取失敗：${escapeHtml(res && res.message ? res.message : "unknown")}</td></tr>`;
-          document.getElementById("modeTag").textContent = "⚠️ 讀取失敗";
+            `<tr><td class="empty" colspan="10" style="color:#EF4444">讀取失敗</td></tr>`;
           return;
         }
 
-        // ===== 鎖定判定（維持你原本規則，但更清楚）=====
-        const today = new Date();
-        const lockDay = Number(res.lockDay || 25);
+        const { isManager, isLocked, lockDay } = computeLock(res, y, m);
 
-        const currentVal = today.getFullYear()*12 + (today.getMonth()+1);
-        const targetVal  = y*12 + m;
-        const isNextMonth = (targetVal === currentVal + 1);
+        // 顯示模式
+        if(isManager){
+          modeTag.textContent = "👑 主管模式（可任意編輯）";
+        }else{
+          modeTag.textContent = "👤 員工模式";
+          lockTag.style.display = "inline-flex";
+          lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中（每月${lockDay}號截止）`;
+        }
 
-        // res.isManager：後端判定，isMgr：前端本地判定
-        const isManagerFromServer = !!res.isManager;
-        const canEditAsManager = isMgr || isManagerFromServer;
+        // 也同步底部主管按鈕顯示（以後端 isManager 為準）
+        document.getElementById("mgrBtn").style.display = isManager ? "flex" : "none";
 
-        // 非主管：只開放「下個月」且 <= lockDay
-        const isLocked = !canEditAsManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
-
-        setModeTag(isLocked, lockDay, isNextMonth, y, m);
-
-        // ===== 畫表 =====
+        // 天數 & 表頭
         const days = new Date(y, m, 0).getDate();
-        buildHeader(y,m,days);
+        let head = `<th>員工</th>`;
+        for(let d=1; d<=days; d++){
+          const wk = ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
+          const isWeekend = (wk==='日' || wk==='六');
+          head += `<th class="dayHead" style="${isWeekend ? 'color:#EF4444' : ''}">
+                    ${d}<small>${wk}</small>
+                  </th>`;
+        }
+        document.getElementById("thRow").innerHTML = head;
 
+        // 資料列
         const employees = Array.isArray(res.employees) ? res.employees : [];
         const roster = res.roster || {};
-        buildBody(y,m,days, employees, roster, isLocked);
 
-      }catch(e){
+        if(employees.length === 0){
+          document.getElementById("tbRow").innerHTML =
+            `<tr><td class="empty" colspan="${days+1}">沒有可排班的人員</td></tr>`;
+          return;
+        }
+
+        let rows = "";
+        employees.forEach(e=>{
+          const empId = e.empId || e.id || "";
+          const empName = e.empName || e.name || empId || "—";
+          let tds = `<td>${empName}</td>`;
+
+          for(let d=1; d<=days; d++){
+            const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+            const cell = (roster[empId] && roster[empId][d]) ? roster[empId][d] : {};
+
+            // 1) Leave 顯示（永遠 badge）
+            if(cell && cell.type === 'LEAVE'){
+              const leaveText = String(cell.value || '').trim() || 'leave';
+              tds += `<td><span class="badge badge-leave">${leaveText}</span></td>`;
+              continue;
+            }
+
+            // 2) Shift 顯示（主管：select；員工：badge）
+            const shiftInfo = classifyShift(cell && cell.value);
+
+            if(isManager && !isLocked){
+              tds += `
+                <td>
+                  <select class="shift-sel ${shiftInfo.cls}"
+                          onchange="upd('${empId}','${dateStr}',this)">
+                    <option value="">-</option>
+                    <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
+                    <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
+                    <option value="休假" ${shiftInfo.value==='休假'?'selected':''}>休</option>
+                  </select>
+                </td>`;
+            }else{
+              tds += `<td><span class="badge ${shiftInfo.cls}">${shiftInfo.label}</span></td>`;
+            }
+          }
+
+          rows += `<tr>${tds}</tr>`;
+        });
+
+        document.getElementById("tbRow").innerHTML = rows;
+
+      }catch(err){
+        toast("連線異常，請稍後重試");
         document.getElementById("tbRow").innerHTML =
-          `<tr><td class="mutedRow" colspan="10" style="color:#EF4444">連線異常：${escapeHtml(e.message || "error")}</td></tr>`;
-        document.getElementById("modeTag").textContent = "⚠️ 連線異常";
+          `<tr><td class="empty" colspan="10" style="color:#EF4444">連線異常</td></tr>`;
+        document.getElementById("modeTag").textContent = "連線異常";
       }
     }
 
-    document.getElementById("btnLoad").addEventListener("click", load);
+    /* ==============================
+     * 6) 更新排班（主管編輯）
+     * ============================== */
+    function upd(targetEmpId, dateStr, el){
+      // 先把 class reset 再套色（確保不會越疊越怪）
+      el.classList.remove('badge-early','badge-late','badge-off');
 
-    // init
+      const val = String(el.value||'').trim();
+      const info = classifyShift(val);
+
+      // select 上色
+      el.classList.add(info.cls);
+
+      api("update_schedule", { targetEmpId, date: dateStr, shift: val })
+        .then(res=>{
+          if(!res || !res.ok){
+            toast(res && res.message ? res.message : "更新失敗");
+            // 回復成空
+            el.value = "";
+            el.classList.remove('badge-early','badge-late','badge-off');
+            el.classList.add('badge-off');
+          }else{
+            toast("✅ 已更新");
+          }
+        })
+        .catch(e=>{
+          toast("更新失敗：網路或伺服器逾時");
+        });
+    }
+
+    /* ==============================
+     * 7) 綁事件 & 初始化
+     * ============================== */
+    document.getElementById("btnLoad").addEventListener("click", load);
     load();
   </script>
 </body>
