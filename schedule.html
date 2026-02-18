@@ -309,6 +309,8 @@
 
   <script src="config.js"></script>
   <script>
+    'use strict';
+
     /* ==============================
      * 0) 身份 & 小工具
      * ============================== */
@@ -336,6 +338,15 @@
       return String(s ?? "").replace(/[&<>"']/g, (c)=>({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
       }[c]));
+    }
+
+    // JS inline handler 安全字串（防止 empId 裡有引號時炸掉）
+    function jsStringLiteral_(s){
+      return String(s ?? "")
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, "\\r")
+        .replace(/\n/g, "\\n");
     }
 
     /* ==============================
@@ -427,7 +438,7 @@
       return "";
     }
 
-    // ✅ roster 的 shift 值兼容：可能在 value / shift / v / 直接字串
+    // roster 的 shift 值兼容：可能在 value / shift / v / 直接字串
     function pickShiftValue(cell){
       if(cell == null) return "";
       if(typeof cell === "string") return cell;
@@ -549,13 +560,12 @@
             const shiftInfo = classifyShift(shiftVal);
 
             if(isManager){
+              const empLit = jsStringLiteral_(empId);
               tds += `
                 <td>
                   <select class="shift-sel ${shiftInfo.cls}"
-                          data-emp="${escapeHtml(empId)}"
-                          data-date="${escapeHtml(dateStr)}"
                           data-prev="${escapeHtml(shiftInfo.value||'')}"
-                          onchange="upd('${String(empId).replace(/'/g,"\\'")}','${dateStr}',this)">
+                          onchange="upd('${empLit}','${dateStr}',this)">
                     <option value="">-</option>
                     <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
                     <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
@@ -587,6 +597,7 @@
       const prev = el.getAttribute("data-prev") || "";
       const next = String(el.value||"").trim();
 
+      // 先清掉所有 badge class 再加，避免殘留
       el.classList.remove('badge-early','badge-late','badge-off');
       const info = classifyShift(next);
       el.classList.add(info.cls);
