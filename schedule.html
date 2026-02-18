@@ -100,7 +100,10 @@
       overflow:hidden;
       border: 1px solid rgba(17,24,39,.06);
     }
-    .table-scroll{ overflow-x:auto; }
+    .table-scroll{
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
+    }
     table{ width:100%; border-collapse:collapse; min-width: 900px; }
     th, td{
       padding: 12px 10px;
@@ -112,11 +115,14 @@
     thead th{
       background:#F9FAFB;
       font-weight: 900;
+      position: sticky;
+      top: 0;
+      z-index: 15;
     }
     th:first-child, td:first-child{
       position: sticky;
       left: 0;
-      z-index: 10;
+      z-index: 12;
       background: #fff;
       border-right: 2px solid rgba(17,24,39,.06);
       font-weight: 900;
@@ -126,7 +132,7 @@
       min-width: 140px;
     }
     thead th:first-child{
-      z-index: 20;
+      z-index: 25;
       background:#F9FAFB;
     }
 
@@ -332,17 +338,19 @@
      * ============================== */
     function api(action, data = {}) {
       return new Promise((resolve, reject) => {
-        if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
+        const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
+        if(!ENDPOINT){
           reject(new Error("Missing CONFIG.GAS_ENDPOINT"));
           return;
         }
+
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
         const s = document.createElement("script");
 
         const payloadObj = Object.assign({}, data, { userId: uid });
 
         // 若你後端有啟用 webhookKey 驗證，這裡會自動補上
-        if(window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
+        if(window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
           payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
         }
 
@@ -363,7 +371,8 @@
         window[cbName] = (res) => { cleanup(); resolve(res); };
         s.onerror = () => { cleanup(); reject(new Error("Network Error")); };
 
-        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
+        const sep = ENDPOINT.includes("?") ? "&" : "?";
+        s.src = `${ENDPOINT}${sep}action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
         document.body.appendChild(s);
       });
     }
@@ -375,7 +384,10 @@
     const mS = document.getElementById("m");
     const now = new Date();
 
-    for(let y=2024; y<=2027; y++){
+    const START_YEAR = 2024;
+    const END_YEAR   = 2028;
+
+    for(let y=START_YEAR; y<=END_YEAR; y++){
       yS.add(new Option(y, y, y===now.getFullYear(), y===now.getFullYear()));
     }
     for(let m=1; m<=12; m++){
@@ -402,6 +414,14 @@
       return { label: raw, cls:'badge-off', value: raw };
     }
 
+    function getLeaveText(cell){
+      if(!cell) return "";
+      if(cell.type === "LEAVE") return String(cell.value||"").trim();
+      if(cell.isLeave) return String(cell.leaveText || cell.value || cell.leaveType || "").trim();
+      if(cell.leaveType) return String(cell.leaveType).trim();
+      return "";
+    }
+
     /* ==============================
      * 4) 鎖定邏輯（後端 isManager 為準）
      * ============================== */
@@ -423,8 +443,27 @@
     }
 
     /* ==============================
-     * 5) 主流程：load
+     * 5) roster 兼容讀取
      * ============================== */
+    function getCell(roster, empId, d, dateStr){
+      if(!roster) return null;
+      const byEmp = roster[empId];
+      if(!byEmp) return null;
+
+      // 常見：roster[empId][d]
+      if(byEmp[d]) return byEmp[d];
+
+      // 另一種：roster[empId][dateStr]
+      if(byEmp[dateStr]) return byEmp[dateStr];
+
+      return null;
+    }
+
+    /* ==============================
+     * 6) 主流程：load
+     * ============================== */
+    let __lastRoster = null; // 用來回復 select 失敗時的原始值
+
     async function load(){
       const y = Number(yS.value);
       const m = Number(mS.value);
@@ -477,6 +516,8 @@
         const employees = Array.isArray(res.employees) ? res.employees : [];
         const roster = res.roster || {};
 
+        __lastRoster = roster;
+
         if(employees.length === 0){
           document.getElementById("tbRow").innerHTML =
             `<tr><td class="empty" colspan="${days+1}">沒有可排班的人員</td></tr>`;
@@ -485,28 +526,31 @@
 
         let rows = "";
         employees.forEach(e=>{
-          const empId = e.empId || e.id || "";
+          const empId = e.empId || e.id || e.employeeId || "";
           const empName = e.empName || e.name || empId || "—";
           let tds = `<td>${empName}</td>`;
 
           for(let d=1; d<=days; d++){
             const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
-            const cell = (roster[empId] && roster[empId][d]) ? roster[empId][d] : {};
+            const cell = getCell(roster, empId, d, dateStr) || {};
 
-            // Leave 永遠 badge
-            if(cell && cell.type === 'LEAVE'){
-              const leaveText = String(cell.value || '').trim() || 'leave';
+            // Leave 永遠 badge（多種欄位格式都吃）
+            const leaveText = getLeaveText(cell);
+            if(leaveText){
               tds += `<td><span class="badge badge-leave">${leaveText}</span></td>`;
               continue;
             }
 
-            const shiftInfo = classifyShift(cell && cell.value);
+            const shiftInfo = classifyShift(cell.value);
 
             // ✅ 主管可編輯：只要 isManager=true 就可改（不受 isLocked 限制）
             if(isManager){
               tds += `
                 <td>
                   <select class="shift-sel ${shiftInfo.cls}"
+                          data-emp="${empId}"
+                          data-date="${dateStr}"
+                          data-prev="${shiftInfo.value||''}"
                           onchange="upd('${empId}','${dateStr}',this)">
                     <option value="">-</option>
                     <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
@@ -533,29 +577,43 @@
     }
 
     /* ==============================
-     * 6) 更新排班（主管編輯）
+     * 7) 更新排班（主管編輯）
      * ============================== */
     function upd(targetEmpId, dateStr, el){
+      // 先記住舊值（失敗要還原）
+      const prev = el.getAttribute("data-prev") || "";
+      const next = String(el.value||"").trim();
+
+      // 先套樣式
       el.classList.remove('badge-early','badge-late','badge-off');
-
-      const val = String(el.value||'').trim();
-      const info = classifyShift(val);
-
+      const info = classifyShift(next);
       el.classList.add(info.cls);
 
-      api("update_schedule", { targetEmpId, date: dateStr, shift: val })
+      // 送後端
+      api("update_schedule", { targetEmpId, date: dateStr, shift: next })
         .then(res=>{
           if(!res || !res.ok){
             toast(res && res.message ? res.message : "更新失敗");
-            el.value = "";
+
+            // ✅ 失敗：回復原本值與樣式
+            el.value = prev;
             el.classList.remove('badge-early','badge-late','badge-off');
-            el.classList.add('badge-off');
+            const back = classifyShift(prev);
+            el.classList.add(back.cls);
           }else{
             toast("✅ 已更新");
+            // ✅ 成功：更新 prev
+            el.setAttribute("data-prev", next);
           }
         })
         .catch(()=>{
           toast("更新失敗：網路或伺服器逾時");
+
+          // ✅ 逾時：也回復
+          el.value = prev;
+          el.classList.remove('badge-early','badge-late','badge-off');
+          const back = classifyShift(prev);
+          el.classList.add(back.cls);
         });
     }
 
