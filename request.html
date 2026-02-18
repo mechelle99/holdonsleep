@@ -21,9 +21,6 @@
     input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.12); }
     textarea { resize:vertical; min-height:86px; }
 
-    .row { display:flex; gap:10px; }
-    .row > div { flex:1; }
-
     .chiprow { display:flex; gap:10px; flex-wrap:wrap; }
     .chip {
       display:inline-flex; align-items:center; gap:8px;
@@ -32,7 +29,11 @@
     }
     .chip input { width:auto; }
 
-    .mutedBox { background:#F9FAFB; border:1px solid #E5E7EB; padding:12px; border-radius:12px; font-size:13px; color:#6B7280; line-height:1.45; }
+    /* ✅ 前台說人話，不要工程師註解 */
+    .noteBox{
+      background:#F9FAFB; border:1px solid #E5E7EB; padding:12px; border-radius:12px;
+      font-size:13px; color:#6B7280; line-height:1.45;
+    }
 
     .btn-submit {
       width:100%; background:var(--primary); color:#fff;
@@ -52,8 +53,6 @@
     .nav-item { text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; font-size:10px; gap:4px; }
     .nav-item.active { color:var(--primary); }
     .nav-icon { font-size:22px; }
-
-    .hide { display:none !important; }
   </style>
 </head>
 <body>
@@ -89,13 +88,12 @@
       </select>
     </div>
 
-    <!-- ✅ 新增：補卡類型 -->
+    <!-- ✅ 補卡類型：只留 IN / OUT（砍掉同一時間點） -->
     <div class="form-group" id="correctionTypeGroup" style="display:none;">
       <label>補卡類型</label>
       <select id="correctionType">
         <option value="IN">補上班（補打卡：上班）</option>
         <option value="OUT">補下班（補打卡：下班）</option>
-        <option value="BOTH">補上下班（同一時間點）</option>
       </select>
     </div>
 
@@ -126,7 +124,7 @@
       <textarea id="reason" placeholder="請填寫說明..."></textarea>
     </div>
 
-    <div class="mutedBox" id="tipsBox"></div>
+    <div class="noteBox" id="noteBox"></div>
 
     <button class="btn-submit" id="submitBtn" type="button">送出申請</button>
   </div>
@@ -142,21 +140,27 @@
   <script src="config.js"></script>
   <script>
     /* ==============================
-     * 0) 身份（別再 employeeId / empId 打架）
+     * 0) 身份
      * ============================== */
     const empId =
       localStorage.getItem("empId") ||
       localStorage.getItem("employeeId") ||
-      localStorage.getItem("employeeId".toLowerCase()) ||
+      "";
+
+    const userId =
+      localStorage.getItem("lineUserId") ||
+      localStorage.getItem("LineUserId") ||
       localStorage.getItem("userId") ||
       "";
 
+    const uid = empId || userId || "";
+
     const isMgr = (localStorage.getItem("isManager") === "true") || !!localStorage.getItem("managerId");
     if (isMgr) document.getElementById("mgrBtn").style.display = "flex";
-    if (!empId) location.href = "index.html";
+    if (!uid) location.href = "index.html";
 
     /* ==============================
-     * 1) JSONP API（action + payload）
+     * 1) JSONP API
      * ============================== */
     function api(action, data = {}) {
       return new Promise((resolve, reject) => {
@@ -164,13 +168,14 @@
           reject(new Error("Missing CONFIG.GAS_ENDPOINT"));
           return;
         }
-
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
         const s = document.createElement("script");
 
-        const payloadObj = Object.assign({}, data, { empId });
+        const payloadObj = Object.assign({}, data, {
+          empId: empId || undefined,
+          userId: userId || undefined
+        });
 
-        // ✅ 若後端有驗證 key，可一起帶（不一定用得到，但保險）
         if (window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null) {
           payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
         }
@@ -196,49 +201,124 @@
     }
 
     /* ==============================
-     * 2) 本地時間工具（杜絕凌晨變隔天）
+     * 2) 時間工具
      * ============================== */
     function pad2(n) { return String(n).padStart(2, '0'); }
     function toLocalInputValue(d) {
       return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
-
-    /* ==============================
-     * 3) 半小時規則
-     * ============================== */
-    function roundToHalf(h) { return Math.round(h * 2) / 2; }
+    function parseLocalInput(v){
+      if(!v) return null;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    }
     function sameDay_(a, b) {
       return a.getFullYear() === b.getFullYear()
           && a.getMonth() === b.getMonth()
           && a.getDate() === b.getDate();
     }
+    function roundToHalf(h) { return Math.round(h * 2) / 2; }
 
     /* ==============================
-     * 4) UI 提示
+     * 3) 班別規則（你的規則）
      * ============================== */
-    const tipsBox = document.getElementById("tipsBox");
-    function setTips() {
-      const cat = document.getElementById("cat").value;
-      const type = document.getElementById("type").value;
+    const SHIFT_DEF = {
+      EARLY: { label:'早班', start:'10:00', end:'18:00', breakHours:0 },
+      LATE:  { label:'午班', start:'12:00', end:'21:00', breakHours:1 } // 中間休一小時
+    };
 
-      let msg = "";
-      if (cat === "CORRECTION") {
-        const ct = document.getElementById("correctionType").value;
-        const ctText = (ct === "IN") ? "補上班" : (ct === "OUT") ? "補下班" : "補上下班";
-        msg = `✅ 補卡：選擇「補卡類型」+「補卡時間點」。目前：${ctText}。不需要結束時間；時數固定 0。`;
-      } else if (cat === "OUTING") {
-        msg = "✅ 外出：依區間計算（0.5 小時為單位），非出差最多 8 小時；可勾選「外出單同時自動打卡」。";
-      } else if (cat === "OT") {
-        msg = "✅ 加班：依區間計算（0.5 小時為單位），核准後可轉補休。";
-      } else {
-        msg = "✅ 請假：依區間計算（0.5 小時為單位）；生日假不可跨日。";
-        if (type === "birthday") msg += "（你現在選的是生日假）";
-      }
-      tipsBox.textContent = msg;
+    // 依排班 shift 值推導成 EARLY/LATE，查不到就 EARLY
+    function normalizeShiftValue(v){
+      const s = String(v||'').trim().toLowerCase();
+      if(s.includes('午') || s.includes('late')) return 'LATE';
+      if(s.includes('早') || s.includes('early')) return 'EARLY';
+      return 'EARLY';
+    }
+
+    function setTimeByShiftForDate(dateObj, shiftKey){
+      const def = SHIFT_DEF[shiftKey] || SHIFT_DEF.EARLY;
+      const [sh, sm] = def.start.split(':').map(Number);
+      const [eh, em] = def.end.split(':').map(Number);
+
+      const s = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), sh, sm, 0, 0);
+      const e = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), eh, em, 0, 0);
+
+      document.getElementById("start").value = toLocalInputValue(s);
+      document.getElementById("end").value = toLocalInputValue(e);
     }
 
     /* ==============================
-     * 5) 類型切換（補卡特規）
+     * 4) 前台提示（簡短人話）
+     * ============================== */
+    const noteBox = document.getElementById("noteBox");
+    function setNote(){
+      const cat = document.getElementById("cat").value;
+
+      if(cat === "CORRECTION"){
+        const ct = document.getElementById("correctionType").value;
+        noteBox.textContent = (ct === "IN")
+          ? "補卡（上班）：只需選一個時間點。"
+          : "補卡（下班）：只需選一個時間點。";
+        return;
+      }
+
+      if(cat === "LEAVE"){
+        noteBox.textContent = "請假：系統會依排班自動帶入當天班別時間（早班/午班），可再自行微調。";
+        return;
+      }
+
+      if(cat === "OUTING"){
+        noteBox.textContent = "外出：依區間計算（0.5 小時），非出差最多 8 小時。";
+        return;
+      }
+
+      noteBox.textContent = "加班：依區間計算（0.5 小時）。";
+    }
+
+    /* ==============================
+     * 5) 依排班自動帶入請假時間（修你說的跨日怪）
+     *    - 用 schedule 的 get_roster_data 查當天 shift
+     * ============================== */
+    async function applyLeaveAutoTimeByRoster(){
+      const cat = document.getElementById("cat").value;
+      if(cat !== "LEAVE") return;
+
+      const sVal = document.getElementById("start").value;
+      const s = parseLocalInput(sVal);
+      if(!s) return;
+
+      const y = s.getFullYear();
+      const m = s.getMonth()+1;
+      const d = s.getDate();
+
+      // 預設：早班
+      let shiftKey = 'EARLY';
+
+      try{
+        const res = await api("get_roster_data", { year:y, month:m });
+        if(res && res.ok){
+          const roster = res.roster || {};
+          const employees = Array.isArray(res.employees) ? res.employees : [];
+
+          // 找自己的 empId
+          const myId = empId || "";
+          if(myId && roster[myId] && roster[myId][d] && roster[myId][d].value){
+            shiftKey = normalizeShiftValue(roster[myId][d].value);
+          }else{
+            // 找不到就照你規則：10:00 上班（EARLY）
+            shiftKey = 'EARLY';
+          }
+        }
+      }catch(e){
+        shiftKey = 'EARLY';
+      }
+
+      setTimeByShiftForDate(s, shiftKey);
+      calcHoursSmart();
+    }
+
+    /* ==============================
+     * 6) 類型切換
      * ============================== */
     function toggleType() {
       const cat = document.getElementById("cat").value;
@@ -257,10 +337,8 @@
         endWrap.style.display = "none";
         extraGroup.style.display = "none";
         startLabel.textContent = "補卡時間";
-
         document.getElementById("hours").value = "0.0";
         document.getElementById("end").value = "";
-
       } else if (cat === "OUTING") {
         typeGroup.style.display = "none";
         correctionTypeGroup.style.display = "none";
@@ -269,7 +347,6 @@
         extraGroup.style.display = "block";
         startLabel.textContent = "開始時間";
         calcHoursSmart();
-
       } else if (cat === "OT") {
         typeGroup.style.display = "none";
         correctionTypeGroup.style.display = "none";
@@ -278,8 +355,7 @@
         extraGroup.style.display = "none";
         startLabel.textContent = "開始時間";
         calcHoursSmart();
-
-      } else { // LEAVE
+      } else {
         typeGroup.style.display = "block";
         correctionTypeGroup.style.display = "none";
         hoursGroup.style.display = "block";
@@ -289,11 +365,11 @@
         calcHoursSmart();
       }
 
-      setTips();
+      setNote();
     }
 
     /* ==============================
-     * 6) 時數計算（統一 0.5 小時、含生日假防呆）
+     * 7) 時數計算（午班扣 1 小時休息）
      * ============================== */
     function calcHoursSmart() {
       const cat = document.getElementById("cat").value;
@@ -309,11 +385,6 @@
       const s = new Date(sVal);
       const e = new Date(eVal);
 
-      if (e < s) {
-        document.getElementById("end").value = sVal;
-        document.getElementById("hours").value = "0.0";
-        return;
-      }
       if (e <= s) {
         document.getElementById("hours").value = "0.0";
         return;
@@ -328,6 +399,16 @@
       }
 
       let diff = (e - s) / (1000 * 60 * 60);
+
+      // 午班：如果區間跨過 16:00-17:00（假設休息落在中間）就扣 1 小時
+      // 你若要把休息固定在 16:00-17:00 以外也可調這段
+      if(cat === "LEAVE"){
+        const sh = s.getHours()*60 + s.getMinutes();
+        const eh = e.getHours()*60 + e.getMinutes();
+        const crossesLunchBreak = (sh < 16*60) && (eh > 17*60);
+        if(crossesLunchBreak) diff -= 1;
+      }
+
       diff = roundToHalf(diff);
       diff = Math.max(0.5, diff);
 
@@ -340,7 +421,7 @@
     }
 
     /* ==============================
-     * 7) 送出申請（補卡 end=start 保險 + correctionType）
+     * 8) 送出申請
      * ============================== */
     async function submitReq() {
       const btn = document.getElementById("submitBtn");
@@ -360,7 +441,7 @@
       }
 
       if (cat === "CORRECTION") {
-        end = start; // 保險：補卡只用一個時間點
+        end = start;
       } else {
         if (!end) {
           alert("請先選擇結束時間");
@@ -379,7 +460,6 @@
         return;
       }
 
-      // leaveType 規則
       const leaveType =
         (cat === "LEAVE") ? document.getElementById("type").value :
         (cat === "OT") ? "ot" :
@@ -396,9 +476,8 @@
         isTrip: (cat === "OUTING") ? !!document.getElementById("isTrip").checked : false
       };
 
-      // ✅ 補卡專用欄位：補上班 / 補下班 / 補上下班
       if (cat === "CORRECTION") {
-        data.correctionType = document.getElementById("correctionType").value; // IN / OUT / BOTH
+        data.correctionType = document.getElementById("correctionType").value; // IN / OUT
       }
 
       try {
@@ -419,7 +498,7 @@
     }
 
     /* ==============================
-     * 8) 綁定事件（Safari/LINE WebView 防雷）
+     * 9) 綁定事件
      * ============================== */
     (function bindAll() {
       const startEl = document.getElementById("start");
@@ -431,7 +510,7 @@
       const autoClockEl = document.getElementById("autoClock");
       const submitBtn = document.getElementById("submitBtn");
 
-      const safeRecalc = () => { calcHoursSmart(); setTips(); };
+      const safeRecalc = () => { calcHoursSmart(); setNote(); };
 
       [startEl, endEl].forEach(el => {
         if (!el) return;
@@ -440,18 +519,26 @@
         el.addEventListener("blur", safeRecalc);
       });
 
-      [catEl, typeEl, correctionTypeEl, isTripEl, autoClockEl].forEach(el => {
-        if (!el) return;
-        el.addEventListener("change", () => { toggleType(); safeRecalc(); });
-        el.addEventListener("input", safeRecalc);
+      catEl.addEventListener("change", async () => {
+        toggleType();
+        safeRecalc();
+        await applyLeaveAutoTimeByRoster();
       });
+
+      if(typeEl){
+        typeEl.addEventListener("change", safeRecalc);
+      }
+      if(correctionTypeEl){
+        correctionTypeEl.addEventListener("change", setNote);
+      }
+      if(isTripEl) isTripEl.addEventListener("change", safeRecalc);
+      if(autoClockEl) autoClockEl.addEventListener("change", safeRecalc);
 
       submitBtn.addEventListener("click", submitReq);
     })();
 
     /* ==============================
-     * 9) 初始化預設時間（本地）
-     *    - 預設：今天 10:00-18:00
+     * 10) 初始化：預設今天 10:00-18:00
      * ============================== */
     (function initDefaultTime() {
       const now = new Date();
@@ -461,10 +548,9 @@
       document.getElementById("end").value = toLocalInputValue(end);
     })();
 
-    // 啟動
     toggleType();
     calcHoursSmart();
-    setTips();
+    setNote();
   </script>
 </body>
 </html>
