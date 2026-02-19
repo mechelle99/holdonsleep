@@ -202,7 +202,7 @@
     }
 
     /* ==============================
-     * 2) 時間工具（✅ 修正：datetime-local 一律手動解析，避免 UTC/時區炸裂）
+     * 2) 時間工具（✅ 修正：datetime-local 一律手動解析，避免 Safari/時區炸裂）
      * ============================== */
     function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -210,11 +210,10 @@
       return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
-    // ✅ 핵심修正：不要 new Date('YYYY-MM-DDTHH:mm')
+    // ✅ 更寬鬆：允許 1~2 位（少數環境可能吐出 2026-2-9T8:05）
     function parseLocalInput(v){
       if(!v) return null;
-      // v: "2026-02-19T10:00"
-      const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+      const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})$/);
       if(!m) return null;
       const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]), hh = Number(m[4]), mm = Number(m[5]);
       const dt = new Date(y, mo-1, d, hh, mm, 0, 0);
@@ -227,9 +226,16 @@
           && a.getDate() === b.getDate();
     }
 
-    // Date -> "yyyy/MM/dd HH:mm" 給後端（不含時區，後端照制度算）
+    // Date -> "yyyy/MM/dd HH:mm" 給後端（不含時區）
     function toServerDateTimeStr_(d){
       return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+
+    // ✅ 前端備援：0.5 小時單位（當後端 calc_hours 掛掉時至少不會顯示 0）
+    function calcHoursLocalHalf_(s, e){
+      const diffH = (e - s) / 36e5;
+      if (!(diffH > 0)) return 0;
+      return Math.round(diffH * 2) / 2;
     }
 
     /* ==============================
@@ -371,11 +377,16 @@
 
     /* ==============================
      * 6) 時數計算：後端 calc_hours（權威）
+     * ✅ 修正重點：
+     *   1) calc_hours 也一起送 startServer/endServer（跟 submit_request 一樣）
+     *   2) 也帶 category/leaveType（很多後端要用這個判午休/班別）
+     *   3) 後端失敗時，用前端備援計算，不讓你看到 0.0 + 失敗訊息一直卡
      * ============================== */
     let __calcTimer = null;
 
     async function calcHoursByServer(){
       const cat = document.getElementById("cat").value;
+
       if(cat === "CORRECTION"){
         document.getElementById("hours").value = "0.0";
         return;
@@ -393,17 +404,40 @@
         return;
       }
 
-      const leaveType = document.getElementById("type")?.value || "";
+      const leaveType = (cat === "LEAVE") ? (document.getElementById("type")?.value || "") :
+                       (cat === "OT") ? "ot" :
+                       (cat === "OUTING") ? "outing" : "";
+
       if(cat === "LEAVE" && leaveType === "birthday" && !sameDay_(s, e)) {
         document.getElementById("end").value = sVal;
         document.getElementById("hours").value = "0.0";
         return;
       }
 
+      // ✅ 先算本機備援（後端掛了也不會 0）
+      let fallbackH = calcHoursLocalHalf_(s, e);
+      if(cat === "OUTING"){
+        const isTrip = !!document.getElementById("isTrip").checked;
+        if(!isTrip) fallbackH = Math.min(8, fallbackH);
+      }
+
       try{
         const res = await api("calc_hours", {
+          // 兼容舊後端
           start: toServerDateTimeStr_(s),
-          end: toServerDateTimeStr_(e)
+          end: toServerDateTimeStr_(e),
+
+          // ✅ 強力建議後端用這兩個（完全避開時區/瀏覽器 Date parse 差異）
+          startServer: toServerDateTimeStr_(s),
+          endServer: toServerDateTimeStr_(e),
+
+          // ✅ 後端若需要判規則（午休/班別/假別）
+          category: cat,
+          leaveType: leaveType,
+
+          // ✅ 若後端想拿原始 input（datetime-local）
+          startRaw: sVal,
+          endRaw: eVal
         });
 
         if(res && res.ok){
@@ -424,12 +458,14 @@
             setNote();
           }
         }else{
-          document.getElementById("hours").value = "0.0";
-          setNote("時數計算失敗：請確認開始/結束時間，或稍後重試。");
+          // ✅ 後端回 ok:false：改成用備援顯示，不要卡 0 + 失敗訊息
+          document.getElementById("hours").value = Number(fallbackH).toFixed(1);
+          setNote("系統時數計算暫時不可用（已用本機備援計算）。若為請假時數，最終仍以系統審核為準。");
         }
       }catch(e){
-        document.getElementById("hours").value = "0.0";
-        setNote("時數計算逾時：請稍後重試。");
+        // ✅ 逾時/網路：同樣用備援
+        document.getElementById("hours").value = Number(fallbackH).toFixed(1);
+        setNote("系統時數計算逾時（已用本機備援計算）。若為請假時數，最終仍以系統審核為準。");
       }
     }
 
