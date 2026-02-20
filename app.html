@@ -226,7 +226,7 @@
     <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
     <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
     <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span>排班</a>
-    <a href="manager.html" class="nav-item"><span class="nav-icon">👑</span>主管</a>
+    <a href="manager.html" class="nav-item" id="mgrBtn" style="display:none;"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
   <script src="config.js"></script>
@@ -236,6 +236,11 @@
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId");
     if(!empId){
       location.href = "index.html";
+    }
+
+    // 初始化時檢查主管權限顯示按鈕
+    if (localStorage.getItem("isManager") === "true") {
+      document.getElementById("mgrBtn").style.display = "flex";
     }
 
     function toast(msg){
@@ -309,14 +314,33 @@
         document.getElementById("subline").textContent =
           `員工編號：${res.empId || empId}` + (res.isManager ? "｜主管" : "");
 
-        const annual = res.balances && res.balances.annual ? Number(res.balances.annual.left||0) : 0;
-        const comp   = res.balances && res.balances.comp   ? Number(res.balances.comp.left||0)   : 0;
+        // ✅ 兼容新版與舊版的 Balances 回傳結構
+        let annual = 0;
+        let comp = 0;
+        if (res.balances) {
+          if (res.balances.annualLeaveHoursLeft !== undefined) {
+            annual = Number(res.balances.annualLeaveHoursLeft || 0);
+            comp = Number(res.balances.otCompHoursLeft || 0);
+          } else {
+            annual = res.balances.annual ? Number(res.balances.annual.left || 0) : 0;
+            comp = res.balances.comp ? Number(res.balances.comp.left || 0) : 0;
+          }
+        }
+        
         document.getElementById("annualLeft").textContent = String(Math.max(0, annual));
         document.getElementById("compLeft").textContent = String(Math.max(0, comp));
 
         localStorage.setItem("empName", name);
         localStorage.setItem("isManager", res.isManager ? "true" : "false");
         localStorage.setItem("canSchedule", res.canSchedule ? "true" : "false");
+
+        // 重新確認主管選單是否顯示
+        if (res.isManager) {
+          document.getElementById("mgrBtn").style.display = "flex";
+        } else {
+          document.getElementById("mgrBtn").style.display = "none";
+        }
+
       }catch(e){
         toast("連線失敗（GAS）");
       }
@@ -333,7 +357,7 @@
         navigator.geolocation.getCurrentPosition(
           (pos)=>{
             const lat = Number(pos.coords.latitude);
-            const lng = Number(pos.coords.longitude); // ✅ 固定叫 lng，不准 ing
+            const lng = Number(pos.coords.longitude); 
             const accuracy = Number(pos.coords.accuracy);
 
             if(!isFinite(lat) || !isFinite(lng)){
@@ -343,7 +367,6 @@
             resolve({ lat, lng, accuracy });
           },
           (err)=>{
-            // 更精準提示（不再虎爛）
             if(err && err.code === 1) reject(new Error("你拒絕了定位權限（請到瀏覽器/LINE 設定開啟定位）"));
             else if(err && err.code === 2) reject(new Error("定位不可用（請開啟 GPS / 允許定位服務）"));
             else if(err && err.code === 3) reject(new Error("定位逾時（到戶外/窗邊再試一次）"));
@@ -368,7 +391,6 @@
         toast("正在取得定位…");
         const geo = await getGeo();
 
-        // 你後端若驗證半徑/精準度，這三個欄位就夠了
         const res = await api(act, {
           lat: geo.lat,
           lng: geo.lng,
