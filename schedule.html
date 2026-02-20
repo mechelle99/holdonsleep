@@ -314,14 +314,19 @@
      * ============================== */
 
     const uid =
+      localStorage.getItem("empId") ||
+      localStorage.getItem("employeeId") ||
       localStorage.getItem("lineUserId") ||
       localStorage.getItem("LineUserId") ||
       localStorage.getItem("userId") ||
-      localStorage.getItem("empId") ||
-      localStorage.getItem("employeeId") ||
       "";
 
     if(!uid) location.href="index.html";
+
+    // ✅ 新增：在載入時就根據 localStorage 顯示主管按鈕 (保持 UI 一致不閃爍)
+    if (localStorage.getItem("isManager") === "true") {
+      document.getElementById("mgrBtn").style.display = "flex";
+    }
 
     function toast(msg){
       const el = document.getElementById("toast");
@@ -352,7 +357,7 @@
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
         const s = document.createElement("script");
 
-        const payloadObj = Object.assign({}, data, { userId: uid });
+        const payloadObj = Object.assign({}, data, { userId: uid, empId: uid });
 
         if(window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
           payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
@@ -509,6 +514,7 @@
           lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中（每月${lockDay}號截止）`;
         }
 
+        // 確認一次 API 回傳的權限
         document.getElementById("mgrBtn").style.display = isManager ? "flex" : "none";
 
         const days = new Date(y, m, 0).getDate();
