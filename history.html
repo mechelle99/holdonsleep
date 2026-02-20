@@ -330,7 +330,7 @@
     <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
     <a href="history.html" class="nav-item active"><span class="nav-icon">📋</span>紀錄</a>
     <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span>排班</a>
-    <a href="manager.html" class="nav-item"><span class="nav-icon">👑</span>主管</a>
+    <a href="manager.html" class="nav-item" id="mgrBtn" style="display:none;"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
   <script src="config.js"></script>
@@ -343,6 +343,13 @@
       location.href="index.html";
     }
     document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
+
+    // ✅ 新增：根據 localStorage 判斷是否顯示主管按鈕
+    if (localStorage.getItem("isManager") === "true") {
+      document.getElementById("mgrBtn").style.display = "flex";
+    } else {
+      document.getElementById("mgrBtn").style.display = "none";
+    }
 
     // ====== 時區固定（避免飄時） ======
     const TZ = "Asia/Taipei";
@@ -375,7 +382,7 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    // ====== JSONP API（你原本那套，補更完整 cleanup） ======
+    // ====== JSONP API ======
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
         const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
@@ -456,7 +463,7 @@
       return isNaN(d.getTime()) ? null : d;
     }
 
-    // ✅ format：固定 Asia/Taipei（你之前飄到下午，通常就是 UTC 解析 + 本地顯示混亂）
+    // ✅ format：固定 Asia/Taipei
     function formatDT(v){
       const d = parseToDate(v);
       if(!d) return String(v||'—');
@@ -490,7 +497,7 @@
       if(low==='ot') return '加班';
       if(low==='correction') return '補卡';
 
-      // ✅ 讓後端回 IN/OUT 也不亂顯示：一律當作狀態文字，不當作類別
+      // 讓後端回 IN/OUT 也不亂顯示：一律當作狀態文字，不當作類別
       if(low==='in') return '上班中';
       if(low==='out') return '已下班';
 
@@ -511,7 +518,7 @@
       return { cls:'warn', label:t0 };
     }
 
-    // ✅ 前端最終裁決：避免「只有 IN 沒 OUT」被顯示成加班（或別的怪狀態）
+    // ✅ 前端最終裁決
     function deriveAttTag(row){
       const inStr = String(row.in||'').trim();
       const outStr = String(row.out||'').trim();
@@ -524,7 +531,7 @@
       // 2) 沒上班、有下班 → 缺卡（缺上班）
       if(!hasIn && hasOut) return '缺卡（缺上班）';
 
-      // 3) 其它照後端 tag（但仍 normalize）
+      // 3) 其它照後端 tag
       return normalizeDailyTag(row.tag);
     }
 
@@ -568,7 +575,6 @@
         const finalTag = deriveAttTag(r);
         const b = attStatusBadge(finalTag);
 
-        // ✅ 顯示打卡（in/out 時刻）但「狀態」完全不依賴 IN/OUT
         const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
         return `
           <div class="item ${b.cls}">
