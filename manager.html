@@ -98,32 +98,34 @@
 
   function pad2(n){ return String(n).padStart(2,'0'); }
 
-  // 🏆 終極防禦：強制套用 config.js 的 8 小時補償
+  // ✅ Taipei-safe formatter: 不再做 TIME_SHIFT_HOURS，不用 UTC 組字
   function formatDT(v){
-    if(!v) return '—';
+    if(v === null || v === undefined) return '—';
     const str = String(v).trim();
     if(!str || str === '--:--') return str;
 
     if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) {
-       return str.replace(/\//g, '-').substring(0, 16);
+      return str.replace(/\//g,'-').substring(0,16);
     }
 
-    let d;
-    if (/^\d{10,13}$/.test(str)) d = new Date(Number(str));
-    else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) d = new Date(str + "+08:00");
-    else d = new Date(str);
-
-    if (isNaN(d.getTime())) return str;
-
-    let shift = 0;
-    if (window.CONFIG && typeof window.CONFIG.TIME_SHIFT_HOURS === 'number') {
-        shift = window.CONFIG.TIME_SHIFT_HOURS;
+    let d = null;
+    if (/^\d{10,13}$/.test(str)) {
+      d = new Date(Number(str));
+    } else {
+      d = new Date(str);
     }
 
-    const targetMs = d.getTime() + (shift * 60 * 60 * 1000);
-    const tDate = new Date(targetMs);
-    
-    return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
+    if (!d || isNaN(d.getTime())) return str;
+
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+      hour12: false
+    }).formatToParts(d);
+
+    const get = (t)=> parts.find(p=>p.type===t)?.value || '';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
   }
 
   function typeLabel_(r){
@@ -162,9 +164,10 @@
       const typeName = typeLabel_(r);
       const displayName = (r.empName || r.name || "").trim() || (r.empId || r.id || "未知員工");
 
-      const startShow = formatDT(r.startIso || r.startStr || r.start);
-      const endShow   = formatDT(r.endIso || r.endStr || r.end);
-      const submitShow = formatDT(r.createdAtIso || r.createdAtStr || r.createdAt);
+      // ✅ 核心修正：優先吃 xxxStr
+      const startShow  = formatDT(r.startStr || r.start || r.startIso);
+      const endShow    = formatDT(r.endStr   || r.end   || r.endIso);
+      const submitShow = formatDT(r.createdAtStr || r.createdAt || r.createdAtIso);
 
       const cat = String(r.category || '').toUpperCase();
       const reqId = String(r.reqId || r.id || ''), safeId = encodeURIComponent(reqId);
@@ -207,7 +210,6 @@
       document.getElementById("pendingList").innerHTML = '<div style="text-align:center;color:#999;padding:20px;">檢查中...</div>';
     }
     try {
-      // 🚀 將 noCache 參數傳給後端，強制突破快取！
       const res = await api("get_manager_init", { noCache: forceRefresh });
       if(res && res.ok) { renderStats(res.stats || []); renderPending(res.pending || []); }
       else if (!silent) { document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`; document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`; }
