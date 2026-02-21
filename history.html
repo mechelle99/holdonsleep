@@ -5,12 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
   <title>出勤紀錄</title>
   <style>
-    :root{
-      --primary:#4F46E5; --bg:#F3F4F6; --card:#FFFFFF; --text:#111827;
-      --muted:#6B7280; --ok:#10B981; --warn:#F59E0B; --danger:#EF4444;
-      --shadow: 0 10px 26px rgba(17,24,39,.10); --shadow2: 0 6px 16px rgba(17,24,39,.06);
-      --radius: 18px;
-    }
+    :root{ --primary:#4F46E5; --bg:#F3F4F6; --card:#FFFFFF; --text:#111827; --muted:#6B7280; --ok:#10B981; --warn:#F59E0B; --danger:#EF4444; --shadow: 0 10px 26px rgba(17,24,39,.10); --shadow2: 0 6px 16px rgba(17,24,39,.06); --radius: 18px; }
     *{box-sizing:border-box}
     body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif; background:var(--bg); color:var(--text); padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px; }
     .toast{ position: fixed; left: 16px; right: 16px; top: calc(16px + env(safe-area-inset-top)); background: #111827; color:#fff; padding: 12px 14px; border-radius: 14px; box-shadow: var(--shadow2); display:none; z-index: 9999; font-size: 13px; line-height: 1.4; }
@@ -160,18 +155,15 @@
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    // 🏆 終極防禦：絕對不加減時區，後端字串直接印，若為舊版 ISO 強制轉台北
     function formatDT(v){
       if(!v) return '—';
       const str = String(v).trim();
       if(!str || str === '--:--') return str;
 
-      // 1. 後端的乾淨字串 (e.g., "2026/02/19 10:00:00" 或 "2026-02-19 10:00") -> 直接顯示！
       if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) {
          return str.replace(/\//g, '-').substring(0, 16);
       }
 
-      // 2. 如果是舊資料的 ISO 或 Timestamp
       let d;
       if (/^\d{10,13}$/.test(str)) d = new Date(Number(str));
       else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) d = new Date(str + "+08:00");
@@ -179,22 +171,20 @@
 
       if (isNaN(d.getTime())) return str;
 
-      // 強制用台北時間輸出
-      try {
-         const fmt = new Intl.DateTimeFormat('zh-TW', {
-            timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-         });
-         return fmt.format(d).replace(/\//g, '-');
-      } catch(e) {
-         return str.substring(0, 16);
+      let shift = 0;
+      if (window.CONFIG && typeof window.CONFIG.TIME_SHIFT_HOURS === 'number') {
+         shift = window.CONFIG.TIME_SHIFT_HOURS;
       }
+      const targetMs = d.getTime() + (shift * 60 * 60 * 1000);
+      const tDate = new Date(targetMs);
+      
+      return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
     }
 
     function parseToDate(v){
       if(!v) return null;
       if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
       const s0 = String(v).trim();
-      
       let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
       if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
       const d = new Date(s0);
@@ -265,11 +255,13 @@
       if(list.length===0){ el.innerHTML = `<div class="empty">本範圍沒有出勤資料</div>`; return; }
 
       el.innerHTML = list.map(r=>{
-        const b = attStatusBadge(deriveAttTag(r));
+        const finalTag = deriveAttTag(r);
+        const b = attStatusBadge(finalTag);
+        const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
         return `
           <div class="item ${b.cls}">
             <div class="top">
-              <div><p class="title">${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}</p></div>
+              <div><p class="title">${title}</p></div>
               <span class="badge ${b.cls}">${b.label}</span>
             </div>
           </div>
@@ -351,7 +343,8 @@
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        const dashRes = await api("get_dashboard", { year:y, month:m });
+        // 🚀 將 forceFetch 傳給後端，強制突破快取！
+        const dashRes = await api("get_dashboard", { year:y, month:m, noCache: forceFetch });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : (dashRes && dashRes.ok && Array.isArray(dashRes.data) ? dashRes.data : []);
 
         let attList = daily.map(d => {
@@ -368,8 +361,8 @@
 
         if(forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m){
           let reqRes;
-          try{ reqRes = await api("list_requests", { isManagerView:false, year:y, month:m }); }
-          catch(e){ reqRes = await api("list_requests", { isManagerView:false }); }
+          try{ reqRes = await api("list_requests", { isManagerView:false, year:y, month:m, noCache: forceFetch }); }
+          catch(e){ reqRes = await api("list_requests", { isManagerView:false, noCache: forceFetch }); }
           __cacheReqAll = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : (reqRes && reqRes.ok && Array.isArray(reqRes.data) ? reqRes.data : []);
           __cacheReqYM = { y, m };
         }
