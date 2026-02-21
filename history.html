@@ -344,14 +344,13 @@
     }
     document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
 
-    // ✅ 新增：根據 localStorage 判斷是否顯示主管按鈕
     if (localStorage.getItem("isManager") === "true") {
       document.getElementById("mgrBtn").style.display = "flex";
     } else {
       document.getElementById("mgrBtn").style.display = "none";
     }
 
-    // ====== 時區固定（避免飄時） ======
+    // ====== 時區固定 ======
     const TZ = "Asia/Taipei";
 
     function toast(msg){
@@ -421,49 +420,46 @@
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    // ✅ parse：若 ISO 沒時區，補 +08:00，避免被當 UTC
+    // ✅ 徹底修復：修正 UTC 與 Local Time 的判定，斷絕 8 小時落差
     function parseToDate(v){
       if(!v) return null;
       if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
       const s0 = String(v).trim();
       if(!s0) return null;
 
-      // epoch 秒/毫秒
       if(/^\d{10,13}$/.test(s0)){
         const n = Number(s0);
         const d = new Date(s0.length===10 ? n*1000 : n);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // ISO 有 Z 或 +xx:xx
+      // 如果結尾已經有 Z 或 +08:00 等時區標記，絕對不能再加字串，直接解析！
       if(/[zZ]$/.test(s0) || /[+\-]\d{2}:\d{2}$/.test(s0)){
         const d = new Date(s0);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // ISO 沒時區
+      // 若是 ISO 但沒有時區，才補上台灣時區
       if(/^\d{4}-\d{2}-\d{2}T/.test(s0)){
         const d = new Date(s0 + "+08:00");
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // 2026-02-18 10:20(:30)
-      let m = s0.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      // 相容 2026-02-18 或 2026/02/18
+      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      // 2026/02/18 10:20(:30)
-      m = s0.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
       if(m){
-        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
+        return new Date(+m[1], +m[2]-1, +m[3], 0,0,0,0);
       }
 
       const d = new Date(s0);
       return isNaN(d.getTime()) ? null : d;
     }
 
-    // ✅ format：固定 Asia/Taipei
     function formatDT(v){
       const d = parseToDate(v);
       if(!d) return String(v||'—');
@@ -497,7 +493,6 @@
       if(low==='ot') return '加班';
       if(low==='correction') return '補卡';
 
-      // 讓後端回 IN/OUT 也不亂顯示：一律當作狀態文字，不當作類別
       if(low==='in') return '上班中';
       if(low==='out') return '已下班';
 
@@ -518,20 +513,14 @@
       return { cls:'warn', label:t0 };
     }
 
-    // ✅ 前端最終裁決
     function deriveAttTag(row){
       const inStr = String(row.in||'').trim();
       const outStr = String(row.out||'').trim();
       const hasIn = !!inStr && inStr !== '--:--';
       const hasOut = !!outStr && outStr !== '--:--';
 
-      // 1) 有上班、沒下班 → 一律上班中
       if(hasIn && !hasOut) return '上班中';
-
-      // 2) 沒上班、有下班 → 缺卡（缺上班）
       if(!hasIn && hasOut) return '缺卡（缺上班）';
-
-      // 3) 其它照後端 tag
       return normalizeDailyTag(row.tag);
     }
 
@@ -604,24 +593,18 @@
         const statusNorm = normalizeReqStatus(r.status);
         const sc = reqStatusBadge(statusNorm);
 
-        const startVal = r.start ?? r.start_full ?? r.startAt ?? r.from ?? "";
-        const endVal   = r.end   ?? r.end_full   ?? r.endAt   ?? r.to   ?? "";
-
-        const s = formatDT(startVal);
-        const e = formatDT(endVal);
+        // ✅ 核心修正：優先使用後端格式化好的字串，絕對不會再飄移 8 小時
+        const s = r.startStr ? String(r.startStr).replace(/\//g,'-') : formatDT(r.start ?? r.start_full ?? r.startAt ?? r.from);
+        const e = r.endStr ? String(r.endStr).replace(/\//g,'-') : formatDT(r.end ?? r.end_full ?? r.endAt ?? r.to);
 
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
 
-        const createdRaw =
-          r.createdAt ?? r.created_at ?? r.created ?? r.submittedAt ?? r.submitted_at ??
-          r.submitAt ?? r.submit_at ?? r.submitTime ?? r.sentAt ?? r.sent_at ??
-          r.ts ?? r.timestamp ?? r.createdTime ?? r.created_time ?? "";
-
-        const created = createdRaw ? formatDT(createdRaw) : "—";
+        const createdRaw = r.createdAtStr ?? r.createdAt ?? r.created ?? r.submittedAt ?? r.ts ?? "";
+        const created = r.createdAtStr ? String(r.createdAtStr).replace(/\//g,'-') : (createdRaw ? formatDT(createdRaw) : "—");
 
         let timeLine = `日期：${s}`;
-        if(endVal && String(endVal).trim() && String(endVal).trim() !== String(startVal).trim()){
+        if(e && String(e).trim() && String(e).trim() !== String(s).trim() && String(e).trim() !== '—'){
           timeLine = `開始：${s}<br>結束：${e}`;
         }
 
@@ -708,22 +691,16 @@
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        // --- 1) 打卡 ---
         const dashRes = await api("get_dashboard", { year:y, month:m });
 
-        // 兼容：dailyData / data
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData))
           ? dashRes.dailyData
           : (dashRes && dashRes.ok && Array.isArray(dashRes.data) ? dashRes.data : []);
 
         let attList = daily.map(d => {
           const dateKey = buildDateKeyFromDaily(d, y, m);
-
-          // 兼容：in/out 或 inTime/outTime
           const inStr  = (d.in ?? d.inTime ?? d.clockIn  ?? d.tsIn)  ? String(d.in ?? d.inTime ?? d.clockIn ?? d.tsIn) : '--:--';
           const outStr = (d.out?? d.outTime?? d.clockOut ?? d.tsOut) ? String(d.out?? d.outTime?? d.clockOut?? d.tsOut): '--:--';
-
-          // ✅ 保留 raw tag，讓前端裁決
           const rawTag = (d.tag !== undefined && d.tag !== null) ? String(d.tag) : (d.status ?? d.state ?? '');
 
           return { dateKey, in: inStr, out: outStr, tag: rawTag };
@@ -732,10 +709,8 @@
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
         renderAtt(attList);
 
-        // --- 2) 申請單 ---
         const needFetch = forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m;
         if(needFetch){
-          // 兼容：有些後端需要 year/month，有些不用
           let reqRes;
           try{
             reqRes = await api("list_requests", { isManagerView:false, year:y, month:m });
