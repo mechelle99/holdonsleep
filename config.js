@@ -9,9 +9,9 @@ window.CONFIG.GAS_ENDPOINT =
 window.CONFIG.WEBHOOK_KEY = "HOLDON2026";
 
 // 避免快取
-window.CONFIG.APP_VERSION = "1.0.0";
+window.CONFIG.APP_VERSION = "1.0.1";
 
 // Debug
 window.CONFIG.DEBUG = false;
 
-window.CONFIG.TIME_SHIFT_HOURS = 0;
+window.CONFIG.TIME_SHIFT_HOURS = 8;
