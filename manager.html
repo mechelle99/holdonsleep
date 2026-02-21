@@ -114,6 +114,40 @@
     });
   }
 
+  function pad2(n){ return String(n).padStart(2,'0'); }
+
+  // 🏆 終極防禦：強制套用 config.js 的 8 小時補償！
+  function formatDT(v){
+    if(!v) return '—';
+    const str = String(v).trim();
+    if(!str) return '—';
+
+    if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2} \d{2}:\d{2}(:\d{2})?$/.test(str)) {
+        return str.replace(/\//g, '-').substring(0, 16);
+    }
+
+    let d;
+    if (/^\d{10,13}$/.test(str)) {
+        d = new Date(str.length === 10 ? Number(str)*1000 : Number(str));
+    } else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) {
+        d = new Date(str + "+08:00");
+    } else {
+        d = new Date(str);
+    }
+
+    if (isNaN(d.getTime())) return str;
+
+    let shift = 8;
+    if (window.CONFIG && typeof window.CONFIG.TIME_SHIFT_HOURS === 'number') {
+        shift = window.CONFIG.TIME_SHIFT_HOURS;
+    }
+
+    const targetMs = d.getTime() + (shift * 60 * 60 * 1000);
+    const tDate = new Date(targetMs);
+    
+    return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
+  }
+
   function typeLabel_(r){
     let typeName = r.leaveType || r.category || '';
     const t = String(typeName).toLowerCase();
@@ -135,7 +169,6 @@
     return typeName || '申請';
   }
 
-  // ✅ 渲染團隊餘額
   function renderStats(list) {
     const el = document.getElementById("teamStats");
     if (!list || list.length === 0) {
@@ -153,7 +186,6 @@
     el.innerHTML = h;
   }
 
-  // ✅ 渲染待審核清單 (移除前端時間轉換，直接印出後端的 Str)
   function renderPending(list) {
     const el = document.getElementById("pendingList");
     if (!list || list.length === 0) {
@@ -165,10 +197,10 @@
       const typeName = typeLabel_(r);
       const displayName = (r.empName || r.name || "").trim() || (r.empId || r.id || "未知員工");
 
-      // 🛑 核心修改：直接使用後端傳來的 Str，不經過任何 Date() 轉換！
-      const startShow = String(r.startStr || r.startIso || r.start || '—').replace(/\//g, '-');
-      const endShow   = String(r.endStr || r.endIso || r.end || '—').replace(/\//g, '-');
-      const submitShow = String(r.createdAtStr || r.submitStr || r.createdAt || '—').replace(/\//g, '-');
+      // 🏆 使用終極防禦 formatDT
+      const startShow = formatDT(r.startIso || r.startStr || r.start);
+      const endShow   = formatDT(r.endIso || r.endStr || r.end);
+      const submitShow = formatDT(r.createdAtIso || r.createdAtStr || r.createdAt);
 
       const cat = String(r.category || '').toUpperCase();
       const lt  = String(r.leaveType || '').toLowerCase();
@@ -218,7 +250,6 @@
     el.innerHTML = h;
   }
 
-  // ✅ 方案B 核心：只打一次 API 同時抓餘額與待審核，並支援靜默更新 (silent)
   async function loadManagerInit(silent = false) {
     if (!silent) {
       document.getElementById("teamStats").innerHTML = '<div style="text-align:center;color:#999;padding:20px;">更新中...</div>';
