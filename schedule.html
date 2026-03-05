@@ -153,7 +153,6 @@
       }[c]));
     }
 
-    // ✅ 升級版：使用現代 fetch API 發送 POST 請求
     async function api(action, data = {}) {
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
       if(!ENDPOINT) {
@@ -161,8 +160,8 @@
         throw new Error("Missing CONFIG.GAS_ENDPOINT");
       }
 
-      // 保留原本 schedule.html 專屬的欄位組裝邏輯
-      const payloadObj = Object.assign({}, data, { userId: uid, empId: uid });
+      // ✅ 修正 Bug 1：反轉合併順序，讓傳進來的 data.empId (被排班者) 可以優先保留，不會被強制覆蓋成主管自己的 uid
+      const payloadObj = Object.assign({ userId: uid, empId: uid }, data);
 
       if(window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
         payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
@@ -184,6 +183,7 @@
           },
           body: JSON.stringify(payloadBody),
           redirect: 'follow',
+          keepalive: true, // ✅ 確保切換頁面時，資料一樣能死命送到後端
           signal: controller.signal
         });
 
@@ -270,7 +270,6 @@
         lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中`;
       }
 
-      // 新增：顯示本月基準天數
       if (res.monthStats) {
         statsTag.style.display = "inline-flex";
         statsTag.innerHTML = `🎯 應出勤: ${res.monthStats.workDays}天 / 應休: ${res.monthStats.offDays}天`;
@@ -297,10 +296,9 @@
 
       let rows = "";
       employees.forEach(e=>{
-        const empId = e.empId || e.id || "";
-        const empName = e.empName || e.name || empId || "—";
+        const targetEmpId = e.empId || e.id || "";
+        const empName = e.empName || e.name || targetEmpId || "—";
         
-        // 新增：組合餘額顯示的 HTML (如果時數大於 0 才顯示)
         let balanceHtml = "";
         const ann = Number(e.annual) || 0;
         const cmp = Number(e.comp) || 0;
@@ -311,12 +309,11 @@
           balanceHtml = `<div style="font-size:10px; margin-top:4px; font-weight:normal;">${annTag}${cmpTag}</div>`;
         }
 
-        // 將名字與餘額一起包裝
         let tds = `<td><div style="font-weight:900;">${escapeHtml(empName)}</div>${balanceHtml}</td>`;
 
         for(let d=1; d<=days; d++){
           const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
-          const cell = getCell(roster, empId, d, dateStr);
+          const cell = getCell(roster, targetEmpId, d, dateStr);
           const leaveText = getLeaveText(cell);
           
           if(leaveText){
@@ -331,7 +328,7 @@
             tds += `
               <td>
                 <select class="shift-sel ${shiftInfo.cls}" data-prev="${escapeHtml(shiftInfo.value||'')}" 
-                        onchange="upd('${String(empId).replace(/'/g,"\\'")}','${y}','${m}','${d}','${dateStr}',this)">
+                        onchange="upd('${String(targetEmpId).replace(/'/g,"\\'")}','${y}','${m}','${d}','${dateStr}',this)">
                   <option value="" ${shiftInfo.value===''?'selected':''}>-</option>
                   <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
                   <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
@@ -380,7 +377,7 @@
       }
     }
 
-  function upd(targetEmpId, y, m, d, dateStr, el){
+    function upd(targetEmpId, y, m, d, dateStr, el){
       const prev = el.getAttribute("data-prev") || "";
       const next = String(el.value||"").trim();
 
@@ -388,9 +385,11 @@
       const info = classifyShift(next);
       el.classList.add(info.cls);
 
+      // ✅ 修正 Bug 2：立刻殺掉暫存！就算你選完立刻切換到別的頁面，下次回來也會強迫去後端抓最新資料
+      sessionStorage.removeItem(`roster_${y}_${m}`); 
+
       api("update_schedule", { 
-        // ✅ 核心修復：把 empId 改成 targetEmpId，避免被 api() 函式強制覆蓋成主管自己的 ID
-        targetEmpId: targetEmpId, 
+        empId: targetEmpId, // 現在這裡不會再被覆蓋掉了！
         year: Number(y), 
         month: Number(m), 
         day: Number(d), 
@@ -407,7 +406,6 @@
         }else{
           toast("✅ 已更新");
           el.setAttribute("data-prev", next);
-          sessionStorage.removeItem(`roster_${y}_${m}`); 
         }
       })
       .catch(()=>{
