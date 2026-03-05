@@ -55,6 +55,11 @@
 
   <div class="filters">
     <input type="month" id="monthPick"/>
+    
+    <select id="empFilter" style="display:none;" onchange="reload(true)">
+      <option value="">(我自己)</option>
+    </select>
+
     <select id="reqStatusFilter" title="申請單狀態">
       <option value="ALL">全部狀態</option>
       <option value="PENDING">待審</option>
@@ -103,12 +108,29 @@
   <script>
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
     const empName = (localStorage.getItem("empName") || "").trim();
+    const isManager = localStorage.getItem("isManager") === "true";
 
     if(!empId){ location.href="index.html"; }
-    document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
 
-    if (localStorage.getItem("isManager") === "true") {
+    // ✅ 主管介面初始化：顯示選單並去後端撈取員工名單
+    if (isManager) {
       document.getElementById("mgrBtn").style.display = "flex";
+      document.getElementById("empFilter").style.display = "inline-block";
+      loadTeamDropdown();
+    }
+
+    async function loadTeamDropdown() {
+      try {
+        const res = await api("get_team_stats", {});
+        if (res && res.ok && res.list) {
+          const sel = document.getElementById("empFilter");
+          res.list.forEach(u => {
+            if (String(u.empId).toLowerCase() !== empId.toLowerCase()) {
+              sel.add(new Option(u.name || u.empId, u.empId));
+            }
+          });
+        }
+      } catch(e) {}
     }
 
     function toast(msg){
@@ -131,7 +153,6 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    // ✅ 升級版：使用現代 fetch API 發送 POST 請求
     async function api(action, data={}) {
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
       if(!ENDPOINT){
@@ -139,17 +160,13 @@
         throw new Error("Missing CONFIG");
       }
 
-      // 自動加上 empId 與 webhookKey，確保資料能被後端認可
       const currentEmpId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
       const payloadObj = Object.assign({}, data, {
         empId: currentEmpId,
         webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
       });
 
-      const payloadBody = {
-        action: action,
-        payload: payloadObj
-      };
+      const payloadBody = { action: action, payload: payloadObj };
 
       try {
         const controller = new AbortController();
@@ -157,9 +174,7 @@
 
         const response = await fetch(ENDPOINT, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8', 
-          },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payloadBody),
           redirect: 'follow',
           signal: controller.signal
@@ -167,53 +182,34 @@
 
         clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
-        }
-
-        const result = await response.json();
-        return result;
+        if (!response.ok) { throw new Error(`HTTP 錯誤狀態碼: ${response.status}`); }
+        return await response.json();
 
       } catch (error) {
-        console.error("API 呼叫失敗:", error);
-        if (error.name === 'AbortError') {
-           throw new Error("網路連線逾時，請稍後再試");
-        }
+        if (error.name === 'AbortError') { throw new Error("網路連線逾時，請稍後再試"); }
         throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
       }
     }
 
-    function pad2(n){ return String(n).padStart(2,'0'); }
-
-    // ✅ Taipei-safe formatter: 不再做 TIME_SHIFT_HOURS，不用 UTC 組字
     function formatDT(v){
       if(v === null || v === undefined) return '—';
       const str = String(v).trim();
       if(!str || str === '--:--') return str;
 
-      // 已經是 "YYYY-MM-DD HH:mm" / "YYYY/MM/DD HH:mm" 這種，直接顯示
       if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) {
         return str.replace(/\//g,'-').substring(0,16);
       }
 
       let d = null;
-
-      // 13/10 位時間戳
-      if (/^\d{10,13}$/.test(str)) {
-        d = new Date(Number(str));
-      } else {
-        // 任何 ISO（不管有沒有 Z 或 +08:00）都交給 Date 解析
-        d = new Date(str);
-      }
+      if (/^\d{10,13}$/.test(str)) d = new Date(Number(str));
+      else d = new Date(str);
 
       if (!d || isNaN(d.getTime())) return str;
 
-      // 強制用 Asia/Taipei 取出年月日時分
       const parts = new Intl.DateTimeFormat('sv-SE', {
         timeZone: 'Asia/Taipei',
         year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit',
-        hour12: false
+        hour: '2-digit', minute: '2-digit', hour12: false
       }).formatToParts(d);
 
       const get = (t)=> parts.find(p=>p.type===t)?.value || '';
@@ -316,15 +312,10 @@
 
       el.innerHTML = list.map(r=>{
         const sc = reqStatusBadge(normalizeReqStatus(r.status));
-        
-        // ✅ 核心修正：優先吃 xxxStr，避免 ISO 被二次轉換
         const s = formatDT(r.startStr || r.start || r.startIso);
         const e = formatDT(r.endStr   || r.end   || r.endIso);
-        
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-        
-        // ✅ 核心修正：優先吃 xxxStr
         const created = formatDT(r.createdAtStr || r.createdAt || r.createdAtIso || r.created || r.ts);
 
         let timeLine = `日期：${s}`;
@@ -360,7 +351,7 @@
       return `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
     }
 
-    let __cacheReqAll = null, __cacheReqYM = { y:null, m:null };
+    let __cacheReqAll = null, __cacheReqYM = { y:null, m:null, target:null };
 
     function applyReqFilters(allReq, y, m){
       const monthReq = allReq.filter(r => overlapsMonth(r.start ?? r.start_full ?? r.startAt ?? r.from, r.end ?? r.end_full ?? r.endAt ?? r.to, y, m));
@@ -384,11 +375,21 @@
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
       updateStatusTag();
 
+      // ✅ 更新上方「當前查看誰」的名字
+      const sel = document.getElementById("empFilter");
+      const targetEmpId = sel ? sel.value : "";
+      if (targetEmpId && sel.selectedIndex > 0) {
+        document.getElementById("who").textContent = `員工：${sel.options[sel.selectedIndex].text}`;
+      } else {
+        document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
+      }
+
       document.getElementById("reqList").innerHTML = `<div class="empty">載入中…</div>`;
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        const dashRes = await api("get_dashboard", { year:y, month:m, noCache: forceFetch });
+        // 🚀 把主管指定的 targetEmpId 丟給後端
+        const dashRes = await api("get_dashboard", { year:y, month:m, noCache: forceFetch, targetEmpId: targetEmpId });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : (dashRes && dashRes.ok && Array.isArray(dashRes.data) ? dashRes.data : []);
 
         let attList = daily.map(d => {
@@ -403,12 +404,22 @@
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
         renderAtt(attList);
 
-        if(forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m){
+        if(forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m || __cacheReqYM.target !== targetEmpId){
           let reqRes;
-          try{ reqRes = await api("list_requests", { isManagerView:false, year:y, month:m, noCache: forceFetch }); }
-          catch(e){ reqRes = await api("list_requests", { isManagerView:false, noCache: forceFetch }); }
+          try{ 
+            if (targetEmpId && isManager) {
+              // 抓全部再過濾
+              reqRes = await api("list_requests", { isManagerView:true, year:y, month:m, noCache: forceFetch });
+              if (reqRes && reqRes.ok && reqRes.list) {
+                reqRes.list = reqRes.list.filter(r => String(r.empId).toLowerCase() === targetEmpId.toLowerCase());
+              }
+            } else {
+              // 只抓自己的
+              reqRes = await api("list_requests", { isManagerView:false, year:y, month:m, noCache: forceFetch }); 
+            }
+          } catch(e){}
           __cacheReqAll = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : (reqRes && reqRes.ok && Array.isArray(reqRes.data) ? reqRes.data : []);
-          __cacheReqYM = { y, m };
+          __cacheReqYM = { y, m, target: targetEmpId };
         }
 
         renderReq(applyReqFilters(__cacheReqAll || [], y, m));
