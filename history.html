@@ -236,10 +236,13 @@
         return isNaN(ms) ? NaN : ms;
       }
 
-      // ISO 但沒有時區 (2026-03-05T10:00:00) -> 當成台北時間
+      /
+      // ISO 但沒有時區 (2026-03-05T02:00:00) -> ✅當成 UTC
       let m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
       if (m) {
-        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6]||0));
+        const y = +m[1], mo = +m[2], d = +m[3];
+        const hh = +m[4], mi = +m[5], ss = +(m[6]||0);
+        return Date.UTC(y, mo-1, d, hh, mi, ss, 0); // ✅UTC
       }
 
       // 台北字串：YYYY/MM/DD HH:mm:ss 或 YYYY-MM-DD HH:mm:ss
