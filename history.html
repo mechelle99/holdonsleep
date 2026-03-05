@@ -3,51 +3,54 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
-  <title>出勤紀錄</title>
+  <title>出勤紀錄與統計</title>
   <style>
     :root{ --primary:#4F46E5; --bg:#F3F4F6; --card:#FFFFFF; --text:#111827; --muted:#6B7280; --ok:#10B981; --warn:#F59E0B; --danger:#EF4444; --shadow: 0 10px 26px rgba(17,24,39,.10); --shadow2: 0 6px 16px rgba(17,24,39,.06); --radius: 18px; }
     *{box-sizing:border-box}
     body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif; background:var(--bg); color:var(--text); padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px; }
-    .toast{ position: fixed; left: 16px; right: 16px; top: calc(16px + env(safe-area-inset-top)); background: #111827; color:#fff; padding: 12px 14px; border-radius: 14px; box-shadow: var(--shadow2); display:none; z-index: 9999; font-size: 13px; line-height: 1.4; }
+    .toast{ position: fixed; left: 16px; right: 16px; top: calc(16px + env(safe-area-inset-top)); background: #111827; color:#fff; padding: 12px 14px; border-radius: 14px; box-shadow: var(--shadow2); display:none; z-index: 9999; font-size: 13px; line-height: 1.4; text-align:center;}
+    
     .hero{ background: linear-gradient(135deg, #4F46E5, #7C3AED); border-radius: 26px; padding: 18px; box-shadow: var(--shadow); color:#fff; margin-bottom: 14px; }
     .hero h2{ margin:0; font-size: 22px; font-weight: 900; letter-spacing: .2px; }
-    .hero .sub{ margin-top: 6px; font-size: 13px; opacity: .88; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    .pill{ background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.22); padding: 6px 10px; border-radius: 999px; font-weight: 700; }
+    .hero .sub{ margin-top: 8px; font-size: 13px; opacity: .95; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .pill{ background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3); padding: 6px 12px; border-radius: 999px; font-weight: 700; }
     
     .filters{ display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0 14px 0; align-items:center; }
-    .filters input, .filters select{ border:none; background:#fff; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow2); font-size: 13px; outline:none; font-weight: 600; color: #374151;}
-    .filters button{ border:none; background: var(--primary); color:#fff; border-radius: 14px; padding: 10px 14px; font-weight: 900; cursor:pointer; box-shadow: var(--shadow2); }
-    .filters button:active{ transform: scale(.99); }
+    .filters input, .filters select{ border:none; background:#fff; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow2); font-size: 13px; outline:none; font-weight: 700; color: #374151;}
+    .filters button{ border:none; background: var(--primary); color:#fff; border-radius: 14px; padding: 10px 16px; font-weight: 900; cursor:pointer; box-shadow: var(--shadow2); transition: 0.1s;}
+    .filters button:active{ transform: scale(.95); }
     
     .seg{ background:#fff; border-radius: 20px; box-shadow: var(--shadow2); padding: 8px; display:flex; gap:8px; align-items:center; margin-bottom: 14px; position: sticky; top: calc(10px + env(safe-area-inset-top)); z-index: 50; }
-    .seg-btn{ flex:1; border:none; background: transparent; border-radius: 16px; padding: 12px 12px; font-weight: 1000; font-size: 16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px; color:#6B7280; transition: 0.2s;}
-    .seg-btn .count{ background:#EEF2FF; color: var(--primary); padding: 4px 10px; border-radius: 999px; font-size: 14px; font-weight: 1000; min-width: 44px; text-align:center; }
-    .seg-btn.active{ color: var(--primary); background: rgba(79,70,229,.10); border: 2px solid rgba(79,70,229,.55); }
+    .seg-btn{ flex:1; border:none; background: transparent; border-radius: 14px; padding: 10px; font-weight: 900; font-size: 15px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:8px; color:#9CA3AF; transition: 0.2s;}
+    .seg-btn .count{ background:#F3F4F6; color: #6B7280; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 900; min-width: 32px; text-align:center; transition: 0.2s;}
+    .seg-btn.active{ color: var(--primary); background: rgba(79,70,229,.10); }
+    .seg-btn.active .count{ background:var(--primary); color: #fff;}
     
-    .grid{ display:block; } .panel{ display:none; } .panel.active{ display:block; }
-    @media (min-width: 900px){ .seg{ display:none; } .grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items:start; } .panel{ display:block; } }
+    /* 強制面板分離，不使用 Grid 同時顯示 */
+    .panel{ display:none; animation: fadeIn 0.3s ease;} .panel.active{ display:block; }
+    @keyframes fadeIn { from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:translateY(0);} }
     
-    /* 📊 新增：統計儀表板樣式 */
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
-    .stat-box { background: var(--card); padding: 14px 6px; border-radius: 16px; text-align: center; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.03); }
-    .stat-box .num { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
+    /* 📊 統計儀表板樣式 */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    .stat-box { background: var(--card); padding: 16px 4px; border-radius: 18px; text-align: center; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.04); }
+    .stat-box .num { font-size: 22px; font-weight: 900; margin-bottom: 4px; }
     .stat-box .label { font-size: 11px; color: var(--muted); font-weight: 800; letter-spacing: -0.2px;}
     .text-danger { color: var(--danger); } .text-warn { color: var(--warn); } .text-ok { color: var(--ok); } .text-primary { color: var(--primary); }
 
-    .section-title{ display:flex; justify-content:space-between; align-items:center; margin: 10px 0 10px 0; }
+    .section-title{ display:flex; justify-content:space-between; align-items:center; margin: 0 0 12px 0; }
     .section-title h3{ margin:0; font-size: 16px; font-weight: 900; color: #111827; }
-    .section-title .small{ font-size: 12px; color: var(--muted); font-weight: 800; }
+    .section-title .small{ font-size: 12px; color: var(--muted); font-weight: 800; background: #E5E7EB; padding: 4px 10px; border-radius: 999px;}
     
     .list{ display:flex; flex-direction:column; gap:12px; }
-    .item{ background: var(--card); border-radius: var(--radius); padding: 14px 14px; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.05); position: relative; overflow:hidden; }
+    .item{ background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.04); position: relative; overflow:hidden; }
     .item:before{ content:""; position:absolute; left:0; top:0; bottom:0; width: 5px; background: #E5E7EB; }
     .item.ok:before{ background: var(--ok); } .item.warn:before{ background: var(--warn); } .item.danger:before{ background: var(--danger); }
-    .top{ display:flex; justify-content:space-between; gap: 10px; margin-bottom: 6px; align-items:flex-start; }
-    .title{ font-weight: 1000; font-size: 18px; margin:0; line-height: 1.25; letter-spacing: .2px; }
-    .badge{ font-size: 12px; font-weight: 1000; padding: 6px 12px; border-radius: 999px; background: #EEF2FF; color: var(--primary); white-space:nowrap; height: fit-content; }
-    .badge.ok{ background: rgba(16,185,129,.14); color:#065F46; } .badge.warn{ background: rgba(245,158,11,.16); color:#92400E; } .badge.danger{ background: rgba(239,68,68,.16); color:#991B1B; }
-    .meta{ font-size: 13px; color: var(--muted); line-height: 1.6; font-weight: 800; word-break: break-word; }
-    .empty{ text-align:center; padding: 22px; color: #9CA3AF; font-weight: 900; background: rgba(255,255,255,.65); border: 1px dashed rgba(17,24,39,.12); border-radius: 16px; }
+    .top{ display:flex; justify-content:space-between; gap: 10px; margin-bottom: 8px; align-items:flex-start; }
+    .title{ font-weight: 900; font-size: 17px; margin:0; line-height: 1.3; }
+    .badge{ font-size: 12px; font-weight: 900; padding: 6px 10px; border-radius: 8px; background: #F3F4F6; color: #4B5563; white-space:nowrap; }
+    .badge.ok{ background: rgba(16,185,129,.15); color:#065F46; } .badge.warn{ background: rgba(245,158,11,.15); color:#92400E; } .badge.danger{ background: rgba(239,68,68,.15); color:#991B1B; }
+    .meta{ font-size: 13px; color: var(--muted); line-height: 1.6; font-weight: 700; word-break: break-word; }
+    .empty{ text-align:center; padding: 30px 20px; color: #9CA3AF; font-weight: 900; background: rgba(255,255,255,.6); border: 2px dashed rgba(17,24,39,.08); border-radius: 18px; font-size: 14px;}
     
     .nav{ position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 18px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-top-left-radius: 26px; border-top-right-radius: 26px; box-shadow: 0 -10px 30px rgba(17,24,39,.08); display:flex; justify-content: space-around; z-index: 1000; }
     .nav-item{ text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; gap: 4px; font-size: 10px; font-weight: 900; }
@@ -66,14 +69,14 @@
   </section>
 
   <div class="filters">
-    <input type="month" id="monthPick"/>
-    <select id="empFilter" style="display:none;" onchange="reloadAll(true)">
+    <input type="month" id="monthPick" onchange="onFilterChange()"/>
+    <select id="empFilter" style="display:none;" onchange="onFilterChange()">
       <option value="">(我自己)</option>
     </select>
-    <button type="button" onclick="reloadAll(true)">更新整月資料</button>
+    <button type="button" onclick="onRefreshClick()">↻ 更新資料</button>
   </div>
 
-  <div class="seg" role="tablist" aria-label="history tabs">
+  <div class="seg" role="tablist">
     <button class="seg-btn active" id="tabAtt" onclick="showPanel('att')">
       打卡紀錄 <span class="count" id="attCountTop">0</span>
     </button>
@@ -82,39 +85,37 @@
     </button>
   </div>
 
-  <div class="grid">
-    <section class="panel active" id="panelAtt">
-      <div class="stats-grid" id="statsGrid" style="display:none;">
-        <div class="stat-box"><div class="num text-danger" id="stMiss">0</div><div class="label">異常/缺卡</div></div>
-        <div class="stat-box"><div class="num text-warn" id="stLate">0</div><div class="label">遲到/早退</div></div>
-        <div class="stat-box"><div class="num text-primary" id="stLeave">0</div><div class="label">請假/外出</div></div>
-        <div class="stat-box"><div class="num text-ok" id="stNormal">0</div><div class="label">正常/排休</div></div>
-      </div>
+  <section class="panel active" id="panelAtt">
+    <div class="stats-grid" id="statsGrid" style="display:none;">
+      <div class="stat-box"><div class="num text-danger" id="stMiss">0</div><div class="label">異常/缺卡</div></div>
+      <div class="stat-box"><div class="num text-warn" id="stLate">0</div><div class="label">遲到/早退</div></div>
+      <div class="stat-box"><div class="num text-primary" id="stLeave">0</div><div class="label">請假/外出</div></div>
+      <div class="stat-box"><div class="num text-ok" id="stNormal">0</div><div class="label">正常出勤</div></div>
+    </div>
 
-      <div class="section-title">
-        <h3>每日打卡明細</h3>
-        <div class="small" id="attCount">0 筆</div>
-      </div>
-      <div class="list" id="attList"></div>
-    </section>
+    <div class="section-title">
+      <h3>每日打卡明細</h3>
+      <div class="small" id="attCount">0 筆</div>
+    </div>
+    <div class="list" id="attList"></div>
+  </section>
 
-    <section class="panel" id="panelReq">
-      <div class="filters" style="margin-top:0;">
-        <select id="reqStatusFilter" title="申請單狀態" onchange="filterReqOnly()">
-          <option value="ALL">全部狀態</option>
-          <option value="PENDING">待審</option>
-          <option value="APPROVED">核准</option>
-          <option value="REJECTED">駁回</option>
-        </select>
-      </div>
+  <section class="panel" id="panelReq">
+    <div class="filters" style="margin-top:0;">
+      <select id="reqStatusFilter" title="申請單狀態" onchange="renderReqUI()">
+        <option value="ALL">全部狀態</option>
+        <option value="PENDING">待審</option>
+        <option value="APPROVED">核准</option>
+        <option value="REJECTED">駁回</option>
+      </select>
+    </div>
 
-      <div class="section-title">
-        <h3>申請單明細</h3>
-        <div class="small" id="reqCount">0 筆</div>
-      </div>
-      <div class="list" id="reqList"></div>
-    </section>
-  </div>
+    <div class="section-title">
+      <h3>申請單明細</h3>
+      <div class="small" id="reqCount">0 筆</div>
+    </div>
+    <div class="list" id="reqList"></div>
+  </section>
 
   <nav class="nav">
     <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
@@ -132,7 +133,7 @@
 
     if(!empId){ location.href="index.html"; }
 
-    // 主管介面初始化：顯示選單並撈取員工名單
+    // 主管介面初始化
     if (isManager) {
       document.getElementById("mgrBtn").style.display = "flex";
       document.getElementById("empFilter").style.display = "inline-block";
@@ -160,10 +161,79 @@
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
-    function showPanel(which){
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+    }
+
+    // 基礎 API 呼叫 (Timeout 提升至 25秒，避免資料多時斷線)
+    async function api(action, data={}) {
+      const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
+      if(!ENDPOINT){ throw new Error("找不到系統連線網址"); }
+
+      const payloadObj = Object.assign({}, data, {
+        empId: empId,
+        webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
+      });
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        const response = await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: action, payload: payloadObj }),
+          redirect: 'follow',
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`連線狀態異常: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        if (error.name === 'AbortError') throw new Error("網路連線逾時，請稍後再試");
+        throw new Error(error.message || "無法連線到伺服器");
+      }
+    }
+
+    // ========================================
+    // 🚀 按需載入與智慧快取核心邏輯 (Lazy Load)
+    // ========================================
+    let currentTab = 'att';
+    const attCache = {}; // 存放打卡資料
+    const reqCache = {}; // 存放申請單資料
+
+    // 取得當前篩選狀態
+    function getFilterState() {
+      const mVal = document.getElementById("monthPick").value;
+      let y, m;
+      if (mVal) {
+        [y, m] = mVal.split('-').map(Number);
+      } else {
+        const d = new Date(); y = d.getFullYear(); m = d.getMonth() + 1;
+        document.getElementById("monthPick").value = `${y}-${String(m).padStart(2,'0')}`;
+      }
+      
+      const sel = document.getElementById("empFilter");
+      const targetEmpId = (isManager && sel && sel.value) ? sel.value : "";
+      
+      // 更新畫面上方的標籤
+      document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
+      if (targetEmpId && sel.selectedIndex > 0) {
+        document.getElementById("who").textContent = `員工：${sel.options[sel.selectedIndex].text}`;
+      } else {
+        document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
+      }
+
+      return { y, m, targetEmpId, key: `${y}-${m}-${targetEmpId}` };
+    }
+
+    // 點擊頁籤切換
+    function showPanel(tab) {
+      currentTab = tab;
       const tabAtt = document.getElementById("tabAtt"), tabReq = document.getElementById("tabReq");
       const pAtt = document.getElementById("panelAtt"), pReq = document.getElementById("panelReq");
-      if(which === 'req'){
+      if(tab === 'req'){
         tabReq.classList.add("active"); tabAtt.classList.remove("active");
         pReq.classList.add("active"); pAtt.classList.remove("active");
       }else{
@@ -171,167 +241,89 @@
         pAtt.classList.add("active"); pReq.classList.remove("active");
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
+      loadCurrentTab(false); // 讀取該頁籤資料
     }
 
-    // 現代 fetch API 發送 POST 請求
-    async function api(action, data={}) {
-      const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
-      if(!ENDPOINT){
-        alert("系統設定錯誤：找不到 CONFIG.GAS_ENDPOINT");
-        throw new Error("Missing CONFIG");
+    // 改變條件時觸發
+    function onFilterChange() { loadCurrentTab(false); }
+    // 點擊強制更新按鈕
+    function onRefreshClick() { loadCurrentTab(true); toast("重新拉取最新資料..."); }
+
+    // 核心調度器：只載入當前畫面需要的資料
+    async function loadCurrentTab(force) {
+      const state = getFilterState();
+      
+      if (currentTab === 'att') {
+        if (force || !attCache[state.key]) {
+          await fetchAtt(state.y, state.m, state.targetEmpId, force, state.key);
+        } else {
+          renderAttUI(attCache[state.key]); // 瞬間讀取快取
+        }
+      } else {
+        if (force || !reqCache[state.key]) {
+          await fetchReq(state.y, state.m, state.targetEmpId, force, state.key);
+        } else {
+          renderReqUI(); // 瞬間讀取快取並套用狀態過濾
+        }
       }
+    }
 
-      const currentEmpId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
-      const payloadObj = Object.assign({}, data, {
-        empId: currentEmpId,
-        webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
-      });
-
-      const payloadBody = { action: action, payload: payloadObj };
-
+    // ========================================
+    // 📦 打卡資料處理
+    // ========================================
+    async function fetchAtt(y, m, targetEmpId, force, key) {
+      const listEl = document.getElementById("attList");
+      listEl.innerHTML = `<div class="empty">☁️ 向伺服器調閱打卡紀錄中...</div>`;
+      document.getElementById("statsGrid").style.display = "none";
+      
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        const response = await fetch(ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payloadBody),
-          redirect: 'follow',
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-        if (!response.ok) throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
-        return await response.json();
-
-      } catch (error) {
-        if (error.name === 'AbortError') throw new Error("網路連線逾時，請稍後再試");
-        throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
+        const res = await api("get_dashboard", { year: y, month: m, targetEmpId: targetEmpId, noCache: force });
+        const daily = (res && res.ok && Array.isArray(res.dailyData)) ? res.dailyData : [];
+        
+        let attList = daily.map(d => ({
+          dateKey: (String(d.date||'').includes('-')) ? d.date : `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`,
+          in: (d.in && d.in !== '--:--') ? d.in : '--:--',
+          out: (d.out && d.out !== '--:--') ? d.out : '--:--',
+          tag: String(d.tag || d.status || '')
+        }));
+        
+        attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
+        attCache[key] = attList; // 存入快取
+        renderAttUI(attList);
+      } catch (e) {
+        listEl.innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗：${escapeHtml(e.message)}</div>`;
       }
     }
 
-    function formatDT(v){
-      if(v === null || v === undefined) return '—';
-      const str = String(v).trim();
-      if(!str || str === '--:--') return str;
-      if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) return str.replace(/\//g,'-').substring(0,16);
-
-      let d = (/^\d{10,13}$/.test(str)) ? new Date(Number(str)) : new Date(str);
-      if (!d || isNaN(d.getTime())) return str;
-
-      const parts = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false
-      }).formatToParts(d);
-
-      const get = (t)=> parts.find(p=>p.type===t)?.value || '';
-      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
-    }
-
-    function parseToDate(v){
-      if(!v) return null;
-      if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
-      const s0 = String(v).trim();
-      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
-      if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
-      return isNaN(new Date(s0).getTime()) ? null : new Date(s0);
-    }
-
-    function overlapsMonth(start, end, y, m){
-      const s = parseToDate(start);
-      const e = parseToDate(end) || s;
-      if(!s) return false;
-      const monthStart = new Date(y, m-1, 1, 0,0,0,0), monthEnd = new Date(y, m, 0, 23,59,59,999);
-      return e >= monthStart && s <= monthEnd;
-    }
-
-    function normalizeDailyTag(tag){
-      const t = String(tag||'').trim(), low = t.toLowerCase();
-      if(low==='annual') return '特休'; if(low==='sick') return '病假'; if(low==='personal') return '事假';
-      if(low==='birthday') return '生日假'; if(low==='comp') return '補休'; if(low==='outing') return '外出';
-      if(low==='ot') return '加班'; if(low==='correction') return '補卡';
-      if(low==='in') return '上班中'; if(low==='out') return '已下班';
-      return t || '—';
-    }
-
-    function deriveAttTag(row){
-      const inStr = String(row.in||'').trim(), outStr = String(row.out||'').trim();
-      const hasIn = !!inStr && inStr !== '--:--', hasOut = !!outStr && outStr !== '--:--';
-      if(hasIn && !hasOut) return '上班中';
-      if(!hasIn && hasOut) return '缺卡';
-      return normalizeDailyTag(row.tag);
-    }
-
-    function attStatusBadge(tag){
-      const t0 = normalizeDailyTag(tag);
-      if(!t0 || t0==='—') return { cls:'warn', label:'—' };
-      if(t0.includes('上班中') || t0.includes('正常') || t0.includes('已下班') || t0.includes('加班')) return { cls:'ok', label:t0 };
-      if(t0.includes('休假') || t0.includes('特休') || t0.includes('病假') || t0.includes('事假') || t0.includes('生日假') || t0.includes('補休') || t0.includes('外出') || t0.includes('遲到') || t0.includes('早退')) return { cls:'warn', label:t0 };
-      if(t0.includes('曠職') || t0.includes('缺卡') || t0.includes('未打卡')) return { cls:'danger', label:t0 };
-      return { cls:'warn', label:t0 };
-    }
-
-    function reqTypeBadge(row){
-      const cat = String(row.category||'').toUpperCase(), lt = String(row.leaveType||'').toLowerCase();
-      if(cat==='CORRECTION' || lt.includes('correction') || lt.includes('補卡')) return '補卡';
-      if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) return '外出';
-      if(cat==='OT' || lt==='ot' || lt.includes('加班')) return '加班';
-      return (row.leaveType || row.category || '申請') + "";
-    }
-
-    function reqStatusBadge(status){
-      const s = String(status||'').toUpperCase();
-      if(s==='APPROVED') return { cls:'ok', label:'核准' };
-      if(s==='REJECTED') return { cls:'danger', label:'駁回' };
-      return { cls:'warn', label:'待審' };
-    }
-
-    function normalizeReqStatus(status){
-      const raw = String(status||'').trim(), s = raw.toUpperCase();
-      if(!raw) return "PENDING";
-      if(s === "APPROVED" || raw.includes("核准")) return "APPROVED";
-      if(s === "REJECTED" || raw.includes("駁回")) return "REJECTED";
-      return "PENDING";
-    }
-
-    function pickCurrentMonth(){
-      const now = new Date(), y = now.getFullYear(), m = now.getMonth()+1;
-      document.getElementById("monthPick").value = `${y}-${String(m).padStart(2,'0')}`;
-      return { y, m };
-    }
-
-    function buildDateKeyFromDaily(d, y, m){
-      const ds = String(d.date||'').trim();
-      if(/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds;
-      return `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
-    }
-
-    // 🚀 分離核心：渲染打卡與計算統計
-    function renderAttAndStats(list){
+    function renderAttUI(list) {
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
       document.getElementById("attCountTop").textContent = `${list.length}`;
       
-      // 📊 統計變數
       let countLate = 0, countMiss = 0, countLeave = 0, countNormal = 0;
 
       if(list.length === 0){ 
-        el.innerHTML = `<div class="empty">本範圍沒有出勤資料</div>`; 
+        el.innerHTML = `<div class="empty">📭 這個月沒有任何出勤紀錄</div>`; 
         document.getElementById("statsGrid").style.display = "none";
         return; 
       }
 
-      el.innerHTML = list.map(r=>{
-        const finalTag = deriveAttTag(r);
+      el.innerHTML = list.map(r => {
+        const hasIn = r.in !== '--:--', hasOut = r.out !== '--:--';
+        let finalTag = r.tag;
+        
+        // 防呆：如果是上班中但標籤是缺卡，幫忙修正顯示
+        if(hasIn && !hasOut && finalTag === '缺卡') finalTag = '上班中';
+        
         const b = attStatusBadge(finalTag);
-        const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
+        const title = `${r.dateKey} ${r.in} / ${r.out}`;
 
-        // 統計分類邏輯
-        if (finalTag.includes('遲到') || finalTag.includes('早退')) countLate++;
-        else if (finalTag.includes('曠職') || finalTag.includes('缺卡') || finalTag.includes('未打卡')) countMiss++;
-        else if (['特休','病假','事假','生日假','補休','公假','婚假','喪假','產假','陪產假','外出'].some(l => finalTag.includes(l))) countLeave++;
-        else countNormal++; // 正常、加班、上班中、休假
+        // 計算儀表板
+        const tStr = finalTag;
+        if (tStr.includes('遲到') || tStr.includes('早退')) countLate++;
+        else if (tStr.includes('曠職') || tStr.includes('缺卡') || tStr.includes('未打卡')) countMiss++;
+        else if (['特休','病假','事假','生日假','補休','公假','婚假','喪假','產假','陪產假','外出'].some(l => tStr.includes(l))) countLeave++;
+        else countNormal++;
 
         return `
           <div class="item ${b.cls}">
@@ -343,7 +335,7 @@
         `;
       }).join("");
 
-      // 更新並顯示儀表板
+      // 刷新儀表板
       document.getElementById("stMiss").textContent = countMiss;
       document.getElementById("stLate").textContent = countLate;
       document.getElementById("stLeave").textContent = countLeave;
@@ -351,15 +343,82 @@
       document.getElementById("statsGrid").style.display = "grid";
     }
 
-    // 🚀 分離核心：渲染申請單
-    function renderReq(list){
-      const el = document.getElementById("reqList");
-      document.getElementById("reqCount").textContent = `${list.length} 筆`;
-      document.getElementById("reqCountTop").textContent = `${list.length}`;
-      if(list.length===0){ el.innerHTML = `<div class="empty">沒有符合條件的申請單</div>`; return; }
+    function attStatusBadge(tag){
+      const t = String(tag||'').trim().toLowerCase();
+      let label = t || '—';
+      if(t==='annual') label='特休'; if(t==='sick') label='病假'; if(t==='personal') label='事假';
+      if(t==='birthday') label='生日假'; if(t==='comp') label='補休'; if(t==='outing') label='外出';
+      if(t==='ot') label='加班'; if(t==='correction') label='補卡';
+      if(t==='in') label='上班中'; if(t==='out') label='已下班';
 
-      el.innerHTML = list.map(r=>{
-        const sc = reqStatusBadge(normalizeReqStatus(r.status));
+      if(label.includes('上班中') || label.includes('正常') || label.includes('已下班') || label.includes('加班')) return { cls:'ok', label };
+      if(label.includes('休') || label.includes('假') || label.includes('外出') || label.includes('遲到') || label.includes('早退')) return { cls:'warn', label };
+      if(label.includes('曠職') || label.includes('缺卡') || label.includes('未打卡')) return { cls:'danger', label };
+      return { cls:'warn', label };
+    }
+
+    // ========================================
+    // 📦 申請單資料處理
+    // ========================================
+    async function fetchReq(y, m, targetEmpId, force, key) {
+      const listEl = document.getElementById("reqList");
+      listEl.innerHTML = `<div class="empty">☁️ 向伺服器調閱申請單中...</div>`;
+      
+      try {
+        let res;
+        if (targetEmpId && isManager) {
+          res = await api("list_requests", { isManagerView: true, year: y, month: m, noCache: force });
+          if (res && res.ok && res.list) res.list = res.list.filter(r => String(r.empId).toLowerCase() === targetEmpId.toLowerCase());
+        } else {
+          res = await api("list_requests", { isManagerView: false, year: y, month: m, noCache: force }); 
+        }
+        let reqList = (res && res.ok && Array.isArray(res.list)) ? res.list : [];
+        reqCache[key] = reqList; // 存入快取
+        renderReqUI();
+      } catch (e) {
+        listEl.innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗：${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function renderReqUI() {
+      const state = getFilterState();
+      const list = reqCache[state.key] || [];
+      const filterVal = document.getElementById("reqStatusFilter").value;
+      
+      // 前端瞬間過濾，不需要再發送 API！
+      const filtered = list.filter(r => {
+        const isMonth = overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m);
+        if (!isMonth) return false;
+        
+        let st = String(r.status||'').trim().toUpperCase();
+        if(!st) st = "PENDING";
+        if(st.includes("核准")) st = "APPROVED";
+        if(st.includes("駁回")) st = "REJECTED";
+        
+        return filterVal === "ALL" || st === filterVal;
+      });
+
+      const el = document.getElementById("reqList");
+      document.getElementById("reqCount").textContent = `${filtered.length} 筆`;
+      
+      // 更新 Tab 上的總數（不管狀態，顯示該月全部申請單總數）
+      const totalMonthCount = list.filter(r => overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m)).length;
+      document.getElementById("reqCountTop").textContent = `${totalMonthCount}`;
+
+      if(filtered.length === 0){ 
+        el.innerHTML = `<div class="empty">📭 沒有符合狀態的申請單</div>`; 
+        return; 
+      }
+
+      el.innerHTML = filtered.map(r => {
+        let st = String(r.status||'').trim().toUpperCase();
+        if(st.includes("核准")) st = "APPROVED";
+        if(st.includes("駁回")) st = "REJECTED";
+        
+        let sc = { cls:'warn', label:'待審' };
+        if(st==='APPROVED') sc = { cls:'ok', label:'核准' };
+        if(st==='REJECTED') sc = { cls:'danger', label:'駁回' };
+
         const s = formatDT(r.startStr || r.start || r.startIso);
         const e = formatDT(r.endStr   || r.end   || r.endIso);
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
@@ -368,15 +427,21 @@
 
         let timeLine = `日期：${s}`;
         if(e && e !== '—' && e !== s) timeLine = `開始：${s}<br>結束：${e}`;
+        
+        const cat = String(r.category||'').toUpperCase(), lt = String(r.leaveType||'').toLowerCase();
+        let typeName = (r.leaveType || r.category || '申請') + "";
+        if(cat==='CORRECTION' || lt.includes('correction') || lt.includes('補卡')) typeName = '補卡';
+        if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) typeName = '外出';
+        if(cat==='OT' || lt==='ot' || lt.includes('加班')) typeName = '加班';
 
         return `
           <div class="item ${sc.cls}">
             <div class="top">
               <div>
-                <p class="title">${reqTypeBadge(r)}</p>
+                <p class="title">${escapeHtml(typeName)}</p>
                 <div class="meta">${timeLine}</div>
                 <div class="meta">時數：${hrs} 小時</div>
-                <div class="meta">事由：${reason}</div>
+                <div class="meta">事由：${escapeHtml(reason)}</div>
                 <div class="meta">送單時間：${created}</div>
               </div>
               <span class="badge ${sc.cls}">${sc.label}</span>
@@ -386,92 +451,26 @@
       }).join("");
     }
 
-    // 全域變數，用來暫存這一個月的申請單
-    let __cacheReqAll = null; 
-
-    // ✅ 新增：只重新過濾並渲染申請單，絕不浪費時間去後端重新撈資料
-    function filterReqOnly(){
-      const monthStr = document.getElementById("monthPick").value;
-      if (!monthStr) return;
-      const parts = monthStr.split("-"); 
-      const y = Number(parts[0]), m = Number(parts[1]);
-      
-      const filteredList = applyReqFilters(__cacheReqAll || [], y, m);
-      renderReq(filteredList);
+    // 日期工具
+    function parseToDate(v){
+      if(!v) return null;
+      if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
+      const s0 = String(v).trim();
+      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
+      if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
+      return isNaN(new Date(s0).getTime()) ? null : new Date(s0);
+    }
+    function overlapsMonth(start, end, y, m){
+      const s = parseToDate(start);
+      const e = parseToDate(end) || s;
+      if(!s) return false;
+      const monthStart = new Date(y, m-1, 1, 0,0,0,0), monthEnd = new Date(y, m, 0, 23,59,59,999);
+      return e >= monthStart && s <= monthEnd;
     }
 
-    function applyReqFilters(allReq, y, m){
-      const monthReq = allReq.filter(r => overlapsMonth(r.start ?? r.start_full ?? r.startAt ?? r.from, r.end ?? r.end_full ?? r.endAt ?? r.to, y, m));
-      const f = document.getElementById("reqStatusFilter").value;
-      if(f === "ALL") return monthReq;
-      return monthReq.filter(r => normalizeReqStatus(r.status) === f);
-    }
-
-    // 🚀 分離核心：讀取打卡資料 (完全獨立)
-    async function loadAttData(y, m, targetEmpId, forceFetch) {
-      document.getElementById("attList").innerHTML = `<div class="empty">打卡資料載入中…</div>`;
-      document.getElementById("statsGrid").style.display = "none";
-      try {
-        const res = await api("get_dashboard", { year: y, month: m, noCache: forceFetch, targetEmpId: targetEmpId });
-        const daily = (res && res.ok && Array.isArray(res.dailyData)) ? res.dailyData : (res && res.ok && Array.isArray(res.data) ? res.data : []);
-        
-        let attList = daily.map(d => ({
-          dateKey: buildDateKeyFromDaily(d, y, m),
-          in: (d.in ?? d.inTime ?? d.clockIn) ? String(d.in ?? d.inTime ?? d.clockIn) : '--:--',
-          out: (d.out ?? d.outTime ?? d.clockOut) ? String(d.out ?? d.outTime ?? d.clockOut) : '--:--',
-          tag: (d.tag !== undefined && d.tag !== null) ? String(d.tag) : (d.status ?? d.state ?? '')
-        }));
-        attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
-        renderAttAndStats(attList);
-      } catch (e) {
-        document.getElementById("attList").innerHTML = `<div class="empty text-danger">讀取打卡失敗</div>`;
-      }
-    }
-
-    // 🚀 分離核心：讀取申請單資料 (完全獨立)
-    async function loadReqData(y, m, targetEmpId, forceFetch) {
-      document.getElementById("reqList").innerHTML = `<div class="empty">申請單載入中…</div>`;
-      try {
-        let res;
-        if (targetEmpId && isManager) {
-          res = await api("list_requests", { isManagerView: true, year: y, month: m, noCache: forceFetch });
-          if (res && res.ok && res.list) res.list = res.list.filter(r => String(r.empId).toLowerCase() === targetEmpId.toLowerCase());
-        } else {
-          res = await api("list_requests", { isManagerView: false, year: y, month: m, noCache: forceFetch }); 
-        }
-        __cacheReqAll = (res && res.ok && Array.isArray(res.list)) ? res.list : [];
-        filterReqOnly();
-      } catch (e) {
-        document.getElementById("reqList").innerHTML = `<div class="empty text-danger">讀取申請單失敗</div>`;
-      }
-    }
-
-    // 當改變月份、改變員工、或按下更新時觸發，並行發送請求，效能翻倍
-    function reloadAll(forceFetch){
-      const monthStr = document.getElementById("monthPick").value;
-      if (!monthStr) return;
-      const parts = monthStr.split("-"); 
-      const y = Number(parts[0]), m = Number(parts[1]);
-      
-      document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
-
-      // 更新最上方顯示的名字
-      const sel = document.getElementById("empFilter");
-      const targetEmpId = sel ? sel.value : "";
-      if (targetEmpId && sel.selectedIndex > 0) {
-        document.getElementById("who").textContent = `員工：${sel.options[sel.selectedIndex].text}`;
-      } else {
-        document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
-      }
-
-      // 同時發出兩個請求，讓畫面各自 Loading，不用互相等待
-      loadAttData(y, m, targetEmpId, forceFetch);
-      loadReqData(y, m, targetEmpId, forceFetch);
-    }
-
-    // 初始載入
-    pickCurrentMonth();
-    reloadAll(true);
+    // 網頁開啟時，自動預設當前月份並載入
+    getFilterState();
+    loadCurrentTab(false);
   </script>
 </body>
 </html>
