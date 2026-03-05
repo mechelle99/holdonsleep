@@ -201,58 +201,57 @@
       }
     }
 
-    // ✅ 終極防禦版：標準解析 Date 後，用純數學 +8 小時轉成台灣時間
+    // ✅ 終極暴力字串處理：完全拔除 new Date()
     function formatDT(v){
       if(!v) return '—';
       let s = String(v).trim();
       if(s === '--:--' || !s) return s;
 
-      // 如果已經是漂亮的本地字串，直接回傳
+      // 如果已經是 YYYY-MM-DD HH:mm，直接切
       if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(s)) {
         return s.replace(/\//g, '-').substring(0, 16);
       }
 
-      let d;
-      // 處理 13 碼時間戳
-      if (/^\d{10,13}$/.test(s)) {
-        d = new Date(Number(s));
-      } else {
-        // 處理 ISO 字串或一般日期字串 (Safari 相容)
-        let dStr = s;
-        if (!dStr.includes('T')) dStr = dStr.replace(/\-/g, '/');
-        d = new Date(dStr);
+      // 如果是帶有 T 的 ISO 格式 (例如 2026-03-05T03:37:00.000Z)
+      if (s.includes('T')) {
+        // 直接用正則表達式把數字抓出來，完全不理會後面的 Z 或時區
+        let match = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (match) {
+           return `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}`;
+        }
       }
 
-      if (isNaN(d.getTime())) return s;
-
-      // 🎯 核心修復：把取得的絕對毫秒數，強制加上 8 小時的毫秒數 (台灣時間)
-      // 然後全部用 getUTC... 系列取值，這樣就 100% 無視手機本身的時區！
-      const twDate = new Date(d.getTime() + (8 * 3600000));
-      const y = twDate.getUTCFullYear();
-      const m = String(twDate.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(twDate.getUTCDate()).padStart(2, '0');
-      const h = String(twDate.getUTCHours()).padStart(2, '0');
-      const min = String(twDate.getUTCMinutes()).padStart(2, '0');
+      // 只有純數字時間戳 (13碼) 這種無法直接看字串的，才用 Date
+      if (/^\d{10,13}$/.test(s)) {
+        let d = new Date(Number(s));
+        if (!isNaN(d.getTime())) {
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+      }
       
-      return `${y}-${m}-${day} ${h}:${min}`;
+      // 如果都不是，直接回傳前 16 個字
+      return s.substring(0, 16);
     }
 
-    // ✅ 日期比對工具：同樣升級為 100% 瀏覽器相容寫法
-    function parseToDate(v){
-      if(!v) return null;
-      if(v instanceof Date && !isNaN(v.getTime())) return v;
-      let s = String(v).trim();
-      if (!s.includes('T')) s = s.replace(/\-/g, '/');
-      let d = new Date(s);
-      return isNaN(d.getTime()) ? null : d;
-    }
-
+    // ✅ 日期比對工具：統一轉成字串比對 YYYY-MM
     function overlapsMonth(start, end, y, m){
-      const s = parseToDate(start);
-      const e = parseToDate(end) || s;
-      if(!s) return false;
-      const monthStart = new Date(y, m-1, 1, 0,0,0,0), monthEnd = new Date(y, m, 0, 23,59,59,999);
-      return e >= monthStart && s <= monthEnd;
+      const sStr = String(start || '').trim();
+      if(!sStr) return false;
+      
+      let sYear, sMonth;
+      if (sStr.includes('T')) {
+        let parts = sStr.split('-');
+        sYear = Number(parts[0]);
+        sMonth = Number(parts[1]);
+      } else if (sStr.includes('-') || sStr.includes('/')) {
+        let parts = sStr.split(/[-/]/);
+        sYear = Number(parts[0]);
+        sMonth = Number(parts[1]);
+      } else {
+        return false;
+      }
+      
+      return sYear === y && sMonth === m;
     }
 
     function buildDateKeyFromDaily(d, y, m){
