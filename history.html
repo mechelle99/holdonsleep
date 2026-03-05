@@ -207,64 +207,59 @@
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    // 把「台北本地時間字串」轉成 UTC 毫秒（不吃手機時區）
-    function parseTaipeiLocalToUtcMs_(y, mo, d, hh, mm, ss){
-      // 台北 = UTC+8，所以 UTC = 台北 - 8 小時
-      return Date.UTC(y, mo-1, d, (hh||0) - 8, mm||0, ss||0, 0);
+    // 台北本地時間 -> UTC ms（不吃手機時區）
+    function parseTaipeiLocalToUtcMs_(y, mo, d, hh, mm, ss, ms){
+      return Date.UTC(y, mo-1, d, (hh||0) - 8, mm||0, ss||0, ms||0);
     }
 
-    // 任何輸入(ISO含Z/offset、或台北字串、或timestamp) -> UTC ms
+    // 任何輸入 -> UTC ms
     function parseAnyToUtcMs(v){
       if(v === null || v === undefined || v === '') return NaN;
 
       if (typeof v === 'number' && isFinite(v)) {
-        // 10/13 位 timestamp
-        if (v < 1e12) return v * 1000;
-        return v;
+        if (v < 1e12) return v * 1000; // 10位
+        return v; // 13位
       }
 
       const s = String(v).trim();
       if(!s) return NaN;
 
-      // 13碼/10碼 timestamp
       if (/^\d{13}$/.test(s)) return Number(s);
       if (/^\d{10}$/.test(s)) return Number(s) * 1000;
 
-      // ISO 有 Z 或 +hh:mm / -hh:mm -> 直接用 Date.parse 取得絕對 ms（UTC）
+      // ISO 有 Z 或 offset
       if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s) || /[+\-]\d{4}$/.test(s)) {
         const ms = Date.parse(s);
         return isNaN(ms) ? NaN : ms;
       }
 
-      /
-      // ISO 但沒有時區 (2026-03-05T02:00:00) -> ✅當成 UTC
+      // ISO 無時區：當成 UTC（這就是你現在顯示 02:00 的來源，必須 +8 才對）
       let m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
       if (m) {
         const y = +m[1], mo = +m[2], d = +m[3];
         const hh = +m[4], mi = +m[5], ss = +(m[6]||0);
-        return Date.UTC(y, mo-1, d, hh, mi, ss, 0); // ✅UTC
+        return Date.UTC(y, mo-1, d, hh, mi, ss, 0);
       }
 
-      // 台北字串：YYYY/MM/DD HH:mm:ss 或 YYYY-MM-DD HH:mm:ss
+      // 台北字串：YYYY/MM/DD HH:mm:ss 或 YYYY-MM-DD HH:mm:ss（視為台北本地，不再轉）
       m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if (m) {
-        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6]||0));
+        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      // 只有日期：YYYY/MM/DD 或 YYYY-MM-DD -> 當台北 00:00
+      // 只有日期：當台北 00:00
       m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
       if (m) {
-        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], 0, 0, 0);
+        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], 0, 0, 0, 0);
       }
 
       return NaN;
     }
 
-    // UTC ms -> 台北時間字串 YYYY-MM-DD HH:mm
+    // UTC ms -> 台北時間字串（完全無視手機時區）
     function formatUtcMsToTpe_(ms){
       if(!isFinite(ms)) return '—';
       const tw = new Date(ms + TPE_OFFSET_MS);
-      // 用 UTC getter，確保「無視手機時區」
       const y = tw.getUTCFullYear();
       const mo = pad2(tw.getUTCMonth()+1);
       const d = pad2(tw.getUTCDate());
@@ -273,25 +268,24 @@
       return `${y}-${mo}-${d} ${hh}:${mm}`;
     }
 
-    // ✅ history 顯示用：任何輸入值 -> 台北時間
+    // 顯示用：任何輸入 -> 台北顯示
     function formatDT(v){
       const ms = parseAnyToUtcMs(v);
       return formatUtcMsToTpe_(ms);
     }
 
-    // ✅ 月份重疊判斷：用「台北月份」算，不吃手機時區
+    // ✅ 月份判斷：用台北月份界線（轉成 UTC ms 來比）
     function overlapsMonth(start, end, y, m){
       const sMs = parseAnyToUtcMs(start);
       if(!isFinite(sMs)) return false;
-      const eMs = isFinite(parseAnyToUtcMs(end)) ? parseAnyToUtcMs(end) : sMs;
+      const eParsed = parseAnyToUtcMs(end);
+      const eMs = isFinite(eParsed) ? eParsed : sMs;
 
-      // 台北 y-m-01 00:00 -> UTC ms
-      const monthStart = parseTaipeiLocalToUtcMs_(y, m, 1, 0, 0, 0);
-      // 台北 y-m 最後一天 23:59:59.999 -> UTC ms
-      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-      const monthEnd = Date.UTC(y, m-1, lastDay, 23-8, 59, 59, 999);
+      const monthStartUtc = parseTaipeiLocalToUtcMs_(y, m, 1, 0, 0, 0, 0);
+      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate(); // 該月最後一天
+      const monthEndUtc = parseTaipeiLocalToUtcMs_(y, m, lastDay, 23, 59, 59, 999);
 
-      return (eMs >= monthStart) && (sMs <= monthEnd);
+      return (eMs >= monthStartUtc) && (sMs <= monthEndUtc);
     }
 
     function buildDateKeyFromDaily(d, y, m){
@@ -342,7 +336,14 @@
     }
 
     function onFilterChange() { reloadAll(false); }
-    function onRefreshClick() { reloadAll(true); toast("重新拉取最新資料..."); }
+    function onRefreshClick() {
+      // ✅ 強制清掉前端 cache，避免你以為沒改到
+      Object.keys(attCache).forEach(k => delete attCache[k]);
+      Object.keys(reqCache).forEach(k => delete reqCache[k]);
+
+      reloadAll(true);
+      toast("重新拉取最新資料...");
+    }
 
     function reloadAll(forceFetch){
       const state = getFilterState();
@@ -377,6 +378,28 @@
       }
     }
 
+    // ✅ 這裡是關鍵：把後端回來的時間「先轉成台北字串」再塞進 cache
+    function normalizeReqRow_(r){
+      const startRaw = r.startStr || r.start || r.startIso || r.startAt || r.from || '';
+      const endRaw   = r.endStr   || r.end   || r.endIso   || r.endAt   || r.to   || '';
+      const createdRaw = r.createdAtStr || r.createdAt || r.createdAtIso || r.created || r.ts || '';
+
+      const startMs = parseAnyToUtcMs(startRaw);
+      const endMs   = parseAnyToUtcMs(endRaw);
+      const createdMs = parseAnyToUtcMs(createdRaw);
+
+      return Object.assign({}, r, {
+        // 給 UI 用的「已經是台北」字串
+        _tpeStart: formatUtcMsToTpe_(startMs),
+        _tpeEnd:   formatUtcMsToTpe_(isFinite(endMs) ? endMs : startMs),
+        _tpeCreated: formatUtcMsToTpe_(createdMs),
+
+        // 給 overlapsMonth 用的 UTC ms（不吃手機時區）
+        _startUtcMs: startMs,
+        _endUtcMs: isFinite(endMs) ? endMs : startMs
+      });
+    }
+
     async function fetchReq(y, m, targetEmpId, force, key) {
       if (!force && reqCache[key]) { renderReqUI(); return; }
 
@@ -389,7 +412,9 @@
         } else {
           res = await api("list_requests", { isManagerView: false, year: y, month: m, noCache: force });
         }
-        reqCache[key] = (res && res.ok && Array.isArray(res.list)) ? res.list : [];
+
+        const raw = (res && res.ok && Array.isArray(res.list)) ? res.list : [];
+        reqCache[key] = raw.map(normalizeReqRow_);
         renderReqUI();
       } catch (e) {
         document.getElementById("reqList").innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗</div>`;
@@ -412,7 +437,7 @@
 
       let hrsPersonal = 0, hrsSick = 0, hrsAnnual = 0, hrsOT = 0;
       reqList.forEach(r => {
-        const isMonth = overlapsMonth(r.startStr || r.start || r.startIso, r.endStr || r.end || r.endIso, state.y, state.m);
+        const isMonth = overlapsMonth(r._startUtcMs, r._endUtcMs, state.y, state.m);
         const st = String(r.status||'').trim().toUpperCase();
 
         if (isMonth && (st === 'APPROVED' || st.includes('核准'))) {
@@ -469,7 +494,7 @@
       const filterVal = document.getElementById("reqStatusFilter").value;
 
       const filtered = list.filter(r => {
-        const isMonth = overlapsMonth(r.startStr || r.start || r.startIso, r.endStr || r.end || r.endIso, state.y, state.m);
+        const isMonth = overlapsMonth(r._startUtcMs, r._endUtcMs, state.y, state.m);
         if (!isMonth) return false;
 
         let st = String(r.status||'').trim().toUpperCase();
@@ -483,7 +508,7 @@
       const el = document.getElementById("reqList");
       document.getElementById("reqCount").textContent = `${filtered.length} 筆`;
 
-      const totalMonthCount = list.filter(r => overlapsMonth(r.startStr || r.start || r.startIso, r.endStr || r.end || r.endIso, state.y, state.m)).length;
+      const totalMonthCount = list.filter(r => overlapsMonth(r._startUtcMs, r._endUtcMs, state.y, state.m)).length;
       document.getElementById("reqCountTop").textContent = `${totalMonthCount}`;
 
       if(filtered.length === 0){ el.innerHTML = `<div class="empty">📭 沒有符合狀態的申請單</div>`; return; }
@@ -497,11 +522,11 @@
         if(st==='APPROVED') sc = { cls:'ok', label:'核准' };
         if(st==='REJECTED') sc = { cls:'danger', label:'駁回' };
 
-        const s = formatDT(r.startStr || r.start || r.startIso);
-        const e = formatDT(r.endStr   || r.end   || r.endIso);
+        const s = r._tpeStart || formatDT(r.startStr || r.start || r.startIso);
+        const e = r._tpeEnd   || formatDT(r.endStr   || r.end   || r.endIso);
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-        const created = formatDT(r.createdAtStr || r.createdAt || r.createdAtIso || r.created || r.ts);
+        const created = r._tpeCreated || formatDT(r.createdAtStr || r.createdAt || r.createdAtIso || r.created || r.ts);
 
         let timeLine = `日期：${s}`;
         if(e && e !== '—' && e !== s) timeLine = `開始：${s}<br>結束：${e}`;
