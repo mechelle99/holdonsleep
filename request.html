@@ -19,6 +19,7 @@
       background:#fff; font-size:16px; box-sizing:border-box; -webkit-appearance:none;
     }
     input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.12); }
+    input[readonly] { background: #F3F4F6; color: #6B7280; cursor: not-allowed; } /* 唯讀狀態反灰 */
     textarea { resize:vertical; min-height:86px; }
 
     .chiprow { display:flex; gap:10px; flex-wrap:wrap; }
@@ -52,6 +53,11 @@
     .nav-item { text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; font-size:10px; gap:4px; }
     .nav-item.active { color:var(--primary); }
     .nav-icon { font-size:22px; }
+
+    /* ✅ 日期與時間並排顯示的完美排版 */
+    .datetime-row { display: flex; gap: 8px; }
+    .datetime-row input[type="date"] { flex: 6; }
+    .datetime-row input[type="time"] { flex: 4; }
   </style>
 </head>
 <body>
@@ -97,12 +103,18 @@
 
     <div class="form-group">
       <label id="startLabel">開始時間</label>
-      <input type="datetime-local" id="start">
+      <div class="datetime-row">
+        <input type="date" id="startDate">
+        <input type="time" id="startTime">
+      </div>
     </div>
 
     <div class="form-group" id="endWrap">
       <label>結束時間</label>
-      <input type="datetime-local" id="end">
+      <div class="datetime-row">
+        <input type="date" id="endDate">
+        <input type="time" id="endTime">
+      </div>
     </div>
 
     <div class="form-group" id="extraGroup" style="display:none;">
@@ -140,17 +152,8 @@
     /* ==============================
      * 0) 身份
      * ============================== */
-    const empId =
-      localStorage.getItem("empId") ||
-      localStorage.getItem("employeeId") ||
-      "";
-
-    const userId =
-      localStorage.getItem("lineUserId") ||
-      localStorage.getItem("LineUserId") ||
-      localStorage.getItem("userId") ||
-      "";
-
+    const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
+    const userId = localStorage.getItem("lineUserId") || localStorage.getItem("LineUserId") || localStorage.getItem("userId") || "";
     const uid = empId || userId || "";
 
     const isMgr = (localStorage.getItem("isManager") === "true") || !!localStorage.getItem("managerId");
@@ -158,7 +161,7 @@
     if (!uid) location.href = "index.html";
 
     /* ==============================
-     * 1) API
+     * 1) API 
      * ============================== */
     async function api(action, data = {}) {
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
@@ -176,10 +179,7 @@
         payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
       }
 
-      const payloadBody = {
-        action: action,
-        payload: payloadObj
-      };
+      const payloadBody = { action: action, payload: payloadObj };
 
       try {
         const controller = new AbortController();
@@ -187,9 +187,7 @@
 
         const response = await fetch(ENDPOINT, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8', 
-          },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payloadBody),
           redirect: 'follow',
           signal: controller.signal
@@ -197,52 +195,77 @@
 
         clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
-        }
-
-        const result = await response.json();
-        return result;
+        if (!response.ok) throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
+        return await response.json();
 
       } catch (error) {
         console.error("API 呼叫失敗:", error);
-        if (error.name === 'AbortError') {
-           throw new Error("網路連線逾時，請稍後再試");
-        }
+        if (error.name === 'AbortError') throw new Error("網路連線逾時，請稍後再試");
         throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
       }
     }
 
     /* ==============================
-     * 2) 時間工具（datetime-local 一律手動解析）
+     * 2) 🛠️ 全新時間工具函式 (分離 date/time)
      * ============================== */
     function pad2(n) { return String(n).padStart(2, '0'); }
 
-    function toLocalInputValue(d) {
-      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-    }
+    function dateToYmd(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+    function timeToHm(d){ return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
 
-    function parseLocalInput(v){
-      if(!v) return null;
-      const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})$/);
-      if(!m) return null;
-      const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]), hh = Number(m[4]), mm = Number(m[5]);
-      const dt = new Date(y, mo-1, d, hh, mm, 0, 0);
+    function combineDateTime(dateStr, timeStr){
+      if(!dateStr || !timeStr) return null;
+      const m1 = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const m2 = String(timeStr).match(/^(\d{2}):(\d{2})$/);
+      if(!m1 || !m2) return null;
+
+      const y = Number(m1[1]), mo = Number(m[2]), d = Number(m[3]);
+      const hh = Number(m2[1]), mm = Number(m2[2]);
+
+      const dt = new Date(y, mo - 1, d, hh, mm, 0, 0);
       return isNaN(dt.getTime()) ? null : dt;
     }
 
-    function sameDay_(a, b) {
-      return a.getFullYear() === b.getFullYear()
-          && a.getMonth() === b.getMonth()
-          && a.getDate() === b.getDate();
+    function getStartDateTime(){
+      return combineDateTime(document.getElementById("startDate").value, document.getElementById("startTime").value);
     }
 
-    // Date -> "yyyy/MM/dd HH:mm" 給後端（不含時區）
+    function getEndDateTime(){
+      return combineDateTime(document.getElementById("endDate").value, document.getElementById("endTime").value);
+    }
+
+    function getStartRaw(){
+      const d = document.getElementById("startDate").value;
+      const t = document.getElementById("startTime").value;
+      return (d && t) ? `${d}T${t}` : "";
+    }
+
+    function getEndRaw(){
+      const d = document.getElementById("endDate").value;
+      const t = document.getElementById("endTime").value;
+      return (d && t) ? `${d}T${t}` : "";
+    }
+
+    function setStartDateTime(dt){
+      if(!dt) return;
+      document.getElementById("startDate").value = dateToYmd(dt);
+      document.getElementById("startTime").value = timeToHm(dt);
+    }
+
+    function setEndDateTime(dt){
+      if(!dt) return;
+      document.getElementById("endDate").value = dateToYmd(dt);
+      document.getElementById("endTime").value = timeToHm(dt);
+    }
+
+    function sameDay_(a, b) {
+      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
     function toServerDateTimeStr_(d){
       return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
-    // 前端備援：0.5 小時單位
     function calcHoursLocalHalf_(s, e){
       const diffH = (e - s) / 36e5;
       if (!(diffH > 0)) return 0;
@@ -255,35 +278,19 @@
     const noteBox = document.getElementById("noteBox");
     function setNote(extraText){
       const cat = document.getElementById("cat").value;
-
       if(cat === "CORRECTION"){
         const ct = document.getElementById("correctionType").value;
-        noteBox.textContent = (ct === "IN")
-          ? "補卡（上班）：只需選一個時間點。"
-          : "補卡（下班）：只需選一個時間點。";
+        noteBox.textContent = (ct === "IN") ? "補卡（上班）：只需選一個時間點。" : "補卡（下班）：只需選一個時間點。";
         return;
       }
-
-      if(cat === "LEAVE"){
-        noteBox.textContent = extraText || "請確認資訊後再送出。";
-        return;
-      }
-
-      if(cat === "OUTING"){
-        noteBox.textContent = extraText || "外出：依區間計算（0.5 小時），非出差最多 8 小時。";
-        return;
-      }
-
-      if(cat === "OT"){
-        noteBox.textContent = extraText || "加班：依區間計算（0.5 小時）。";
-        return;
-      }
-
+      if(cat === "LEAVE"){ noteBox.textContent = extraText || "請確認資訊後再送出。"; return; }
+      if(cat === "OUTING"){ noteBox.textContent = extraText || "外出：依區間計算（0.5 小時），非出差最多 8 小時。"; return; }
+      if(cat === "OT"){ noteBox.textContent = extraText || "加班：依區間計算（0.5 小時）。"; return; }
       noteBox.textContent = extraText || "";
     }
 
     /* ==============================
-     * 4) UI 切換
+     * 4) UI 切換 (包含唯讀保護機制)
      * ============================== */
     function toggleType() {
       const cat = document.getElementById("cat").value;
@@ -294,6 +301,10 @@
       const endWrap = document.getElementById("endWrap");
       const extraGroup = document.getElementById("extraGroup");
       const startLabel = document.getElementById("startLabel");
+      const hoursInput = document.getElementById("hours");
+
+      // ✅ 安全機制：非請假（LEAVE）時，禁止員工手動修改時數
+      hoursInput.readOnly = (cat !== "LEAVE");
 
       if (cat === "CORRECTION") {
         typeGroup.style.display = "none";
@@ -302,8 +313,9 @@
         endWrap.style.display = "none";
         extraGroup.style.display = "none";
         startLabel.textContent = "補卡時間";
-        document.getElementById("hours").value = "0.0";
-        document.getElementById("end").value = "";
+        hoursInput.value = "0.0";
+        document.getElementById("endDate").value = "";
+        document.getElementById("endTime").value = "";
       } else if (cat === "OUTING") {
         typeGroup.style.display = "none";
         correctionTypeGroup.style.display = "none";
@@ -333,7 +345,6 @@
     /* ==============================
      * 5) roster 前端快取 + 班別規則
      * ============================== */
-
     const __rosterCache = new Map(); 
 
     function ymKey_(y, m){ return `${y}-${pad2(m)}`; }
@@ -374,13 +385,10 @@
       const cat = document.getElementById("cat").value;
       if(cat !== "LEAVE") return;
 
-      const sVal = document.getElementById("start").value;
-      const s = parseLocalInput(sVal);
+      const s = getStartDateTime();
       if(!s) return;
 
-      const y = s.getFullYear();
-      const m = s.getMonth()+1;
-      const d = s.getDate();
+      const y = s.getFullYear(), m = s.getMonth()+1, d = s.getDate();
 
       let shiftKey = null;
       try{
@@ -388,9 +396,7 @@
         shiftKey = getMyShiftKeyForDay_(roster, d);
       }catch(e){}
 
-      if (!shiftKey) {
-         shiftKey = (s.getHours() >= 12) ? 'LATE' : 'EARLY';
-      }
+      if (!shiftKey) shiftKey = (s.getHours() >= 12) ? 'LATE' : 'EARLY';
 
       const rule = getShiftRuleByKey_(shiftKey);
 
@@ -401,8 +407,9 @@
 
       const ss = new Date(y, m-1, d, startH, startM, 0, 0);
       const ee = new Date(y, m-1, d, endH, endM, 0, 0);
-      document.getElementById("start").value = toLocalInputValue(ss);
-      document.getElementById("end").value   = toLocalInputValue(ee);
+      
+      setStartDateTime(ss);
+      setEndDateTime(ee);
 
       await calcHoursSmart_();
     }
@@ -415,19 +422,17 @@
 
     async function calcHoursByServer_(){
       const mySeq = ++__calcSeq;
-
       const cat = document.getElementById("cat").value;
+      
       if(cat === "CORRECTION"){
         document.getElementById("hours").value = "0.0";
         return;
       }
 
-      const sVal = document.getElementById("start").value;
-      const eVal = document.getElementById("end").value;
-      if(!sVal || !eVal) return;
-
-      const s = parseLocalInput(sVal);
-      const e = parseLocalInput(eVal);
+      const sVal = getStartRaw();
+      const eVal = getEndRaw();
+      const s = getStartDateTime();
+      const e = getEndDateTime();
 
       if(!s || !e || e <= s){
         document.getElementById("hours").value = "0.0";
@@ -439,7 +444,7 @@
                        (cat === "OUTING") ? "outing" : "";
 
       if(cat === "LEAVE" && leaveType === "birthday" && !sameDay_(s, e)) {
-        document.getElementById("end").value = sVal;
+        setEndDateTime(s); // 生日假強制同一天
         document.getElementById("hours").value = "0.0";
         return;
       }
@@ -454,7 +459,7 @@
         const res = await api("calc_hours", {
           start: toServerDateTimeStr_(s),
           end: toServerDateTimeStr_(e),
-          startServer: toServerDateTimeStr_(s),
+          startServer: toServerDateTimeStr_(s), // ✅ 只吃 Server 格式，不怕底層格式作怪
           endServer: toServerDateTimeStr_(e),
           category: cat,
           leaveType: leaveType,
@@ -466,12 +471,10 @@
 
         if(res && res.ok){
           let h = Number(res.hours || 0);
-
           if(cat === "OUTING"){
             const isTrip = !!document.getElementById("isTrip").checked;
             if(!isTrip) h = Math.min(8, h);
           }
-
           document.getElementById("hours").value = Number(h).toFixed(1);
           setNote();
         }else{
@@ -505,10 +508,7 @@
     function calcLeaveHoursOneDay_(dateYMD, leaveStart, leaveEnd, rule){
       if(rule.off) return 0;
 
-      const y = dateYMD.getFullYear();
-      const m = dateYMD.getMonth();
-      const d = dateYMD.getDate();
-
+      const y = dateYMD.getFullYear(), m = dateYMD.getMonth(), d = dateYMD.getDate();
       const shiftStart = new Date(y, m, d, rule.inH,  rule.inM||0,  0, 0).getTime();
       const shiftEnd   = new Date(y, m, d, rule.outH, rule.outM||0, 0, 0).getTime();
 
@@ -535,43 +535,32 @@
 
     async function calcLeaveHoursByRoster_(s, e){
       if(!s || !e || e <= s) return 0;
-
       let total = 0;
-
-      const startDay = dayStart_(s);
-      const endDay   = dayStart_(e);
+      const startDay = dayStart_(s), endDay = dayStart_(e);
 
       for(let cur = new Date(startDay); cur <= endDay; cur = addDays_(cur, 1)){
-        const dayS = cur.getTime();
-        const dayE = addDays_(cur, 1).getTime();
-
+        const dayS = cur.getTime(), dayE = addDays_(cur, 1).getTime();
         const segStart = new Date(Math.max(s.getTime(), dayS));
         const segEnd   = new Date(Math.min(e.getTime(), dayE));
         if(segEnd <= segStart) continue;
 
-        const y = cur.getFullYear();
-        const m = cur.getMonth()+1;
-        const d = cur.getDate();
-
+        const y = cur.getFullYear(), m = cur.getMonth()+1, d = cur.getDate();
         let shiftKey = null;
         try{
             const roster = await getRosterMonth_(y, m);
             shiftKey = getMyShiftKeyForDay_(roster, d);
         }catch(err){}
 
-        if (!shiftKey) {
-            shiftKey = (segStart.getHours() >= 12) ? 'LATE' : 'EARLY';
-        }
+        if (!shiftKey) shiftKey = (segStart.getHours() >= 12) ? 'LATE' : 'EARLY';
 
         const rule = getShiftRuleByKey_(shiftKey);
         total += calcLeaveHoursOneDay_(cur, segStart, segEnd, rule);
       }
-
       return Math.max(0, Math.round(total * 2) / 2);
     }
 
     /* ==============================
-     * 8) Smart 計算：LEAVE 走 overlap；OT/OUTING 走後端
+     * 8) Smart 計算
      * ============================== */
     async function calcHoursSmart_(){
       const cat = document.getElementById("cat").value;
@@ -581,12 +570,8 @@
         return;
       }
 
-      const sVal = document.getElementById("start").value;
-      const eVal = document.getElementById("end").value;
-      if(!sVal || !eVal) return;
-
-      const s = parseLocalInput(sVal);
-      const e = parseLocalInput(eVal);
+      const s = getStartDateTime();
+      const e = getEndDateTime();
       if(!s || !e || e <= s){
         document.getElementById("hours").value = "0.0";
         return;
@@ -596,7 +581,7 @@
         const leaveType = document.getElementById("type")?.value || "";
 
         if(leaveType === "birthday" && !sameDay_(s, e)){
-          document.getElementById("end").value = sVal;
+          setEndDateTime(s);
           document.getElementById("hours").value = "0.0";
           return;
         }
@@ -606,19 +591,15 @@
           document.getElementById("hours").value = Number(h).toFixed(1);
           setNote("請假：以「請假∩班別」扣除「休息重疊」計算（午班 16:00–17:00 會自動扣除）。");
         }catch(err){
-          // fallback
           const rule = getShiftRuleByKey_(s.getHours() >= 12 ? 'LATE' : 'EARLY');
           let h = 0;
-
           for(let cur = dayStart_(s); cur <= dayStart_(e); cur = addDays_(cur,1)){
             const dayS = cur.getTime(), dayE = addDays_(cur,1).getTime();
             const segStart = new Date(Math.max(s.getTime(), dayS));
             const segEnd   = new Date(Math.min(e.getTime(), dayE));
             if(segEnd > segStart) h += calcLeaveHoursOneDay_(cur, segStart, segEnd, rule);
           }
-
-          h = Math.round(h*2)/2;
-          document.getElementById("hours").value = Number(h).toFixed(1);
+          document.getElementById("hours").value = Number(Math.round(h*2)/2).toFixed(1);
           setNote("班表讀取失敗：暫用時間推斷估算。最終仍以審核規則為準。");
         }
         return;
@@ -642,31 +623,18 @@
       btn.disabled = true;
       btn.innerText = "送出中...";
 
-      const start = document.getElementById("start").value;
-      let end = document.getElementById("end").value;
+      const sObj = getStartDateTime();
+      const eObj = (cat === "CORRECTION") ? sObj : getEndDateTime();
 
-      if (!start) {
-        alert("請先選擇開始時間");
+      if (!sObj) {
+        alert("請先選擇完整的開始日期與時間");
         btn.disabled = false;
         btn.innerText = "送出申請";
         return;
       }
 
-      if (cat === "CORRECTION") {
-        end = start;
-      } else {
-        if (!end) {
-          alert("請先選擇結束時間");
-          btn.disabled = false;
-          btn.innerText = "送出申請";
-          return;
-        }
-      }
-
-      const sObj = parseLocalInput(start);
-      const eObj = parseLocalInput(end);
-      if(!sObj || !eObj){
-        alert("時間格式不正確，請重新選擇");
+      if (cat !== "CORRECTION" && !eObj) {
+        alert("請先選擇完整的結束日期與時間");
         btn.disabled = false;
         btn.innerText = "送出申請";
         return;
@@ -686,16 +654,14 @@
         (cat === "OT") ? "ot" :
         (cat === "OUTING") ? "outing" : "correction";
 
+      // ✅ 乾淨的 Payload，只傳 Server 需要的標準格式
       const data = {
         category: cat,
         leaveType,
-
-        start: start,
-        end: end,
-
         startServer: toServerDateTimeStr_(sObj),
         endServer: toServerDateTimeStr_(eObj),
-
+        start: toServerDateTimeStr_(sObj), // 向下相容
+        end: toServerDateTimeStr_(eObj),   // 向下相容
         hours,
         reason: document.getElementById("reason").value || "",
         autoClock: (cat === "OUTING") ? !!document.getElementById("autoClock").checked : false,
@@ -724,45 +690,23 @@
     }
 
     /* ==============================
-     * 10) 綁定事件 (抓鬼特製版)
+     * 10) 綁定事件 
      * ============================== */
     (function bindAll() {
-      const startEl = document.getElementById("start");
-      const endEl = document.getElementById("end");
       const catEl = document.getElementById("cat");
       const typeEl = document.getElementById("type");
       const correctionTypeEl = document.getElementById("correctionType");
       const isTripEl = document.getElementById("isTrip");
       const autoClockEl = document.getElementById("autoClock");
-      const hoursEl = document.getElementById("hours");
       const submitBtn = document.getElementById("submitBtn");
 
       const safeRecalc = () => { debounceCalc(); };
 
-      // 🕵️‍♂️ 抓鬼程式碼核心區段：安全監聽，只在 change 跳窗
-      [startEl, endEl].forEach(el => {
-        if (!el) return;
-
-        ["input", "change", "blur"].forEach(evt => {
-          el.addEventListener(evt, (e) => {
-            const v = e.target.value;
-            // 默默把所有動作寫入 Console
-            console.log(`【抓鬼測試】事件=${evt} 欄位=${e.target.id} 值=${v}`);
-
-            // 為了避免 alert 觸發 blur 導致手機無限迴圈當機，只在確認改變 (change) 時跳視窗
-            if (evt === "change") {
-              alert(`【抓鬼測試 驗屍報告】\n欄位：${e.target.id}\n事件：${evt}\n手機底層硬塞給網頁的值：\n${v || "空值"}`);
-              safeRecalc();
-            }
-          });
-        });
+      // ✅ 綁定全新的四個 Date / Time 欄位，乾淨無彈窗
+      ["startDate", "startTime", "endDate", "endTime"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", safeRecalc);
       });
-
-      if(hoursEl) {
-          hoursEl.addEventListener("input", () => {
-              // 防呆
-          });
-      }
 
       catEl.addEventListener("change", async () => {
         toggleType();
@@ -788,8 +732,8 @@
       const now = new Date();
       const base = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0);
-      document.getElementById("start").value = toLocalInputValue(base);
-      document.getElementById("end").value = toLocalInputValue(end);
+      setStartDateTime(base);
+      setEndDateTime(end);
     })();
 
     toggleType();
