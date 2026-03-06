@@ -111,7 +111,7 @@
       <table>
         <thead>
           <tr id="thRow">
-            <th>員工</th>
+            <th>人員</th>
           </tr>
         </thead>
         <tbody id="tbRow">
@@ -265,7 +265,7 @@
         modeTag.textContent = "👑 主管模式（可任意編輯）";
         lockTag.style.display = "none";
       }else{
-        modeTag.textContent = "👤 員工模式";
+        modeTag.textContent = "👤 團員模式";
         lockTag.style.display = "inline-flex";
         lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中`;
       }
@@ -278,7 +278,7 @@
       }
 
       const days = new Date(y, m, 0).getDate();
-      let head = `<th>員工</th>`;
+      let head = `<th>人員</th>`;
       for(let d=1; d<=days; d++){
         const wk = ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
         const isWeekend = (wk==='日' || wk==='六');
