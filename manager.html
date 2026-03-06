@@ -176,21 +176,36 @@
     
     let h = "";
     list.forEach(u => {
-      // 🎯 判斷是否有特休效期，如果有就組裝成漂亮的標籤
       let periodHtml = "";
+      
+      // 手動模式
       if (u.annualEnd === '無期限(手動)') {
-        periodHtml = `<div style="font-size:11px; color:#10B981; margin-top:4px; font-weight:normal;">📅 特休效期：手動設定 (無期限)</div>`;
-      } else if (u.annualStart && u.annualEnd) {
-        periodHtml = `<div style="font-size:11px; color:#8B5CF6; margin-top:4px; font-weight:normal;">📅 特休效期：${u.annualStart} ~ ${u.annualEnd}</div>`;
+        periodHtml = `<div style="font-size:11px; color:#10B981; margin-top:4px; font-weight:normal;">📅 特休模式：手動設定 (無期限)</div>`;
+      } 
+      // 自動算年資模式
+      else if (u.annualStart && u.annualEnd) {
+        
+        let extraLine = "";
+        // 如果有遞延/額外的特休，顯示出來
+        if (u.annualGrant > 0 && u.extraAnnListStr) {
+          extraLine = `<div style="font-size:11px; color:#F59E0B; margin-top:2px; font-weight:normal;">📆 舊有遞延特休：${u.extraAnnListStr}</div>`;
+        }
+
+        // ✅ 完美升級：直接把起迄日「幾號到幾號」完整列出來！
+        periodHtml = `
+          <div style="font-size:11px; color:#8B5CF6; margin-top:4px; font-weight:normal;">📅 本期法定特休：${Number(u.annualTotalH||0)}h （區間：${u.annualStart} ~ ${u.annualEnd}）</div>
+          ${extraLine}
+          <div style="font-size:11px; color:#6B7280; margin-top:2px; font-weight:normal;">💡 本期已休扣除：-${Number(u.annualUse||0)}h （統計區間同上）</div>
+        `;
       }
 
       h += `
-        <div class="stat-row" style="align-items: center;">
-          <div>
-            <div class="stat-name">${u.name || u.empName || u.empId || '未知'}</div>
-            ${periodHtml}
+        <div class="stat-row" style="align-items: flex-start; flex-direction: column; gap: 4px;">
+          <div style="display:flex; justify-content: space-between; width: 100%;">
+            <div class="stat-name" style="font-size: 15px;">${u.name || u.empName || u.empId || '未知'}</div>
+            <div class="stat-val" style="font-weight:900;">總特休: <span style="color:var(--primary); font-size:15px;">${Number(u.annual||0)}</span> h / 補休: ${Number(u.comp||0)} h</div>
           </div>
-          <div class="stat-val" style="font-weight:700;">特休: <span style="color:var(--primary);">${Number(u.annual||0)}</span> h / 補休: ${Number(u.comp||0)} h</div>
+          ${periodHtml}
         </div>`;
     });
     el.innerHTML = h;
