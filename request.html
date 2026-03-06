@@ -19,7 +19,7 @@
       background:#fff; font-size:16px; box-sizing:border-box; -webkit-appearance:none;
     }
     input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.12); }
-    input[readonly] { background: #F3F4F6; color: #6B7280; cursor: not-allowed; } /* 唯讀狀態反灰 */
+    input[readonly] { background: #F3F4F6; color: #6B7280; cursor: not-allowed; } 
     textarea { resize:vertical; min-height:86px; }
 
     .chiprow { display:flex; gap:10px; flex-wrap:wrap; }
@@ -54,10 +54,11 @@
     .nav-item.active { color:var(--primary); }
     .nav-icon { font-size:22px; }
 
-    /* ✅ 日期與時間並排顯示的完美排版 */
-    .datetime-row { display: flex; gap: 8px; }
-    .datetime-row input[type="date"] { flex: 6; }
-    .datetime-row input[type="time"] { flex: 4; }
+    /* ✅ 強制 24 小時制的排版：日期 + 小時選單 + 分鐘選單 */
+    .datetime-row { display: flex; gap: 6px; align-items: center; }
+    .datetime-row input[type="date"] { flex: 5; padding: 10px; }
+    .datetime-row select { flex: 2; padding: 10px; text-align: center; }
+    .time-colon { font-weight: bold; color: #4B5563; }
   </style>
 </head>
 <body>
@@ -105,7 +106,9 @@
       <label id="startLabel">開始時間</label>
       <div class="datetime-row">
         <input type="date" id="startDate">
-        <input type="time" id="startTime">
+        <select id="startHour"></select>
+        <span class="time-colon">:</span>
+        <select id="startMinute"></select>
       </div>
     </div>
 
@@ -113,7 +116,9 @@
       <label>結束時間</label>
       <div class="datetime-row">
         <input type="date" id="endDate">
-        <input type="time" id="endTime">
+        <select id="endHour"></select>
+        <span class="time-colon">:</span>
+        <select id="endMinute"></select>
       </div>
     </div>
 
@@ -161,7 +166,24 @@
     if (!uid) location.href = "index.html";
 
     /* ==============================
-     * 1) API 
+     * 1) 注入自訂 24 小時制選單 (00~23, 00~59)
+     * ============================== */
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function initTimeOptions() {
+      let hHtml = '', mHtml = '';
+      for(let i=0; i<24; i++) hHtml += `<option value="${pad2(i)}">${pad2(i)}</option>`;
+      for(let i=0; i<60; i++) mHtml += `<option value="${pad2(i)}">${pad2(i)}</option>`;
+      
+      document.getElementById('startHour').innerHTML = hHtml;
+      document.getElementById('endHour').innerHTML = hHtml;
+      document.getElementById('startMinute').innerHTML = mHtml;
+      document.getElementById('endMinute').innerHTML = mHtml;
+    }
+    initTimeOptions();
+
+    /* ==============================
+     * 2) API 
      * ============================== */
     async function api(action, data = {}) {
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
@@ -170,92 +192,79 @@
         throw new Error("Missing CONFIG.GAS_ENDPOINT");
       }
 
-      const payloadObj = Object.assign({}, data, {
-        empId: empId || undefined,
-        userId: userId || undefined
-      });
-
+      const payloadObj = Object.assign({}, data, { empId: empId || undefined, userId: userId || undefined });
       if (window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null) {
         payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
       }
 
-      const payloadBody = { action: action, payload: payloadObj };
-
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
-
         const response = await fetch(ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payloadBody),
+          body: JSON.stringify({ action: action, payload: payloadObj }),
           redirect: 'follow',
           signal: controller.signal
         });
-
         clearTimeout(timeoutId);
-
         if (!response.ok) throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
         return await response.json();
-
       } catch (error) {
-        console.error("API 呼叫失敗:", error);
         if (error.name === 'AbortError') throw new Error("網路連線逾時，請稍後再試");
         throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
       }
     }
 
     /* ==============================
-     * 2) 🛠️ 全新時間工具函式 (分離 date/time)
+     * 3) 🛠️ 自訂時間讀取/寫入工具
      * ============================== */
-    function pad2(n) { return String(n).padStart(2, '0'); }
-
     function dateToYmd(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
-    function timeToHm(d){ return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
 
-    function combineDateTime(dateStr, timeStr){
-      if(!dateStr || !timeStr) return null;
-      const m1 = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      const m2 = String(timeStr).match(/^(\d{2}):(\d{2})$/);
-      if(!m1 || !m2) return null;
-
-      const y = Number(m1[1]), mo = Number(m[2]), d = Number(m[3]);
-      const hh = Number(m2[1]), mm = Number(m2[2]);
-
-      const dt = new Date(y, mo - 1, d, hh, mm, 0, 0);
+    function getStartDateTime(){
+      const d = document.getElementById("startDate").value;
+      const h = document.getElementById("startHour").value;
+      const m = document.getElementById("startMinute").value;
+      if(!d || !h || !m) return null;
+      const dt = new Date(`${d}T${h}:${m}:00`);
       return isNaN(dt.getTime()) ? null : dt;
     }
 
-    function getStartDateTime(){
-      return combineDateTime(document.getElementById("startDate").value, document.getElementById("startTime").value);
-    }
-
     function getEndDateTime(){
-      return combineDateTime(document.getElementById("endDate").value, document.getElementById("endTime").value);
+      const d = document.getElementById("endDate").value;
+      const h = document.getElementById("endHour").value;
+      const m = document.getElementById("endMinute").value;
+      if(!d || !h || !m) return null;
+      const dt = new Date(`${d}T${h}:${m}:00`);
+      return isNaN(dt.getTime()) ? null : dt;
     }
 
     function getStartRaw(){
       const d = document.getElementById("startDate").value;
-      const t = document.getElementById("startTime").value;
-      return (d && t) ? `${d}T${t}` : "";
+      const h = document.getElementById("startHour").value;
+      const m = document.getElementById("startMinute").value;
+      return (d && h && m) ? `${d}T${h}:${m}` : "";
     }
 
     function getEndRaw(){
       const d = document.getElementById("endDate").value;
-      const t = document.getElementById("endTime").value;
-      return (d && t) ? `${d}T${t}` : "";
+      const h = document.getElementById("endHour").value;
+      const m = document.getElementById("endMinute").value;
+      return (d && h && m) ? `${d}T${h}:${m}` : "";
     }
 
     function setStartDateTime(dt){
       if(!dt) return;
       document.getElementById("startDate").value = dateToYmd(dt);
-      document.getElementById("startTime").value = timeToHm(dt);
+      document.getElementById("startHour").value = pad2(dt.getHours());
+      document.getElementById("startMinute").value = pad2(dt.getMinutes());
     }
 
     function setEndDateTime(dt){
       if(!dt) return;
       document.getElementById("endDate").value = dateToYmd(dt);
-      document.getElementById("endTime").value = timeToHm(dt);
+      document.getElementById("endHour").value = pad2(dt.getHours());
+      document.getElementById("endMinute").value = pad2(dt.getMinutes());
     }
 
     function sameDay_(a, b) {
@@ -273,7 +282,7 @@
     }
 
     /* ==============================
-     * 3) 前台提示
+     * 4) 前台提示 & UI 切換
      * ============================== */
     const noteBox = document.getElementById("noteBox");
     function setNote(extraText){
@@ -289,12 +298,8 @@
       noteBox.textContent = extraText || "";
     }
 
-    /* ==============================
-     * 4) UI 切換 (包含唯讀保護機制)
-     * ============================== */
     function toggleType() {
       const cat = document.getElementById("cat").value;
-
       const typeGroup = document.getElementById("typeGroup");
       const correctionTypeGroup = document.getElementById("correctionTypeGroup");
       const hoursGroup = document.getElementById("hoursGroup");
@@ -303,7 +308,6 @@
       const startLabel = document.getElementById("startLabel");
       const hoursInput = document.getElementById("hours");
 
-      // ✅ 安全機制：非請假（LEAVE）時，禁止員工手動修改時數
       hoursInput.readOnly = (cat !== "LEAVE");
 
       if (cat === "CORRECTION") {
@@ -314,8 +318,6 @@
         extraGroup.style.display = "none";
         startLabel.textContent = "補卡時間";
         hoursInput.value = "0.0";
-        document.getElementById("endDate").value = "";
-        document.getElementById("endTime").value = "";
       } else if (cat === "OUTING") {
         typeGroup.style.display = "none";
         correctionTypeGroup.style.display = "none";
@@ -338,15 +340,13 @@
         extraGroup.style.display = "none";
         startLabel.textContent = "開始時間";
       }
-
       setNote();
     }
 
     /* ==============================
-     * 5) roster 前端快取 + 班別規則
+     * 5) Roster 班表與計算
      * ============================== */
     const __rosterCache = new Map(); 
-
     function ymKey_(y, m){ return `${y}-${pad2(m)}`; }
 
     function normalizeShiftValue(v){
@@ -367,7 +367,6 @@
     async function getRosterMonth_(y, m){
       const key = ymKey_(y, m);
       if(__rosterCache.has(key)) return __rosterCache.get(key);
-
       const res = await api("get_roster_data", { year:y, month:m });
       const roster = (res && res.ok && res.roster) ? res.roster : {};
       __rosterCache.set(key, roster);
@@ -384,69 +383,41 @@
     async function applyLeaveAutoTimeByRoster(){
       const cat = document.getElementById("cat").value;
       if(cat !== "LEAVE") return;
-
       const s = getStartDateTime();
       if(!s) return;
-
       const y = s.getFullYear(), m = s.getMonth()+1, d = s.getDate();
-
       let shiftKey = null;
       try{
         const roster = await getRosterMonth_(y, m);
         shiftKey = getMyShiftKeyForDay_(roster, d);
       }catch(e){}
-
       if (!shiftKey) shiftKey = (s.getHours() >= 12) ? 'LATE' : 'EARLY';
-
       const rule = getShiftRuleByKey_(shiftKey);
-
-      const startH = rule.off ? 10 : rule.inH;
-      const startM = rule.off ? 0  : (rule.inM||0);
-      const endH   = rule.off ? 18 : rule.outH;
-      const endM   = rule.off ? 0  : (rule.outM||0);
-
-      const ss = new Date(y, m-1, d, startH, startM, 0, 0);
-      const ee = new Date(y, m-1, d, endH, endM, 0, 0);
-      
-      setStartDateTime(ss);
-      setEndDateTime(ee);
-
+      const startH = rule.off ? 10 : rule.inH, startM = rule.off ? 0 : (rule.inM||0);
+      const endH   = rule.off ? 18 : rule.outH, endM   = rule.off ? 0 : (rule.outM||0);
+      setStartDateTime(new Date(y, m-1, d, startH, startM, 0, 0));
+      setEndDateTime(new Date(y, m-1, d, endH, endM, 0, 0));
       await calcHoursSmart_();
     }
 
-    /* ==============================
-     * 6) OT/OUTING：走後端 calc_hours
-     * ============================== */
     let __calcTimer = null;
     let __calcSeq = 0;
 
     async function calcHoursByServer_(){
       const mySeq = ++__calcSeq;
       const cat = document.getElementById("cat").value;
+      if(cat === "CORRECTION"){ document.getElementById("hours").value = "0.0"; return; }
       
-      if(cat === "CORRECTION"){
-        document.getElementById("hours").value = "0.0";
-        return;
-      }
+      const sVal = getStartRaw(); const eVal = getEndRaw();
+      const s = getStartDateTime(); const e = getEndDateTime();
 
-      const sVal = getStartRaw();
-      const eVal = getEndRaw();
-      const s = getStartDateTime();
-      const e = getEndDateTime();
+      if(!s || !e || e <= s){ document.getElementById("hours").value = "0.0"; return; }
 
-      if(!s || !e || e <= s){
-        document.getElementById("hours").value = "0.0";
-        return;
-      }
-
-      const leaveType = (cat === "LEAVE") ? (document.getElementById("type")?.value || "") :
-                       (cat === "OT") ? "ot" :
-                       (cat === "OUTING") ? "outing" : "";
+      const leaveType = (cat === "LEAVE") ? (document.getElementById("type")?.value || "") : (cat === "OT") ? "ot" : (cat === "OUTING") ? "outing" : "";
 
       if(cat === "LEAVE" && leaveType === "birthday" && !sameDay_(s, e)) {
-        setEndDateTime(s); // 生日假強制同一天
-        document.getElementById("hours").value = "0.0";
-        return;
+        setEndDateTime(s); 
+        document.getElementById("hours").value = "0.0"; return;
       }
 
       let fallbackH = calcHoursLocalHalf_(s, e);
@@ -457,18 +428,11 @@
 
       try{
         const res = await api("calc_hours", {
-          start: toServerDateTimeStr_(s),
-          end: toServerDateTimeStr_(e),
-          startServer: toServerDateTimeStr_(s), // ✅ 只吃 Server 格式，不怕底層格式作怪
-          endServer: toServerDateTimeStr_(e),
-          category: cat,
-          leaveType: leaveType,
-          startRaw: sVal,
-          endRaw: eVal
+          start: toServerDateTimeStr_(s), end: toServerDateTimeStr_(e),
+          startServer: toServerDateTimeStr_(s), endServer: toServerDateTimeStr_(e),
+          category: cat, leaveType: leaveType, startRaw: sVal, endRaw: eVal
         });
-
         if (mySeq !== __calcSeq) return;
-
         if(res && res.ok){
           let h = Number(res.hours || 0);
           if(cat === "OUTING"){
@@ -488,38 +452,23 @@
       }
     }
 
-    /* ==============================
-     * 7) 標準 HR overlap 計算（LEAVE 專用）
-     * ============================== */
     function overlapMs_(aStart, aEnd, bStart, bEnd){
-      const s = Math.max(aStart, bStart);
-      const e = Math.min(aEnd, bEnd);
+      const s = Math.max(aStart, bStart), e = Math.min(aEnd, bEnd);
       return Math.max(0, e - s);
     }
 
     function dayStart_(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0); }
-
-    function addDays_(d, n){
-      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0);
-      x.setDate(x.getDate() + n);
-      return x;
-    }
+    function addDays_(d, n){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0); x.setDate(x.getDate() + n); return x; }
 
     function calcLeaveHoursOneDay_(dateYMD, leaveStart, leaveEnd, rule){
       if(rule.off) return 0;
-
       const y = dateYMD.getFullYear(), m = dateYMD.getMonth(), d = dateYMD.getDate();
       const shiftStart = new Date(y, m, d, rule.inH,  rule.inM||0,  0, 0).getTime();
       const shiftEnd   = new Date(y, m, d, rule.outH, rule.outM||0, 0, 0).getTime();
-
-      const reqStart = leaveStart.getTime();
-      const reqEnd   = leaveEnd.getTime();
-
+      const reqStart = leaveStart.getTime(), reqEnd   = leaveEnd.getTime();
       const workMs = overlapMs_(reqStart, reqEnd, shiftStart, shiftEnd);
       if(workMs <= 0) return 0;
-
       let ms = workMs;
-
       if(rule.breakStartH || rule.breakEndH){
         const bStart = new Date(y, m, d, rule.breakStartH||0, rule.breakStartM||0, 0, 0).getTime();
         const bEnd   = new Date(y, m, d, rule.breakEndH||0,   rule.breakEndM||0,   0, 0).getTime();
@@ -528,83 +477,59 @@
           ms -= breakMs;
         }
       }
-
-      const h = ms / 36e5;
-      return Math.max(0, Math.round(h * 2) / 2);
+      return Math.max(0, Math.round((ms / 36e5) * 2) / 2);
     }
 
     async function calcLeaveHoursByRoster_(s, e){
       if(!s || !e || e <= s) return 0;
       let total = 0;
       const startDay = dayStart_(s), endDay = dayStart_(e);
-
       for(let cur = new Date(startDay); cur <= endDay; cur = addDays_(cur, 1)){
         const dayS = cur.getTime(), dayE = addDays_(cur, 1).getTime();
         const segStart = new Date(Math.max(s.getTime(), dayS));
         const segEnd   = new Date(Math.min(e.getTime(), dayE));
         if(segEnd <= segStart) continue;
-
         const y = cur.getFullYear(), m = cur.getMonth()+1, d = cur.getDate();
         let shiftKey = null;
         try{
             const roster = await getRosterMonth_(y, m);
             shiftKey = getMyShiftKeyForDay_(roster, d);
         }catch(err){}
-
         if (!shiftKey) shiftKey = (segStart.getHours() >= 12) ? 'LATE' : 'EARLY';
-
         const rule = getShiftRuleByKey_(shiftKey);
         total += calcLeaveHoursOneDay_(cur, segStart, segEnd, rule);
       }
       return Math.max(0, Math.round(total * 2) / 2);
     }
 
-    /* ==============================
-     * 8) Smart 計算
-     * ============================== */
     async function calcHoursSmart_(){
       const cat = document.getElementById("cat").value;
-
-      if(cat === "CORRECTION"){
-        document.getElementById("hours").value = "0.0";
-        return;
-      }
-
-      const s = getStartDateTime();
-      const e = getEndDateTime();
-      if(!s || !e || e <= s){
-        document.getElementById("hours").value = "0.0";
-        return;
-      }
+      if(cat === "CORRECTION"){ document.getElementById("hours").value = "0.0"; return; }
+      const s = getStartDateTime(); const e = getEndDateTime();
+      if(!s || !e || e <= s){ document.getElementById("hours").value = "0.0"; return; }
 
       if(cat === "LEAVE"){
         const leaveType = document.getElementById("type")?.value || "";
-
         if(leaveType === "birthday" && !sameDay_(s, e)){
-          setEndDateTime(s);
-          document.getElementById("hours").value = "0.0";
-          return;
+          setEndDateTime(s); document.getElementById("hours").value = "0.0"; return;
         }
-
         try{
           const h = await calcLeaveHoursByRoster_(s, e);
           document.getElementById("hours").value = Number(h).toFixed(1);
-          setNote("請假：以「請假∩班別」扣除「休息重疊」計算（午班 16:00–17:00 會自動扣除）。");
+          setNote("請假：以「請假∩班別」扣除「休息重疊」計算。");
         }catch(err){
           const rule = getShiftRuleByKey_(s.getHours() >= 12 ? 'LATE' : 'EARLY');
           let h = 0;
           for(let cur = dayStart_(s); cur <= dayStart_(e); cur = addDays_(cur,1)){
             const dayS = cur.getTime(), dayE = addDays_(cur,1).getTime();
-            const segStart = new Date(Math.max(s.getTime(), dayS));
-            const segEnd   = new Date(Math.min(e.getTime(), dayE));
+            const segStart = new Date(Math.max(s.getTime(), dayS)), segEnd = new Date(Math.min(e.getTime(), dayE));
             if(segEnd > segStart) h += calcLeaveHoursOneDay_(cur, segStart, segEnd, rule);
           }
           document.getElementById("hours").value = Number(Math.round(h*2)/2).toFixed(1);
-          setNote("班表讀取失敗：暫用時間推斷估算。最終仍以審核規則為準。");
+          setNote("班表讀取失敗：暫用時間推斷估算。");
         }
         return;
       }
-
       await calcHoursByServer_();
     }
 
@@ -614,83 +539,47 @@
     }
 
     /* ==============================
-     * 9) 送出申請
+     * 6) 送出申請
      * ============================== */
     async function submitReq() {
       const btn = document.getElementById("submitBtn");
       const cat = document.getElementById("cat").value;
-
-      btn.disabled = true;
-      btn.innerText = "送出中...";
+      btn.disabled = true; btn.innerText = "送出中...";
 
       const sObj = getStartDateTime();
       const eObj = (cat === "CORRECTION") ? sObj : getEndDateTime();
 
-      if (!sObj) {
-        alert("請先選擇完整的開始日期與時間");
-        btn.disabled = false;
-        btn.innerText = "送出申請";
-        return;
-      }
-
-      if (cat !== "CORRECTION" && !eObj) {
-        alert("請先選擇完整的結束日期與時間");
-        btn.disabled = false;
-        btn.innerText = "送出申請";
-        return;
-      }
+      if (!sObj) { alert("請先選擇完整的開始日期與時間"); btn.disabled = false; btn.innerText = "送出申請"; return; }
+      if (cat !== "CORRECTION" && !eObj) { alert("請先選擇完整的結束日期與時間"); btn.disabled = false; btn.innerText = "送出申請"; return; }
 
       const hours = (cat === "CORRECTION") ? 0 : Number(document.getElementById("hours").value || 0);
-
       if (cat !== "CORRECTION" && hours <= 0) {
-        alert("時數不正確：請確認開始/結束時間（若剛好落在休息時間，會算 0 並禁止送出）");
-        btn.disabled = false;
-        btn.innerText = "送出申請";
-        return;
+        alert("時數不正確：請確認開始/結束時間"); btn.disabled = false; btn.innerText = "送出申請"; return;
       }
 
-      const leaveType =
-        (cat === "LEAVE") ? document.getElementById("type").value :
-        (cat === "OT") ? "ot" :
-        (cat === "OUTING") ? "outing" : "correction";
+      const leaveType = (cat === "LEAVE") ? document.getElementById("type").value : (cat === "OT") ? "ot" : (cat === "OUTING") ? "outing" : "correction";
 
-      // ✅ 乾淨的 Payload，只傳 Server 需要的標準格式
       const data = {
-        category: cat,
-        leaveType,
-        startServer: toServerDateTimeStr_(sObj),
-        endServer: toServerDateTimeStr_(eObj),
-        start: toServerDateTimeStr_(sObj), // 向下相容
-        end: toServerDateTimeStr_(eObj),   // 向下相容
-        hours,
-        reason: document.getElementById("reason").value || "",
+        category: cat, leaveType,
+        startServer: toServerDateTimeStr_(sObj), endServer: toServerDateTimeStr_(eObj),
+        start: toServerDateTimeStr_(sObj), end: toServerDateTimeStr_(eObj), 
+        hours, reason: document.getElementById("reason").value || "",
         autoClock: (cat === "OUTING") ? !!document.getElementById("autoClock").checked : false,
         isTrip: (cat === "OUTING") ? !!document.getElementById("isTrip").checked : false
       };
-
-      if (cat === "CORRECTION") {
-        data.correctionType = document.getElementById("correctionType").value;
-      }
+      if (cat === "CORRECTION") data.correctionType = document.getElementById("correctionType").value;
 
       try {
         const res = await api("submit_request", data);
-        if (res && res.ok) {
-          alert("申請成功！");
-          location.href = "history.html";
-        } else {
-          alert("失敗：" + (res && res.message ? res.message : "unknown"));
-          btn.disabled = false;
-          btn.innerText = "送出申請";
-        }
+        if (res && res.ok) { alert("申請成功！"); location.href = "history.html"; } 
+        else { alert("失敗：" + (res && res.message ? res.message : "unknown")); btn.disabled = false; btn.innerText = "送出申請"; }
       } catch (e) {
-        alert("網路或伺服器逾時，請稍後重試");
-        btn.disabled = false;
-        btn.innerText = "送出申請";
+        alert("網路或伺服器逾時，請稍後重試"); btn.disabled = false; btn.innerText = "送出申請";
       }
     }
 
     /* ==============================
-     * 10) 綁定事件 
+     * 7) 綁定事件 
      * ============================== */
     (function bindAll() {
       const catEl = document.getElementById("cat");
@@ -702,19 +591,16 @@
 
       const safeRecalc = () => { debounceCalc(); };
 
-      // ✅ 綁定全新的四個 Date / Time 欄位，乾淨無彈窗
-      ["startDate", "startTime", "endDate", "endTime"].forEach(id => {
+      // 綁定全新的日期、小時、分鐘選單
+      ["startDate", "startHour", "startMinute", "endDate", "endHour", "endMinute"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener("change", safeRecalc);
       });
 
       catEl.addEventListener("change", async () => {
         toggleType();
-        if (document.getElementById("cat").value === "LEAVE") {
-          await applyLeaveAutoTimeByRoster(); 
-        } else {
-          debounceCalc();
-        }
+        if (document.getElementById("cat").value === "LEAVE") await applyLeaveAutoTimeByRoster(); 
+        else debounceCalc();
       });
 
       if(typeEl) typeEl.addEventListener("change", () => debounceCalc());
@@ -726,14 +612,12 @@
     })();
 
     /* ==============================
-     * 11) 初始化：預設今天 10:00-18:00
+     * 8) 初始化預設時間 
      * ============================== */
     (function initDefaultTime() {
       const now = new Date();
-      const base = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0, 0);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0);
-      setStartDateTime(base);
-      setEndDateTime(end);
+      setStartDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0, 0));
+      setEndDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0));
     })();
 
     toggleType();
