@@ -170,7 +170,7 @@
     return typeName || '申請';
   }
 
-  function renderStats(list) {
+ function renderStats(list) {
     const el = document.getElementById("teamStats");
     if (!list || list.length === 0) { el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">無資料</div>'; return; }
     
@@ -191,7 +191,6 @@
           extraLine = `<div style="font-size:11px; color:#F59E0B; margin-top:2px; font-weight:normal;">📆 舊有遞延特休：${u.extraAnnListStr}</div>`;
         }
 
-        // ✅ 完美升級：直接把起迄日「幾號到幾號」完整列出來！
         periodHtml = `
           <div style="font-size:11px; color:#8B5CF6; margin-top:4px; font-weight:normal;">📅 本期法定特休：${Number(u.annualTotalH||0)}h （區間：${u.annualStart} ~ ${u.annualEnd}）</div>
           ${extraLine}
