@@ -583,6 +583,7 @@
         let sc = { cls:'warn', label:'待審' };
         if(st === 'APPROVED') sc = { cls:'ok', label:'核准' };
         if(st === 'REJECTED') sc = { cls:'danger', label:'駁回' };
+        if(st === 'CANCELLED') sc = { cls:'danger', label:'已取消' };
 
         const s = r._tpeStart || formatDT(r.startStr || r.start || r.startIso);
         const e = r._tpeEnd   || formatDT(r.endStr   || r.end   || r.endIso);
