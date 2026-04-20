@@ -427,7 +427,6 @@
     async function fetchReq(y, m, targetEmpId, force, key) {
       if (!force && reqCache[key]) {
         renderReqUI();
-      if(st === 'CANCELLED') sc = { cls:'danger', label:'已取消' };
         return;
       }
 
