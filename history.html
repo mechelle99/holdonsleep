@@ -53,6 +53,34 @@
     .meta{ font-size: 13px; color: var(--muted); line-height: 1.6; font-weight: 700; word-break: break-word; }
     .empty{ text-align:center; padding: 30px 20px; color: #9CA3AF; font-weight: 900; background: rgba(255,255,255,.6); border: 2px dashed rgba(17,24,39,.08); border-radius: 18px; font-size: 14px;}
 
+    .req-actions{
+      margin-top: 12px;
+      display:flex;
+      justify-content:flex-end;
+    }
+
+    .btn-cancel{
+      border:none;
+      background:#FEE2E2;
+      color:#B91C1C;
+      border-radius:12px;
+      padding:10px 14px;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow: var(--shadow2);
+    }
+
+    .btn-cancel:active{
+      transform: scale(.97);
+    }
+
+    .btn-cancel:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+      transform:none;
+    }
+
     .nav{ position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 18px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-top-left-radius: 26px; border-top-right-radius: 26px; box-shadow: 0 -10px 30px rgba(17,24,39,.08); display:flex; justify-content: space-around; z-index: 1000; }
     .nav-item{ text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; gap: 4px; font-size: 10px; font-weight: 900; }
     .nav-item.active{ color: var(--primary); } .nav-icon{ font-size: 22px; }
@@ -160,7 +188,8 @@
 
     function toast(msg){
       const el = document.getElementById("toast");
-      el.textContent = msg; el.style.display = "block";
+      el.textContent = msg;
+      el.style.display = "block";
       clearTimeout(window.__toastTimer);
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
@@ -200,25 +229,20 @@
       }
     }
 
-    // =========================================================
-    // ✅ 時區修復核心：任何輸入 -> 先轉「UTC毫秒」-> 固定輸出台北時間
-    // =========================================================
     const TPE_OFFSET_MS = 8 * 60 * 60 * 1000;
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    // 台北本地時間 -> UTC ms（不吃手機時區）
     function parseTaipeiLocalToUtcMs_(y, mo, d, hh, mm, ss, ms){
       return Date.UTC(y, mo-1, d, (hh||0) - 8, mm||0, ss||0, ms||0);
     }
 
-    // 任何輸入 -> UTC ms
     function parseAnyToUtcMs(v){
       if(v === null || v === undefined || v === '') return NaN;
 
       if (typeof v === 'number' && isFinite(v)) {
-        if (v < 1e12) return v * 1000; // 10位
-        return v; // 13位
+        if (v < 1e12) return v * 1000;
+        return v;
       }
 
       const s = String(v).trim();
@@ -227,13 +251,11 @@
       if (/^\d{13}$/.test(s)) return Number(s);
       if (/^\d{10}$/.test(s)) return Number(s) * 1000;
 
-      // ISO 有 Z 或 offset
       if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s) || /[+\-]\d{4}$/.test(s)) {
         const ms = Date.parse(s);
         return isNaN(ms) ? NaN : ms;
       }
 
-      // ISO 無時區：當成 UTC（這就是你現在顯示 02:00 的來源，必須 +8 才對）
       let m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
       if (m) {
         const y = +m[1], mo = +m[2], d = +m[3];
@@ -241,13 +263,11 @@
         return Date.UTC(y, mo-1, d, hh, mi, ss, 0);
       }
 
-      // 台北字串：YYYY/MM/DD HH:mm:ss 或 YYYY-MM-DD HH:mm:ss（視為台北本地，不再轉）
       m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if (m) {
         return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      // 只有日期：當台北 00:00
       m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
       if (m) {
         return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], 0, 0, 0, 0);
@@ -256,7 +276,6 @@
       return NaN;
     }
 
-    // UTC ms -> 台北時間字串（完全無視手機時區）
     function formatUtcMsToTpe_(ms){
       if(!isFinite(ms)) return '—';
       const tw = new Date(ms + TPE_OFFSET_MS);
@@ -268,13 +287,11 @@
       return `${y}-${mo}-${d} ${hh}:${mm}`;
     }
 
-    // 顯示用：任何輸入 -> 台北顯示
     function formatDT(v){
       const ms = parseAnyToUtcMs(v);
       return formatUtcMsToTpe_(ms);
     }
 
-    // ✅ 月份判斷：用台北月份界線（轉成 UTC ms 來比）
     function overlapsMonth(start, end, y, m){
       const sMs = parseAnyToUtcMs(start);
       if(!isFinite(sMs)) return false;
@@ -282,7 +299,7 @@
       const eMs = isFinite(eParsed) ? eParsed : sMs;
 
       const monthStartUtc = parseTaipeiLocalToUtcMs_(y, m, 1, 0, 0, 0, 0);
-      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate(); // 該月最後一天
+      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
       const monthEndUtc = parseTaipeiLocalToUtcMs_(y, m, lastDay, 23, 59, 59, 999);
 
       return (eMs >= monthStartUtc) && (sMs <= monthEndUtc);
@@ -304,7 +321,9 @@
       if (mVal) {
         [y, m] = mVal.split('-').map(Number);
       } else {
-        const d = new Date(); y = d.getFullYear(); m = d.getMonth() + 1;
+        const d = new Date();
+        y = d.getFullYear();
+        m = d.getMonth() + 1;
         document.getElementById("monthPick").value = `${y}-${pad2(m)}`;
       }
 
@@ -326,21 +345,26 @@
       const tabAtt = document.getElementById("tabAtt"), tabReq = document.getElementById("tabReq");
       const pAtt = document.getElementById("panelAtt"), pReq = document.getElementById("panelReq");
       if(tab === 'req'){
-        tabReq.classList.add("active"); tabAtt.classList.remove("active");
-        pReq.classList.add("active"); pAtt.classList.remove("active");
+        tabReq.classList.add("active");
+        tabAtt.classList.remove("active");
+        pReq.classList.add("active");
+        pAtt.classList.remove("active");
       }else{
-        tabAtt.classList.add("active"); tabReq.classList.remove("active");
-        pAtt.classList.add("active"); pReq.classList.remove("active");
+        tabAtt.classList.add("active");
+        tabReq.classList.remove("active");
+        pAtt.classList.add("active");
+        pReq.classList.remove("active");
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    function onFilterChange() { reloadAll(false); }
+    function onFilterChange() {
+      reloadAll(false);
+    }
+
     function onRefreshClick() {
-      // ✅ 強制清掉前端 cache，避免你以為沒改到
       Object.keys(attCache).forEach(k => delete attCache[k]);
       Object.keys(reqCache).forEach(k => delete reqCache[k]);
-
       reloadAll(true);
       toast("重新拉取最新資料...");
     }
@@ -356,7 +380,10 @@
     }
 
     async function fetchAtt(y, m, targetEmpId, force, key) {
-      if (!force && attCache[key]) { renderAttUI(attCache[key]); return; }
+      if (!force && attCache[key]) {
+        renderAttUI(attCache[key]);
+        return;
+      }
 
       document.getElementById("attList").innerHTML = `<div class="empty">☁️ 向伺服器調閱打卡紀錄中...</div>`;
       try {
@@ -378,7 +405,6 @@
       }
     }
 
-    // ✅ 這裡是關鍵：把後端回來的時間「先轉成台北字串」再塞進 cache
     function normalizeReqRow_(r){
       const startRaw = r.startStr || r.start || r.startIso || r.startAt || r.from || '';
       const endRaw   = r.endStr   || r.end   || r.endIso   || r.endAt   || r.to   || '';
@@ -389,26 +415,28 @@
       const createdMs = parseAnyToUtcMs(createdRaw);
 
       return Object.assign({}, r, {
-        // 給 UI 用的「已經是台北」字串
         _tpeStart: formatUtcMsToTpe_(startMs),
         _tpeEnd:   formatUtcMsToTpe_(isFinite(endMs) ? endMs : startMs),
         _tpeCreated: formatUtcMsToTpe_(createdMs),
-
-        // 給 overlapsMonth 用的 UTC ms（不吃手機時區）
         _startUtcMs: startMs,
         _endUtcMs: isFinite(endMs) ? endMs : startMs
       });
     }
 
     async function fetchReq(y, m, targetEmpId, force, key) {
-      if (!force && reqCache[key]) { renderReqUI(); return; }
+      if (!force && reqCache[key]) {
+        renderReqUI();
+        return;
+      }
 
       document.getElementById("reqList").innerHTML = `<div class="empty">☁️ 向伺服器調閱申請單中...</div>`;
       try {
         let res;
         if (targetEmpId && isManager) {
           res = await api("list_requests", { isManagerView: true, year: y, month: m, noCache: force });
-          if (res && res.ok && res.list) res.list = res.list.filter(r => String(r.empId).toLowerCase() === targetEmpId.toLowerCase());
+          if (res && res.ok && res.list) {
+            res.list = res.list.filter(r => String(r.empId).toLowerCase() === targetEmpId.toLowerCase());
+          }
         } else {
           res = await api("list_requests", { isManagerView: false, year: y, month: m, noCache: force });
         }
@@ -418,6 +446,31 @@
         renderReqUI();
       } catch (e) {
         document.getElementById("reqList").innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗</div>`;
+      }
+    }
+
+    async function cancelRequest(reqId){
+      if(!reqId){
+        toast("缺少申請單號");
+        return;
+      }
+
+      const ok = confirm("確定要取消這筆申請嗎？");
+      if(!ok) return;
+
+      try{
+        const res = await api("cancel_request", { reqId });
+        if(res && res.ok){
+          toast("已取消申請");
+          const state = getFilterState();
+          delete reqCache[state.key];
+          await fetchReq(state.y, state.m, state.targetEmpId, true, state.key);
+          calcCombinedStats(state);
+        }else{
+          toast((res && res.message) ? res.message : "取消失敗");
+        }
+      }catch(e){
+        toast(e.message || "取消失敗");
       }
     }
 
@@ -467,7 +520,10 @@
       document.getElementById("attCount").textContent = `${list.length} 筆`;
       document.getElementById("attCountTop").textContent = `${list.length}`;
 
-      if(list.length === 0){ el.innerHTML = `<div class="empty">📭 這個月沒有任何出勤紀錄</div>`; return; }
+      if(list.length === 0){
+        el.innerHTML = `<div class="empty">📭 這個月沒有任何出勤紀錄</div>`;
+        return;
+      }
 
       el.innerHTML = list.map(r => {
         const hasIn = r.in !== '--:--', hasOut = r.out !== '--:--';
@@ -511,16 +567,20 @@
       const totalMonthCount = list.filter(r => overlapsMonth(r._startUtcMs, r._endUtcMs, state.y, state.m)).length;
       document.getElementById("reqCountTop").textContent = `${totalMonthCount}`;
 
-      if(filtered.length === 0){ el.innerHTML = `<div class="empty">📭 沒有符合狀態的申請單</div>`; return; }
+      if(filtered.length === 0){
+        el.innerHTML = `<div class="empty">📭 沒有符合狀態的申請單</div>`;
+        return;
+      }
 
       el.innerHTML = filtered.map(r => {
         let st = String(r.status||'').trim().toUpperCase();
+        if(!st) st = "PENDING";
         if(st.includes("核准")) st = "APPROVED";
         if(st.includes("駁回")) st = "REJECTED";
 
         let sc = { cls:'warn', label:'待審' };
-        if(st==='APPROVED') sc = { cls:'ok', label:'核准' };
-        if(st==='REJECTED') sc = { cls:'danger', label:'駁回' };
+        if(st === 'APPROVED') sc = { cls:'ok', label:'核准' };
+        if(st === 'REJECTED') sc = { cls:'danger', label:'駁回' };
 
         const s = r._tpeStart || formatDT(r.startStr || r.start || r.startIso);
         const e = r._tpeEnd   || formatDT(r.endStr   || r.end   || r.endIso);
@@ -531,11 +591,16 @@
         let timeLine = `日期：${s}`;
         if(e && e !== '—' && e !== s) timeLine = `開始：${s}<br>結束：${e}`;
 
-        const cat = String(r.category||'').toUpperCase(), lt = String(r.leaveType||'').toLowerCase();
+        const cat = String(r.category||'').toUpperCase();
+        const lt = String(r.leaveType||'').toLowerCase();
+
         let typeName = (r.leaveType || r.category || '申請') + "";
         if(cat==='CORRECTION' || lt.includes('correction') || lt.includes('補卡')) typeName = '補卡';
         if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) typeName = '外出';
         if(cat==='OT' || lt==='ot' || lt.includes('加班')) typeName = '加班';
+
+        const reqId = r.reqId || r.requestId || "";
+        const canCancel = (!isManager) && st === "PENDING" && !!reqId;
 
         return `
           <div class="item ${sc.cls}">
@@ -549,6 +614,12 @@
               </div>
               <span class="badge ${sc.cls}">${sc.label}</span>
             </div>
+
+            ${canCancel ? `
+              <div class="req-actions">
+                <button type="button" class="btn-cancel" data-reqid="${escapeHtml(reqId)}">取消申請</button>
+              </div>
+            ` : ``}
           </div>
         `;
       }).join("");
@@ -557,16 +628,30 @@
     function attStatusBadge(tag){
       const t = String(tag||'').trim().toLowerCase();
       let label = t || '—';
-      if(t==='annual') label='特休'; if(t==='sick') label='病假'; if(t==='personal') label='事假';
-      if(t==='birthday') label='生日假'; if(t==='comp') label='補休'; if(t==='outing') label='外出';
-      if(t==='ot') label='加班'; if(t==='correction') label='補卡';
-      if(t==='in') label='上班中'; if(t==='out') label='已下班';
+      if(t==='annual') label='特休';
+      if(t==='sick') label='病假';
+      if(t==='personal') label='事假';
+      if(t==='birthday') label='生日假';
+      if(t==='comp') label='補休';
+      if(t==='outing') label='外出';
+      if(t==='ot') label='加班';
+      if(t==='correction') label='補卡';
+      if(t==='in') label='上班中';
+      if(t==='out') label='已下班';
 
       if(label.includes('上班中') || label.includes('正常') || label.includes('已下班') || label.includes('加班')) return { cls:'ok', label };
       if(label.includes('休') || label.includes('假') || label.includes('外出') || label.includes('遲到') || label.includes('早退')) return { cls:'warn', label };
       if(label.includes('曠職') || label.includes('缺卡') || label.includes('未打卡')) return { cls:'danger', label };
       return { cls:'warn', label };
     }
+
+    document.addEventListener("click", function(e){
+      const btn = e.target.closest(".btn-cancel");
+      if(!btn) return;
+
+      const reqId = btn.dataset.reqid || "";
+      cancelRequest(reqId);
+    });
 
     document.getElementById("monthPick").value = `${new Date().getFullYear()}-${pad2(new Date().getMonth()+1)}`;
     reloadAll(false);
