@@ -141,6 +141,7 @@
         <option value="PENDING">待審</option>
         <option value="APPROVED">核准</option>
         <option value="REJECTED">駁回</option>
+        <option value="CANCELLED">已取消</option>
       </select>
     </div>
 
@@ -426,6 +427,7 @@
     async function fetchReq(y, m, targetEmpId, force, key) {
       if (!force && reqCache[key]) {
         renderReqUI();
+      if(st === 'CANCELLED') sc = { cls:'danger', label:'已取消' };
         return;
       }
 
